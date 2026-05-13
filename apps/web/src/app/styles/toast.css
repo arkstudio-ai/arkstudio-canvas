@@ -1,0 +1,82 @@
+/**
+ * Sonner toast theming for the dark canvas.
+ *
+ * Restrained "reconnecting strip" aesthetic: a single neutral dark
+ * background (matching the canvas nodes) with no colored border. The only
+ * hue comes from the title text + icon, which use the Material 3 dark
+ * "on-container" tones so each type stays scannable without flooding the
+ * screen with saturated color.
+ *
+ * Tokens (M3 dark on-container):
+ *   error:   #FFB4AB
+ *   success: #9BE39A
+ *   warning: #E6C893
+ *   info:    #A8C7FA
+ *
+ * Description text falls back to a neutral white-alpha so the colored
+ * title carries the semantic weight on its own.
+ */
+
+[data-sonner-toaster] {
+  --sonner-toast-radius: 10px;
+}
+
+[data-sonner-toast] {
+  border-radius: var(--sonner-toast-radius);
+  border: none;
+  background: #1a1a1a !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+[data-sonner-toast] [data-description] {
+  color: rgba(255, 255, 255, 0.55) !important;
+}
+
+/* error */
+[data-sonner-toast][data-type='error'] {
+  color: #FFB4AB !important;
+}
+[data-sonner-toast][data-type='error'] [data-icon] {
+  color: #FFB4AB !important;
+}
+
+/* success */
+[data-sonner-toast][data-type='success'] {
+  color: #9BE39A !important;
+}
+[data-sonner-toast][data-type='success'] [data-icon] {
+  color: #9BE39A !important;
+}
+
+/* warning */
+[data-sonner-toast][data-type='warning'] {
+  color: #E6C893 !important;
+}
+[data-sonner-toast][data-type='warning'] [data-icon] {
+  color: #E6C893 !important;
+}
+
+/* info / default */
+[data-sonner-toast][data-type='info'],
+[data-sonner-toast][data-type='default'] {
+  color: #A8C7FA !important;
+}
+[data-sonner-toast][data-type='info'] [data-icon],
+[data-sonner-toast][data-type='default'] [data-icon] {
+  color: #A8C7FA !important;
+}
+
+/* action button - inherit toast hue but solid enough for click affordance */
+[data-sonner-toast] [data-button] {
+  background: transparent !important;
+  border: 1px solid currentColor !important;
+  color: inherit !important;
+  opacity: 0.85;
+}
+[data-sonner-toast] [data-button]:hover {
+  opacity: 1;
+}

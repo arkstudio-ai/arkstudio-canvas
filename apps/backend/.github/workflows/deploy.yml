@@ -1,0 +1,217 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ "master", "dev" ]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: canvas-flow-backend
+  CONTAINER_NAME: canvas-flow-backend
+
+jobs:
+  # ==========================================
+  # 构建镜像并推送到 TCR
+  # ==========================================
+  build:
+    runs-on: self-hosted
+    outputs:
+      image_name: ${{ steps.build.outputs.image_name }}
+      target_env: ${{ steps.vars.outputs.target_env }}
+    
+    steps:
+      - name: Cleanup old files
+        run: |
+          rm -f /home/actions-runner/run.sh || true
+          echo "Cleanup completed"
+      
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set Environment Variables
+        id: vars
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+            echo "TAG=prod" >> $GITHUB_ENV
+            echo "target_env=prod" >> $GITHUB_OUTPUT
+          else
+            echo "TAG=test" >> $GITHUB_ENV
+            echo "target_env=test" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Login to Tencent Registry
+        run: |
+          echo "${{ secrets.TCR_PASSWORD }}" | docker login ${{ secrets.TCR_REGISTRY }} -u "${{ secrets.TCR_USERNAME }}" --password-stdin
+
+      - name: Build and Push Docker Image
+        id: build
+        run: |
+          FULL_IMAGE_NAME="${{ secrets.TCR_REGISTRY }}/${{ secrets.TCR_NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}"
+          echo "Building and Pushing $FULL_IMAGE_NAME"
+          
+          docker build -t $FULL_IMAGE_NAME .
+          
+          # 推送镜像（带重试机制）
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          until docker push $FULL_IMAGE_NAME; do
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+              echo "Push failed after $MAX_RETRIES attempts"
+              exit 1
+            fi
+            echo "Push failed, retrying in 10 seconds... (attempt $RETRY_COUNT/$MAX_RETRIES)"
+            sleep 10
+          done
+          
+          echo "image_name=$FULL_IMAGE_NAME" >> $GITHUB_OUTPUT
+          
+          # 清理本地镜像
+          docker image prune -f
+
+  # ==========================================
+  # 部署到国内服务器 (正式环境 - master 分支)
+  # ==========================================
+  deploy-china:
+    needs: build
+    if: needs.build.outputs.target_env == 'prod'
+    runs-on: [self-hosted, china]
+    
+    steps:
+      - name: Cleanup workspace
+        run: |
+          cd /home/actions-runner
+          rm -f run.sh ls || true
+          echo "Cleanup completed"
+          
+      - name: Deploy to China (Prod)
+        run: |
+          echo "Deploying to China (Prod)..."
+          
+          FULL_IMAGE_NAME="${{ secrets.TCR_REGISTRY }}/${{ secrets.TCR_NAMESPACE }}/${{ env.IMAGE_NAME }}:prod"
+          echo "Image: $FULL_IMAGE_NAME"
+          
+          # 登录 TCR
+          echo "${{ secrets.TCR_PASSWORD }}" | docker login ${{ secrets.TCR_REGISTRY }} -u "${{ secrets.TCR_USERNAME }}" --password-stdin
+          
+          # 拉取最新镜像
+          docker pull $FULL_IMAGE_NAME
+          
+          # 生成 .env 文件
+          echo "${{ secrets.ENV_PROD }}" > /tmp/canvas-flow-backend.env
+          
+          # 停止旧容器
+          docker stop ${{ env.CONTAINER_NAME }} || true
+          docker rm ${{ env.CONTAINER_NAME }} || true
+          
+          # 启动新容器
+          docker run -d \
+            --name ${{ env.CONTAINER_NAME }} \
+            --restart unless-stopped \
+            --network host \
+            --env-file /tmp/canvas-flow-backend.env \
+            $FULL_IMAGE_NAME
+            
+          # 清理
+          docker image prune -f
+          rm -f /tmp/canvas-flow-backend.env
+            
+          echo "China Deployment Success!"
+
+  # ==========================================
+  # 部署到曼谷服务器 (正式环境 - master 分支)
+  # ==========================================
+  deploy-bangkok:
+    needs: build
+    if: needs.build.outputs.target_env == 'prod'
+    runs-on: [self-hosted, bangkok]
+    
+    steps:
+      - name: Cleanup workspace
+        run: |
+          rm -rf $GITHUB_WORKSPACE/* || true
+          echo "Cleanup completed"
+          
+      - name: Deploy to Bangkok (Prod)
+        run: |
+          echo "Deploying to Bangkok (Prod)..."
+          
+          FULL_IMAGE_NAME="${{ secrets.TCR_REGISTRY }}/${{ secrets.TCR_NAMESPACE }}/${{ env.IMAGE_NAME }}:prod"
+          echo "Image: $FULL_IMAGE_NAME"
+          
+          # 登录 TCR
+          echo "${{ secrets.TCR_PASSWORD }}" | docker login ${{ secrets.TCR_REGISTRY }} -u "${{ secrets.TCR_USERNAME }}" --password-stdin
+          
+          # 拉取最新镜像
+          docker pull $FULL_IMAGE_NAME
+          
+          # 生成 .env 文件
+          echo "${{ secrets.ENV_PROD_INTL }}" > /tmp/canvas-flow-backend.env
+          
+          # 停止旧容器
+          docker stop ${{ env.CONTAINER_NAME }} || true
+          docker rm ${{ env.CONTAINER_NAME }} || true
+          
+          # 启动新容器
+          docker run -d \
+            --name ${{ env.CONTAINER_NAME }} \
+            --restart unless-stopped \
+            --network host \
+            --env-file /tmp/canvas-flow-backend.env \
+            $FULL_IMAGE_NAME
+            
+          # 清理
+          docker image prune -f
+          rm -f /tmp/canvas-flow-backend.env
+            
+          echo "Bangkok Deployment Success!"
+
+  # ==========================================
+  # 部署到测试环境 (dev 分支，SSH 远程)
+  # ==========================================
+  deploy-test:
+    needs: build
+    if: needs.build.outputs.target_env == 'test'
+    runs-on: self-hosted
+    
+    steps:
+      - name: Cleanup workspace
+        run: |
+          cd /home/actions-runner
+          rm -f run.sh ls || true
+          echo "Cleanup completed"
+          
+      - name: Deploy to Test Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.TEST_SSH_HOST }}
+          username: root
+          key: ${{ secrets.TEST_SSH_KEY }}
+          script_stop: true
+          script: |
+            echo "Deploying to Test..."
+            
+            # 登录 TCR
+            echo "${{ secrets.TCR_PASSWORD }}" | docker login ${{ secrets.TCR_REGISTRY }} -u "${{ secrets.TCR_USERNAME }}" --password-stdin
+            
+            # 准备环境变量
+            echo "${{ secrets.ENV_TEST }}" > /root/canvas-flow-backend.env
+            
+            # 拉取镜像
+            FULL_IMAGE="${{ secrets.TCR_REGISTRY }}/${{ secrets.TCR_NAMESPACE }}/canvas-flow-backend:test"
+            echo "Image: $FULL_IMAGE"
+            docker pull $FULL_IMAGE
+            
+            # 重启容器
+            docker stop canvas-flow-backend || true
+            docker rm canvas-flow-backend || true
+            
+            docker run -d \
+              --name canvas-flow-backend \
+              --restart unless-stopped \
+              --network host \
+              --env-file /root/canvas-flow-backend.env \
+              $FULL_IMAGE
+              
+            docker image prune -f
+            echo "Test Deployment Success!"

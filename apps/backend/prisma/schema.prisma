@@ -1,0 +1,432 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// Canvas core
+// ============================================================
+
+model Flow {
+  id          String  @id @default(uuid())
+  name        String
+  description String? @db.Text
+  cover       String? @db.Text
+
+  structureJson Json
+
+  status  String @default("ACTIVE")
+  version Int    @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  nodes      FlowNode[]
+  operations FlowOperation[]
+  executions FlowExecution[]
+
+  @@index([status])
+  @@map("flows")
+}
+
+model FlowNode {
+  id     String @id @default(uuid())
+  flowId String
+  flow   Flow   @relation(fields: [flowId], references: [id], onDelete: Cascade)
+
+  nodeId   String
+  type     String
+  position Json
+  width    Int     @default(250)
+  height   Int     @default(250)
+  groupId  String?
+
+  data   FlowNodeData?
+  params FlowNodeParams?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([flowId, nodeId])
+  @@index([flowId])
+  @@index([groupId])
+  @@map("flow_nodes")
+}
+
+model FlowNodeData {
+  id         String   @id @default(uuid())
+  flowNodeId String   @unique
+  flowNode   FlowNode @relation(fields: [flowNodeId], references: [id], onDelete: Cascade)
+  data       Json
+  version    Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("flow_node_data")
+}
+
+model FlowNodeParams {
+  id         String   @id @default(uuid())
+  flowNodeId String   @unique
+  flowNode   FlowNode @relation(fields: [flowNodeId], references: [id], onDelete: Cascade)
+  params     Json
+  version    Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("flow_node_params")
+}
+
+model FlowOperation {
+  id     String @id @default(uuid())
+  flowId String
+  flow   Flow   @relation(fields: [flowId], references: [id], onDelete: Cascade)
+
+  type    String
+  payload Json
+  version Int
+
+  createdAt DateTime @default(now())
+
+  @@index([flowId])
+  @@map("flow_operations")
+}
+
+// ============================================================
+// Execution engine
+// ============================================================
+//
+// Open-source build only targets Alibaba DashScope (Bailian).
+// The API key comes from env DASHSCOPE_API_KEY, so there is no
+// ModelProvider table.
+//
+// Each model invocation produces a FlowExecution row that serves
+// as both the call log (status / payloads / errorMsg) and the
+// usage log (modelSku / per-kind output measurement). Fine-grained
+// lifecycle (submit -> submitted -> polling -> completed/failed) is
+// recorded as FlowExecutionEvent rows linked via executionId.
+//
+// Open-source build intentionally does NOT compute monetary cost
+// (no pricing table, no `cost` column). Operators can join on
+// modelSku/output measurements with their own pricing sheet later.
+
+model FlowExecution {
+  id     String @id @default(uuid())
+  flowId String
+  flow   Flow   @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  nodeId String
+
+  // Family logical model id (ModelEntry.value), e.g. 'wan2.7'
+  modelName String?
+  // Real DashScope SKU (mode.sku), e.g. 'wan2.7-r2v'
+  modelSku  String?
+  // Mode id (mode.id), e.g. 'r2v'; null for single-mode models
+  modeId    String?
+  // Coarse model kind ('chat'|'video'|'image'|'audio') inferred from
+  // modelSku at submit time. Persisted so admin / billing queries don't
+  // need to repeat the lookup, and so each kind's billable unit lands in
+  // its own column instead of being multiplexed onto inputTokens.
+  kind String?
+
+  // Execution batch (nodes executed together share a batchId)
+  batchId String?
+
+  // Coarse execution status (must match EXECUTION_STATUSES)
+  status String @default("PENDING") // PENDING | RUNNING | COMPLETED | FAILED
+
+  // Fine-grained phase last seen on this execution. Mirrors the
+  // latest FlowExecutionEvent.phase so the single row reveals
+  // "where it stopped" without joining the events table.
+  phase          String? // submitting | submitted | polling | completed | failed
+  // Upstream provider task id (e.g. DashScope async task id) used
+  // for cross-system tracing.
+  externalTaskId String?
+
+  // Per-kind output measurement. Each kind populates its own column;
+  // queries can SUM per-kind without misinterpreting the unit.
+  //   chat  -> inputTokens / outputTokens
+  //   video -> outputDurationSec  (output video seconds)
+  //   audio -> outputDurationSec  (synthesized audio seconds)
+  //   image -> outputCount        (number of images)
+  inputTokens       Int?
+  outputTokens      Int?
+  outputDurationSec Float?
+  outputCount       Int?
+  latencyMs         Int?
+
+  // Full request / response
+  requestPayload  Json?
+  responsePayload Json?
+  errorMsg        String? @db.Text
+
+  createdAt  DateTime  @default(now())
+  startedAt  DateTime?
+  finishedAt DateTime?
+
+  events FlowExecutionEvent[]
+
+  @@index([flowId])
+  @@index([nodeId])
+  @@index([status])
+  @@index([modelSku])
+  @@index([kind])
+  @@index([batchId])
+  @@index([createdAt])
+  @@map("flow_executions")
+}
+
+// One row per phase transition for a FlowExecution.
+//
+// Polling phase only writes a new row when the upstream status string
+// actually changes (e.g. pending -> running -> succeeded), so a normal
+// task produces ~3-5 rows, not one row per poll attempt.
+//
+// payloadSnippet is populated ONLY when phase = 'failed' (sanitized
+// upstream error body). For success cases the upstream response sits
+// on FlowExecution.responsePayload and is not duplicated here.
+//
+// Retention: open-source build does NOT auto-clean this table; deployers
+// are expected to truncate old events as part of their own DB lifecycle.
+model FlowExecutionEvent {
+  id             String        @id @default(uuid())
+  executionId    String
+  execution      FlowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  // submitting | submitted | polling | completed | failed
+  phase          String
+  // 1-based polling attempt index; null for non-poll phases
+  attempt        Int?
+  // Snapshot of the upstream provider status at the time of this event
+  // (e.g. 'pending', 'running', 'succeeded'); only set for polling/submitted
+  externalStatus String?
+  // Free-form human note for log scanning
+  message        String?       @db.VarChar(1024)
+  // Failure-only sanitized upstream error body
+  payloadSnippet Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([executionId, createdAt])
+  @@map("flow_execution_events")
+}
+
+// ============================================================
+// Node configuration system
+// ============================================================
+
+model NodeDefinition {
+  id        String @id @default(uuid())
+  type      String @unique
+  label     String
+  component String
+  width     Int    @default(250)
+  height    Int    @default(250)
+
+  defaultData     Json
+  defaultParams   Json? // node-level default params (model / mode / prompt / ...)
+  connectionRules Json
+
+  // Model catalog (image / video / text nodes); null for nodes without model selection.
+  // Each entry: ModelEntry shape from @canvas-flow/core --
+  //   { value, label, action, icon?, allowedUpstreamTypes?, defaultParams?,
+  //     paramsSchema?, modes?, defaultModeId? }
+  // mode entries inside `modes` carry sku / acceptUpstreamTypes /
+  // paramsSchemaOverride / defaultParamsOverride.
+  models Json?
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+  @@map("node_definitions")
+}
+
+// ============================================================
+// Template library
+// ============================================================
+
+model Template {
+  id          String  @id @default(uuid())
+  name        String
+  description String? @db.Text
+  cover       String? @db.Text
+
+  structureJson Json
+
+  enabled Boolean @default(true)
+
+  nodes TemplateNode[]
+  tags  TagsOnTemplates[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("templates")
+}
+
+model TemplateNode {
+  id         String   @id @default(uuid())
+  templateId String
+  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  nodeId   String
+  type     String
+  position Json
+  width    Int    @default(250)
+  height   Int    @default(250)
+  data     Json?
+  params   Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([templateId, nodeId])
+  @@index([templateId])
+  @@map("template_nodes")
+}
+
+model Tag {
+  id       String  @id @default(uuid())
+  category String
+  value    String
+  color    String?
+
+  templates TagsOnTemplates[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([category, value])
+  @@index([category])
+  @@map("tags")
+}
+
+model TagsOnTemplates {
+  templateId String
+  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  tagId      String
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  assignedAt DateTime @default(now())
+
+  @@id([templateId, tagId])
+  @@map("tags_on_templates")
+}
+
+// ============================================================
+// Global configuration
+// ============================================================
+
+model GlobalConfig {
+  id          String  @id @default(uuid())
+  key         String  @unique
+  value       Json
+  description String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("global_configs")
+}
+
+// ============================================================
+// Voice library (open-source: no user ownership)
+// ============================================================
+//
+// Voices are global resources in the open-source build. Anyone
+// using the deployment can clone, list, or delete a voice -- there
+// is no auth/user system to attach ownership to.
+//
+// `voiceId` is the *upstream* MiniMax voice id we generated and
+// passed to DashScope's voice_clone endpoint, NOT a database id.
+// We persist it because the audio node's params.voice column needs
+// it to invoke TTS later.
+//
+// `status` is currently always SUCCESS because the upstream call
+// is synchronous; the column exists so future async-clone providers
+// can reuse the table without migration.
+
+model Voice {
+  id           String   @id @default(uuid())
+  // Upstream MiniMax voice id (e.g. "cf-1700000000-abc"). Globally
+  // unique on the upstream side; we mirror that uniqueness locally
+  // so duplicate-create errors surface fast.
+  voiceId      String   @unique
+  name         String
+  // Source clip URL (the file the user uploaded / recorded). Kept
+  // for re-clone / debugging; the file lives in our upload bucket.
+  audioUrl     String?  @db.Text
+  // Demo audio URL returned by the voice_clone call -- short sample
+  // synthesized using the new voice. Used by the gallery for preview.
+  demoAudioUrl String?  @db.Text
+  // SUCCESS | FAILED. Sync provider only ever writes SUCCESS today.
+  status       String   @default("SUCCESS")
+  errorMsg     String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("voices")
+}
+
+// ============================================================
+// Generation history (open-source: no user ownership)
+// ============================================================
+//
+// Every successful node execution leaves a row here so the editor's
+// "history" panel can list past results across canvases. Failed
+// executions are NOT recorded -- FlowExecutionEvent already covers
+// the audit trail for debugging; history is for re-using outputs.
+//
+// `outputData` mirrors the node's persisted FlowNodeData payload at
+// the moment of generation, so an "instantiate" call can rebuild a
+// fresh node carrying the same media src / text / etc.
+// `params` captures the triggering ModelEntry params (model, mode,
+// resolution, etc.), so users can re-run with identical settings.
+//
+// Retention: open-source build does NOT auto-clean this table.
+
+model GenerationHistory {
+  id          String  @id @default(uuid())
+  // image | video | text | audio
+  nodeType    String
+  // Cover for the gallery list. Image/video nodes copy from src; text
+  // nodes leave it null and the UI falls back to a styled card.
+  thumbnail   String? @db.Text
+  // Prompt text used when the result was generated (best-effort: read
+  // from params.prompt or params.text at record time).
+  promptText  String? @db.Text
+  // ModelEntry.value at submit time (e.g. 'wan2.7-r2v', 'qwen-plus').
+  modelName   String?
+  width       Int     @default(0)
+  height      Int     @default(0)
+  // Direct media URL for image/video/audio (= outputData.src). For
+  // text nodes this is null and the actual content lives on outputData.
+  src         String? @db.Text
+  // Full snapshot of the node's data after generation (mirrors
+  // FlowNodeData.data at the moment of record). Used by /instantiate
+  // to rehydrate a brand new node carrying the same payload.
+  outputData  Json?
+  // Snapshot of params at submit time. Used so re-runs can land with
+  // identical settings (model, mode, resolution, etc.).
+  params      Json?
+  // Optional pointer to FlowExecution row for cross-table audit. Not
+  // a FK because an execution may be deleted before its history row.
+  executionId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([nodeType])
+  @@index([createdAt])
+  @@index([executionId])
+  @@map("generation_history")
+}

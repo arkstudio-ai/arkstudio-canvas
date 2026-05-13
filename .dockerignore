@@ -1,0 +1,24 @@
+# Keep the build context small — anything pnpm or git can regenerate
+# locally is excluded from `docker build` uploads.
+node_modules
+**/node_modules
+dist
+**/dist
+.env
+.env.local
+**/.env
+**/.env.local
+*.log
+coverage
+.git
+.gitignore
+.DS_Store
+
+# IDE noise
+.vscode
+.idea
+.cursor
+
+# Existing local artifacts that shouldn't ship
+apps/backend/uploads
+apps/web/public/canvas-flow-config.json

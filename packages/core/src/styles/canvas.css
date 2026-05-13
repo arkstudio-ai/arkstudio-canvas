@@ -1,0 +1,1162 @@
+/* 基础布局 */
+.canvas-flow-wrapper {
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* --- Selection Box --- */
+.react-flow__selection {
+  background: rgba(200, 200, 200, 0.1) !important;
+  border: 1px solid rgba(200, 200, 200, 0.3) !important;
+  border-radius: 4px;
+}
+
+/* --- Group Node Specific Overrides --- */
+/* Remove default selection outline/border for group nodes as we handle it internally */
+.react-flow__node-group.selected,
+.react-flow__node-group:focus,
+.react-flow__node-group:focus-visible {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.react-flow__node-group {
+  /* Ensure the wrapper is clean */
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* --- Node 样式 --- */
+.canvas-node {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 16px;
+  min-width: 250px; /* Min width for empty state */
+  height: 250px;    /* FIXED HEIGHT as requested */
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  transition: width 0.2s ease; /* Only animate width changes */
+  position: relative;
+}
+
+.canvas-node.selected {
+  border-color: #555;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* 错误状态：仅靠左下角 .cf-node-error-bar 的失败 chip 提示。
+ * 用户反馈红色描边/红光太显眼，节点本身不再变色，保持中性外观。
+ * className 上的 'error' 标记保留，便于未来需要时再做更克制的视觉差异。 */
+
+.canvas-node-label {
+  position: absolute;
+  top: -24px;
+  left: 0;
+  color: #888;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* --- Node Title Editor --- */
+.canvas-node-title {
+  position: absolute;
+  top: -24px;
+  left: 0;
+  color: #888;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: text;
+  transition: color 0.2s;
+  pointer-events: auto;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.canvas-node-title:hover {
+  color: #ccc;
+}
+
+.canvas-node-title.editing {
+  color: #fff;
+}
+
+.canvas-node-title-input {
+  position: absolute;
+  top: -24px;
+  left: 0;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  outline: none;
+  min-width: 50px;
+  max-width: 200px;
+  transition: border-color 0.2s;
+  pointer-events: auto;
+}
+
+.canvas-node-title-input:focus {
+  border-color: #888;
+  box-shadow: 0 0 0 2px rgba(136, 136, 136, 0.2);
+}
+
+.canvas-node-body {
+  padding: 0;
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-radius: 15px; /* 略小于外层圆角 */
+}
+
+/* --- Handle (连接点) 样式 --- */
+/* 使用更通用的选择器覆盖 React Flow 默认样式 */
+.react-flow__handle {
+  width: 24px !important;
+  height: 24px !important;
+  background: rgba(50, 50, 50, 0.5) !important;
+  border: 1px solid rgba(120, 120, 120, 0.4) !important;
+  border-radius: 50% !important;
+  
+  /* 移除所有自定义定位 (top/left/right/transform)，完全交还给 React Flow 默认样式 */
+  
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  
+  /* Interaction & Visibility */
+  transition: opacity 0.2s, background-color 0.2s, border-color 0.2s;
+  opacity: 0; /* Hide by default */
+  pointer-events: none; /* Disable interaction when hidden */
+
+  backdrop-filter: blur(4px);
+  z-index: 10;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Show handles when node is selected */
+.canvas-node.selected .react-flow__handle {
+  opacity: 1;
+  pointer-events: all;
+}
+
+/* During connection drag, show all valid target handles */
+.is-connecting .react-flow__handle {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.react-flow__handle::after {
+  content: '+';
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 18px;
+  font-weight: 300;
+  line-height: 1;
+  padding-bottom: 0;
+  margin-top: -2px;
+  display: block;
+}
+
+.react-flow__handle:hover {
+  background: rgba(70, 70, 70, 0.8) !important;
+  border-color: rgba(200, 200, 200, 0.6);
+}
+
+.react-flow__handle:hover::after { color: #fff; }
+
+
+/* --- Inspector Panel (新版) --- */
+.canvas-inspector {
+  width: 420px;
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  color: #ccc;
+  pointer-events: all;
+}
+
+/* 1. Input Area */
+.inspector-input-area {
+  padding: 16px 16px 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.inspector-textarea {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #e0e0e0;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+  padding: 0;
+  min-height: 24px;
+}
+
+.inspector-textarea::placeholder {
+  color: #555;
+}
+
+/* 2. Toolbar Area */
+.inspector-toolbar {
+  display: flex;
+  align-items: center;
+  padding: 0 16px 16px 16px;
+  gap: 16px;
+}
+
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #888;
+  cursor: pointer;
+  transition: color 0.2s;
+  font-size: 13px;
+  user-select: none;
+}
+
+.toolbar-btn:hover {
+  color: #ccc;
+}
+
+.model-selector {
+  color: #ccc;
+  font-weight: 500;
+}
+
+.model-icon {
+  font-size: 16px;
+}
+
+.chevron-icon {
+  opacity: 0.5;
+}
+
+/* Run Button */
+.run-btn {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #2b7fff; /* 鲜亮的蓝色 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  color: #fff;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(43, 127, 255, 0.3);
+}
+
+.run-btn:hover {
+  background: #408fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(43, 127, 255, 0.4);
+}
+
+.run-btn:active {
+  transform: translateY(0);
+}
+
+.run-btn:disabled {
+  background: #444;
+  color: #888;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* 3. Footer (Advanced) */
+.inspector-footer {
+  border-top: 1px solid #2a2a2a;
+}
+
+.inspector-footer-toggle {
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  color: #666;
+  font-size: 12px;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.inspector-footer-toggle:hover {
+  color: #999;
+  background: rgba(255,255,255,0.02);
+}
+
+.inspector-advanced-content {
+  padding: 12px 16px;
+  background: #1a1a1a;
+  border-top: 1px solid #2a2a2a;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.form-item {
+  margin-bottom: 12px;
+}
+
+.form-item label {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.form-item input, .form-item textarea {
+  width: 100%;
+  background: #252525;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 6px 8px;
+  color: #ccc;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.form-item input:focus, .form-item textarea:focus {
+  border-color: #555;
+  outline: none;
+}
+
+/* --- Node Empty State & Menu --- */
+.cf-node-empty-state {
+  padding: 16px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.cf-node-empty-title {
+  font-size: 14px;
+  color: #888;
+  margin-bottom: 12px;
+}
+
+.cf-node-empty-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cf-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #ccc;
+  transition: background-color 0.2s, color 0.2s;
+  background-color: transparent;
+}
+
+.cf-menu-item.hovered {
+  background-color: #2a2a2a;
+  color: #fff;
+}
+
+.cf-menu-item-icon {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cf-menu-item-label {
+  flex: 1;
+}
+
+.cf-menu-item-arrow {
+  display: flex;
+  align-items: center;
+  color: #666;
+}
+
+/* --- Text Node --- */
+.cf-text-node-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100px;
+  position: relative; /* Ensure overlay positioning context */
+}
+
+.cf-text-node-input {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: #eee;
+  font-size: 14px;
+  resize: none;
+  outline: none;
+  padding: 12px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.cf-text-node-display {
+  flex: 1;
+  padding: 12px;
+  color: #eee;
+  font-size: 14px;
+  white-space: pre-wrap;
+  overflow: hidden;
+  cursor: default;
+}
+
+.cf-text-node-display.placeholder {
+  color: #888;
+}
+
+/* Text Node Overlay */
+.cf-text-node-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none; /* Allow clicks to pass through initially, but hover triggers opacity */
+  backdrop-filter: blur(2px);
+  /* But wait, if pointer-events: none, we can't click it? 
+     Double click is on the container, so it's fine.
+  */
+}
+
+.cf-text-node-container:hover .cf-text-node-overlay {
+  opacity: 1;
+}
+
+/* --- Text Node: Negative Prompt Mode --- */
+.cf-text-node-negative {
+  box-shadow: inset 0 0 0 2px #f97316;
+  border-radius: 15px;
+}
+
+.cf-text-node-negative-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  margin: 6px 8px 0;
+  background: rgba(249, 115, 22, 0.15);
+  border: 1px solid rgba(249, 115, 22, 0.5);
+  border-radius: 4px;
+  color: #f97316;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: help;
+  user-select: none;
+  width: fit-content;
+}
+
+.cf-text-node-negative-badge::before {
+  content: '⊘';
+  font-size: 10px;
+}
+
+.cf-text-node-negative .cf-text-node-display {
+  padding-top: 6px;
+}
+
+.cf-text-node-negative .cf-text-node-input {
+  padding-top: 6px;
+}
+
+
+/* --- Media Node --- */
+.cf-media-node-container {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #0a0a0a;
+}
+
+.cf-media-node-content {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* 视频等媒体：铺满容器（略裁切）*/
+  display: block;
+}
+
+/* 静态图片：按节点框完整适配（留白边），与设计稿/上传预览一致 */
+.cf-media-node-content.cf-media-node-image {
+  object-fit: contain;
+}
+/* Hide fullscreen button in video controls */
+video::-webkit-media-controls-fullscreen-button {
+  display: none !important;
+}
+
+video::-webkit-media-controls-enclosure {
+  overflow: hidden;
+}
+
+.cf-media-preview {
+  flex: 1;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.cf-media-preview img,
+.cf-media-preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.cf-media-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  background: #111;
+}
+
+/* --- Upload Node (Updated) --- */
+.cf-upload-container {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #888; /* 默认文字颜色调亮 */
+  border: 2px dashed #444; /* 边框调亮，增加可见性 */
+  border-radius: 14px;
+  box-sizing: border-box;
+  transition: all 0.2s;
+  background: #0a0a0a; /* 背景调深，形成凹陷感 */
+  position: relative;
+  overflow: hidden;
+}
+
+/* Only apply hover effect when not showing content (or handled by child) */
+.cf-upload-container:not(.has-content):hover {
+  border-color: #666; /* Hover 边框更亮 */
+  background: #111;   /* Hover 背景微亮 */
+  color: #ccc;
+  cursor: pointer;
+}
+
+.cf-upload-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.cf-upload-icon {
+  margin-bottom: 8px;
+  color: #444;
+}
+
+.cf-upload-label-text {
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+/* Content Wrapper */
+.cf-upload-content-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+
+/* Previews */
+.cf-upload-preview-image,
+.cf-upload-preview-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.cf-upload-preview-file,
+.cf-upload-preview-audio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  gap: 8px;
+}
+
+/* Delete Button */
+.cf-upload-delete-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  backdrop-filter: blur(4px);
+  transition: background 0.2s;
+  z-index: 10;
+}
+
+.cf-upload-delete-btn:hover {
+  background: rgba(200, 50, 50, 0.8);
+}
+
+/* Filename */
+.cf-upload-filename {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #ccc;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+  backdrop-filter: blur(4px);
+}
+
+/* Loading Overlay */
+.cf-upload-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  color: #fff;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.cf-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: cf-spin 1s linear infinite;
+}
+
+@keyframes cf-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Upload Error Overlay */
+.cf-upload-error-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(220, 38, 38, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 15;
+  color: #fff;
+  font-size: 12px;
+  padding: 12px;
+  text-align: center;
+  border-radius: inherit;
+}
+
+/* Node Error Chip - compact bottom-left red dot + "失败" label
+ *
+ * The chip stays small and unobtrusive by default; hovering reveals the
+ * full reason in a tooltip-style strip that floats above the chip without
+ * pushing the node layout around.
+ *
+ * Color: Material 3 dark error container (#410E0B) with the on-container
+ * tone (#FFB4AB) for text/dot. The container is rendered translucent so
+ * the chip blends into the canvas backdrop instead of looking like a
+ * pasted-on block.
+ */
+.cf-node-error-bar {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 6px;
+  background: rgba(65, 14, 11, 0.55);
+  border: 1px solid rgba(255, 180, 171, 0.32);
+  color: #FFB4AB;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 500;
+  border-radius: 999px;
+  z-index: 15;
+  backdrop-filter: blur(6px);
+  cursor: help;
+}
+
+.cf-node-error-icon {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #FFB4AB;
+  box-shadow: 0 0 0 2px rgba(255, 180, 171, 0.18);
+}
+
+.cf-node-error-text {
+  white-space: nowrap;
+}
+
+/* Hover tooltip: keep the chip itself compact but reveal the full
+ * upstream reason on hover. Uses a ::after pseudo-element so it doesn't
+ * affect layout when collapsed. */
+.cf-node-error-bar[data-detail]:hover::after {
+  content: attr(data-detail);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  max-width: 420px;
+  width: max-content;
+  padding: 10px 14px;
+  background: var(--gray-a12, rgba(255, 255, 255, 0.94));
+  color: var(--gray-1, #0a0a0a);
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 500;
+  white-space: normal;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+
+/* --- Media Viewer Modal --- */
+.cf-media-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: cf-fade-in 0.2s ease;
+}
+
+.cf-media-modal-content {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  animation: cf-scale-in 0.2s ease;
+}
+
+.cf-media-modal-close {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cf-media-modal-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.cf-media-modal-body {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+}
+
+.cf-media-modal-image,
+.cf-media-modal-video {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  display: block;
+}
+
+.cf-media-modal-audio-wrapper {
+  width: 400px;
+  background: #1e1e1e;
+  padding: 32px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.cf-media-modal-audio-icon {
+  font-size: 64px;
+  color: #444;
+}
+
+.cf-media-modal-audio {
+  width: 100%;
+}
+
+@keyframes cf-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes cf-scale-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* --- Canvas Empty State --- */
+.cf-canvas-empty-state {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.cf-empty-instruction {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #888;
+  font-size: 14px;
+  pointer-events: auto;
+}
+
+.cf-double-click-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #ccc;
+}
+
+.cf-instruction-text {
+  opacity: 0.8;
+}
+
+.cf-empty-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.cf-action-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #1e1e1e; /* 恢复深色背景 */
+  color: #ccc;          /* 恢复浅色文字 */
+  border: 1px solid #333; /* 恢复深色边框 */
+  padding: 8px 16px;
+  border-radius: 999px;   /* 恢复圆角 */
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  /* box-shadow: 0 2px 4px rgba(0,0,0,0.1);  不需要阴影了 */
+}
+
+.cf-action-card:hover {
+  background: #2a2a2a; /* hover 变亮一点点 */
+  border-color: #555;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.cf-action-card:active {
+  transform: translateY(0);
+}
+
+.cf-empty-state-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* --- Inspector Reference (New) --- */
+.inspector-references {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inspector-ref-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(50, 50, 50, 0.3);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: #aaa;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  cursor: default;
+}
+
+/* Left line indicator - default gray */
+.inspector-ref-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #444;
+  transition: background 0.2s ease;
+}
+
+/* 🔥 第一个引用的左侧高亮 */
+.inspector-ref-item.inspector-ref-first::before {
+  background: #666;
+}
+
+.inspector-ref-item.inspector-ref-first {
+  background: rgba(60, 60, 60, 0.5);
+}
+
+/* 拖动手柄 */
+.inspector-ref-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  cursor: grab;
+  padding: 2px;
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+
+.inspector-ref-drag-handle:hover {
+  color: #888;
+}
+
+.inspector-ref-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* 拖动中的项 */
+.inspector-ref-item.inspector-ref-dragging {
+  opacity: 0.5;
+  background: rgba(80, 80, 80, 0.3);
+}
+
+/* 拖动经过的目标项 */
+.inspector-ref-item.inspector-ref-dragover {
+  background: rgba(70, 130, 200, 0.2);
+  border: 1px dashed rgba(100, 160, 230, 0.5);
+}
+
+.inspector-ref-item.inspector-ref-dragover::before {
+  background: #5090d0;
+}
+
+/* 可拖动时的 hover 效果 */
+.inspector-ref-item[draggable="true"]:hover {
+  background: rgba(60, 60, 60, 0.5);
+}
+
+.inspector-ref-item[draggable="true"]:hover .inspector-ref-drag-handle {
+  color: #999;
+}
+
+.inspector-ref-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inspector-ref-thumbnail {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: #333;
+  flex-shrink: 0;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.inspector-ref-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.inspector-ref-label {
+  font-size: 10px;
+  color: #666;
+  margin-bottom: 2px;
+  display: block;
+}
+
+/* --- Action Toolbar (New) --- */
+.canvas-node-toolbar {
+  display: flex;
+  align-items: center;
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 4px;
+  gap: 4px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  pointer-events: auto;
+}
+
+.canvas-node-toolbar-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #ccc;
+  font-size: 12px;
+  transition: all 0.2s;
+  border: none;
+  background: transparent;
+  white-space: nowrap;
+}
+
+.canvas-node-toolbar-item:hover {
+  background: #2a2a2a;
+  color: #fff;
+}
+
+.toolbar-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Special styling variants */
+.canvas-node-toolbar-item.text-green {
+  color: #4ade80;
+}
+
+.canvas-node-toolbar-item.text-green:hover {
+  background: rgba(74, 222, 128, 0.1);
+}

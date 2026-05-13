@@ -1,0 +1,67 @@
+{
+  "name": "@canvas-flow/core",
+  "version": "0.1.0",
+  "description": "Canvas Flow editor and runner components",
+  "license": "AGPL-3.0-only",
+  "homepage": "https://github.com/arkstudio-ai/arkstudio-canvas#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arkstudio-ai/arkstudio-canvas.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/arkstudio-ai/arkstudio-canvas/issues"
+  },
+  "keywords": [
+    "canvas",
+    "workflow",
+    "react",
+    "flow-editor",
+    "node-editor",
+    "react-flow",
+    "visual-programming"
+  ],
+  "type": "module",
+  "main": "dist/canvas-flow.cjs.js",
+  "module": "dist/canvas-flow.es.js",
+  "types": "dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/canvas-flow.es.js",
+      "require": "./dist/canvas-flow.cjs.js"
+    },
+    "./styles/canvas.css": "./dist/canvas-flow.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": [
+    "*.css"
+  ],
+  "scripts": {
+    "dev": "vite --config vite.lib.config.ts",
+    "build": "pnpm run build:types && pnpm run build:bundle",
+    "build:types": "tsc -p tsconfig.build.json",
+    "build:bundle": "vite build --config vite.lib.config.ts"
+  },
+  "peerDependencies": {
+    "@xyflow/react": "^12.0.0",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "dependencies": {
+    "lucide-react": "^0.469.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react-swc": "^4.2.2",
+    "@xyflow/react": "^12.9.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "typescript": "~5.9.3",
+    "vite": "npm:rolldown-vite@7.2.5"
+  }
+}
