@@ -94,6 +94,11 @@ export class DashScopeChatProvider implements ProviderClient {
           timeout,
           headers: {
             Authorization: `Bearer ${apiKey}`,
+            // Required when input URLs use the `oss://` scheme (DashScope
+            // free temporary storage). Always-on: no-op for https URLs;
+            // qwen-vl multimodal calls hand back image_url:{url:'oss://...'}
+            // which would 400 without this header.
+            'X-DashScope-OssResourceResolve': 'enable',
             'Content-Type': 'application/json',
           },
         }),

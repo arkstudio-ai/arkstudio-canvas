@@ -612,6 +612,73 @@ const HistoryRetentionSection: React.FC = () => {
  * `maxFileSize` is stored in bytes server-side but exposed in MB here
  * for usability — operators think in MB, not bytes.
  */
+/**
+ * Single-line banner that explains the auto-fallback storage strategy
+ * the backend just resolved.
+ *
+ *   cos              → green "走 COS（生产模式）"
+ *   dashscope-temp   → amber "未配 COS，走 DashScope 临时存储 · 48h 失效"
+ *   none             → red   "未配置 — 上传/转存功能未启用"
+ *
+ * Why a separate component? StorageSection is already 250+ lines and
+ * the banner needs different colours per state, which is awkward to
+ * inline. Keep it small + close so the rationale stays obvious.
+ */
+const StorageStrategyBanner: React.FC<{ view: StorageSettingsView }> = ({ view }) => {
+  let bg = '';
+  let border = '';
+  let icon: React.ReactNode = null;
+  let title = '';
+  let detail = '';
+  switch (view.strategy) {
+    case 'cos':
+      bg = 'rgba(155,227,154,0.08)';
+      border = 'rgba(155,227,154,0.4)';
+      icon = <Cloud size={14} style={{ color: tokens.ok }} />;
+      title = '当前走 COS · 生产模式';
+      detail = '上传 / 转存到你自己的腾讯云桶；URL 长寿命。';
+      break;
+    case 'dashscope-temp':
+      bg = 'rgba(230,200,147,0.08)';
+      border = 'rgba(230,200,147,0.4)';
+      icon = <Timer size={14} style={{ color: tokens.warn }} />;
+      title = '当前走 DashScope 临时存储 · 开箱即用模式';
+      detail =
+        '未配置 COS，自动 fallback 到 DashScope 免费临时存储（oss:// URL，48h 自动失效，单文件 ≤ 100MB，仅北京 region）。生产部署建议补全下方 COS 凭据。';
+      break;
+    case 'none':
+    default:
+      bg = 'rgba(255,180,171,0.10)';
+      border = 'rgba(255,180,171,0.5)';
+      icon = <KeyRound size={14} style={{ color: tokens.err }} />;
+      title = '存储未配置';
+      detail = view.dashscopeKeyOk
+        ? '理论上 DashScope key 已配，但 strategy 仍解析为 none — 这通常是后端 cache 还没刷新；几秒后刷新本页。'
+        : '请至少在上方"DashScope · API Key"填一份 key（开启临时存储 fallback），或者在下方填齐 COS 凭据（生产）。';
+      break;
+  }
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 10,
+        padding: '10px 12px',
+        background: bg,
+        border: `1px solid ${border}`,
+        borderRadius: 10,
+        marginBottom: 4,
+      }}
+    >
+      <span style={{ display: 'inline-flex', marginTop: 2 }}>{icon}</span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+        <span style={{ fontSize: 12, color: tokens.textPrimary, fontWeight: 600 }}>{title}</span>
+        <span style={{ fontSize: 11, color: tokens.textMuted, lineHeight: 1.5 }}>{detail}</span>
+      </div>
+    </div>
+  );
+};
+
 const StorageSection: React.FC = () => {
   const [view, setView] = useState<StorageSettingsView | null>(null);
   const [loading, setLoading] = useState(false);
@@ -747,10 +814,14 @@ const StorageSection: React.FC = () => {
       </h3>
       <div style={sectionBodyStyle}>
         <p style={hintStyle}>
-          上传 / 转存目标是腾讯云 COS。开源版默认不强制配置：未填写时上传节点会报"COS 未配置"，
-          模型生成的图片/视频/音频会保留原始上游 URL（不转存）。SecretId / SecretKey 落库前用
+          上传 / 转存默认走腾讯云 COS（长寿命 URL，适合生产）。<strong>开源版可选</strong>：
+          未配置时自动 fallback 到 DashScope 临时存储（<code>oss://</code> URL，48h 自动失效，
+          单文件 100MB 上限，仅北京 region），适合 demo / 试用。SecretId / SecretKey 落库前用
           <code> ENCRYPTION_KEY </code>做 aes-256-gcm 加密，页面只显示掩码，永不回传明文。
         </p>
+
+        {/* 当前生效的存储策略 — auto-fallback 决定，最重要的一眼信息 */}
+        <StorageStrategyBanner view={view} />
 
         {/* Status overview */}
         <div style={statusGridStyle}>

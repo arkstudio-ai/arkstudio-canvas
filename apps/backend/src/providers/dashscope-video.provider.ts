@@ -94,6 +94,9 @@ export class DashScopeVideoProvider implements ProviderClient {
           headers: {
             Authorization: `Bearer ${apiKey}`,
             'X-DashScope-Async': 'enable',
+            // Required when input URLs use the `oss://` scheme (DashScope
+            // free temporary storage). Always-on: no-op for https URLs.
+            'X-DashScope-OssResourceResolve': 'enable',
             'Content-Type': 'application/json',
           },
         }),

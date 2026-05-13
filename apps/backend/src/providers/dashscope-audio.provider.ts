@@ -111,6 +111,9 @@ export class DashScopeAudioProvider implements ProviderClient {
           timeout,
           headers: {
             Authorization: `Bearer ${apiKey}`,
+            // Required when input URLs use the `oss://` scheme (DashScope
+            // free temporary storage). Always-on: no-op for https URLs.
+            'X-DashScope-OssResourceResolve': 'enable',
             'Content-Type': 'application/json',
           },
         }),
@@ -249,6 +252,9 @@ export class DashScopeAudioProvider implements ProviderClient {
           timeout,
           headers: {
             Authorization: `Bearer ${apiKey}`,
+            // Required when input URLs use the `oss://` scheme (DashScope
+            // free temporary storage). Always-on: no-op for https URLs.
+            'X-DashScope-OssResourceResolve': 'enable',
             'Content-Type': 'application/json',
           },
         }),

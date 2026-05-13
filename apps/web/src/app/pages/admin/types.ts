@@ -271,6 +271,19 @@ export interface PruneResponse {
 // are never returned in plaintext -- only `secretIdMask` / `secretKeyMask`
 // (e.g. `AKID12...x9aB`); editing requires the operator to retype.
 
+/**
+ * Effective upload destination resolved by the backend.
+ *
+ *   'cos'              → COS credentials are configured; uploads land
+ *                        in the operator's own bucket (long-lived URLs)
+ *   'dashscope-temp'   → no COS, but DashScope key is set; uploads go
+ *                        to DashScope's free temporary store as
+ *                        `oss://...` URLs (48h TTL, 100MB cap)
+ *   'none'             → neither configured; the upload endpoint will
+ *                        400, the UI shows a "至少配置一个" warning
+ */
+export type StorageStrategy = 'cos' | 'dashscope-temp' | 'none';
+
 export interface StorageSettingsView {
   /** True when secretId + secretKey + bucket are all set in DB. */
   configured: boolean;
@@ -290,6 +303,10 @@ export interface StorageSettingsView {
   maxFileSize: number;
   maxFileSizeDefault: number;
   maxFileSizeConfigured: boolean;
+  /** Effective strategy currently applied to uploads. Backend-computed. */
+  strategy: StorageStrategy;
+  /** True when DashScope api key is set; surfaced so the UI can explain why fallback is/isn't available. */
+  dashscopeKeyOk: boolean;
 }
 
 /**

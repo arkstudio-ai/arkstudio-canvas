@@ -32,11 +32,12 @@ src/
 │   ├── dashscope-audio.provider.ts     MiniMax-tts / FunMusic（百炼托管）
 │   └── provider-registry.service.ts    SKU → provider 路由
 │
-├── upload/                    COS 上传 / 转存
-│   ├── upload.controller.ts            POST /upload/sign
-│   ├── upload.service.ts               签名 URL 生成
+├── upload/                    上传 / 转存（auto-fallback: COS → DashScope 临时）
+│   ├── upload.controller.ts            POST /upload/file (multipart 代理) + 老 /upload/sign
+│   ├── upload.service.ts               COS 优先 / DashScope 临时 fallback
 │   ├── cos.service.ts                  COS SDK lazy 封装
-│   └── file-transfer.service.ts        executions 异步转存
+│   ├── dashscope-upload.service.ts     ⭐ DashScope 免费临时存储（oss://, 48h TTL）
+│   └── file-transfer.service.ts        executions 异步转存（同样 fallback）
 │
 └── admin/                     /admin/* 接口（执行日志 / 用量概览）
     └── executions/
@@ -57,7 +58,8 @@ src/
 | `GET`  | `/voices` | 复刻音色列表 |
 | `POST` | `/voices` | 创建复刻音色 |
 | `GET`  | `/generation-history` | 生成历史（按 kind 过滤 / 分页） |
-| `POST` | `/upload/sign` | 直传 COS 的预签名 URL |
+| `POST` | `/upload/file` | multipart 代理；后端按存储策略路由（COS / DashScope 临时） |
+| `POST` | `/upload/sign` | (deprecated) COS 预签名 PUT URL；仅在 COS 已配置时可用 |
 | `GET`  | `/api/canvas-flow/config` | 节点 / 模型 / 模式定义（前端启动必拉） |
 | `PUT`  | `/api/canvas-flow/config` | admin 保存节点配置 |
 | `GET`/`PUT` | `/api/canvas-flow/provider-settings` | DashScope 设置 |
@@ -91,6 +93,24 @@ src/
 | `history.{maxAgeDays,maxPerKind}` | 生成历史保留策略 | 否 |
 
 旧版 env (`DASHSCOPE_API_KEY` / `COS_*`) 仍可在 `.env` 设置 —— backend 启动时一次性迁到 DB，之后忽略。详见 `.env.example` 顶部注释。
+
+### 存储策略 (auto-fallback)
+
+为了"零配置开箱即用"，上传 / 转存有三档：
+
+```
+COS 凭据齐全          → 写入你的腾讯云桶；URL 长寿命；适合生产
+仅有 DashScope key   → DashScope 临时存储 (oss://, 48h TTL, 100MB cap, 北京 region)
+都没有                → 上传 endpoint 返回 400
+```
+
+实现入口：
+
+- `apps/backend/src/upload/dashscope-upload.service.ts` —— `getPolicy` + multipart POST
+- `file-transfer.service.ts` / `upload.service.ts` —— 都走同一份 fallback 逻辑
+- 4 个 DashScope provider 永远附带 `X-DashScope-OssResourceResolve: enable`，使 `oss://` URL 自动被模型解析
+
+`/api/canvas-flow/storage-settings` 响应里附带 `strategy` 字段（`'cos' | 'dashscope-temp' | 'none'`），admin UI 顶部 banner 据此显示当前生效策略。
 
 ## 常用 Prisma 命令
 

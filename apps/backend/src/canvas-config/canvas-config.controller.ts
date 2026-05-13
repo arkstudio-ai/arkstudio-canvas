@@ -121,7 +121,7 @@ export class CanvasConfigController {
    */
   @Get('storage-settings')
   async getStorageSettings() {
-    return this.storageConfig.getViewPayload();
+    return this.composeStorageView();
   }
 
   /**
@@ -134,6 +134,32 @@ export class CanvasConfigController {
   @Put('storage-settings')
   async updateStorageSettings(@Body() dto: UpdateStorageSettingsDto) {
     await this.storageConfig.updateSettings(dto);
-    return this.storageConfig.getViewPayload();
+    return this.composeStorageView();
+  }
+
+  /**
+   * Bake the effective strategy into the storage view so /admin/system
+   * can show "currently writing to COS / DashScope temp / nothing" in
+   * a single GET.
+   *
+   *   COS configured        → 'cos'             (long-lived URLs)
+   *   else DashScope key    → 'dashscope-temp'  (oss://, 48h TTL)
+   *   else                  → 'none'            (uploads will 400)
+   */
+  private async composeStorageView() {
+    const view = await this.storageConfig.getViewPayload();
+    let dashscopeKeyOk = false;
+    try {
+      await this.dashscopeConfig.getApiKey();
+      dashscopeKeyOk = true;
+    } catch {
+      dashscopeKeyOk = false;
+    }
+    const strategy: 'cos' | 'dashscope-temp' | 'none' = view.configured
+      ? 'cos'
+      : dashscopeKeyOk
+        ? 'dashscope-temp'
+        : 'none';
+    return { ...view, strategy, dashscopeKeyOk };
   }
 }

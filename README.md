@@ -76,11 +76,17 @@ sed -i '' "s|^ENCRYPTION_KEY=.*|ENCRYPTION_KEY=$(openssl rand -base64 48)|" .env
 docker compose up -d --build
 ```
 
-打开 <http://localhost:8080/admin/system> 填一次 DashScope API Key（COS 可选），<http://localhost:8080/canvas> 就能开跑。
+打开 <http://localhost:8080/admin/system>，**只需填一份 DashScope API Key 就能跑通整个 demo**：
+
+- 上传图片 / 视频 → 自动用百炼"临时存储"（`oss://` URL，48 小时自动失效，单文件 ≤ 100MB）
+- text2image / text2video / i2v / image-edit / 全套 chat / TTS / FunMusic 都立刻可用
+- 想做生产部署再补 COS 凭据，UI 顶部 banner 会立刻显示当前走 COS 还是 DashScope 临时
 
 容器内会自动 `prisma db push` + 首次 `seed:canvas-config`，之后重启不会覆盖 admin 改过的配置。MySQL 数据落在 named volume `canvas_flow_mysql_data`，`docker compose down` 不丢，`docker compose down -v` 才清。
 
 > 默认 web 端口是 8080；MySQL 不对外暴露（要用 GUI 工具时改 `docker-compose.yml` 里 mysql service 加 `ports: ["3306:3306"]`）。详见 `.env.docker.example` 顶部注释。
+>
+> **DashScope 临时存储限制**：仅北京 region 可用、上传 + 调用必须同账号、文件 48h 自动删。开发体验完全够，长期保留作品 / 商业部署还是建议配 COS。
 
 ### 方式 B: 本地源码开发
 
@@ -109,7 +115,7 @@ pnpm --filter canvas-flow-backend run seed:canvas-config
 pnpm dev
 ```
 
-打开 <http://localhost:5173/admin/system>：填一次百炼 API Key（COS 可选），然后到 <http://localhost:5173/canvas> 就能开跑。
+打开 <http://localhost:5173/admin/system>：填一次百炼 API Key 即可（无 COS 时上传自动走 DashScope 临时存储，48h 失效）。然后到 <http://localhost:5173/canvas> 就能开跑。
 
 ## 项目结构
 
@@ -133,8 +139,18 @@ canvas-flow/
 |---|---|---|
 | 基础设施 | `DATABASE_URL` / `PORT` / `ENCRYPTION_KEY` | — |
 | DashScope | bootstrap：`DASHSCOPE_API_KEY` / `_BASE_URL` | `dashscope.{baseUrl,apiKey,timeoutSec.*}` |
-| 对象存储 (COS) | bootstrap：`COS_*` 全套 | `storage.cos.{secretId,secretKey,bucket,region,customDomain,signExpires,maxFileSize}` |
+| 对象存储 (COS, **可选**) | bootstrap：`COS_*` 全套 | `storage.cos.{secretId,secretKey,bucket,region,customDomain,signExpires,maxFileSize}` |
 | 历史保留 | — | `history.{maxAgeDays,maxPerKind}` |
+
+**对象存储策略**（auto-fallback，零配置开箱即用的关键）：
+
+| 配置情况 | 上传去哪 | URL 形态 | TTL |
+|---|---|---|---|
+| COS 凭据齐全 | 你的腾讯云桶 | `https://...` | 长寿命 |
+| 仅有 DashScope key | 百炼临时存储 | `oss://dashscope-instant/...` | **48 小时** |
+| 都没有 | — | — | 上传接口 400 |
+
+> `oss://` URL 在调用模型时会自动加 `X-DashScope-OssResourceResolve: enable` 头，DashScope 那边能识别。Provider 层无差别。
 
 > bootstrap = 首次启动后自动迁到 DB，之后忽略 env，所有改动从 `/admin/system` 走。
 

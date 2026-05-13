@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { CanvasFlowValue } from '@canvas-flow/core';
 import { apiClient } from '../config/api';
 
@@ -46,12 +45,20 @@ export interface ExecutionResult {
   errorMsg?: string;
 }
 
-interface UploadSignResponse {
-  uploadUrl: string;
-  fileKey: string;
+interface UploadFileResponse {
+  /**
+   * Permanent URL for COS uploads, or `oss://...` for DashScope temp
+   * uploads. Either form is accepted by the backend providers (the
+   * `oss://` scheme is auto-resolved via the
+   * `X-DashScope-OssResourceResolve: enable` request header).
+   */
   accessUrl: string;
-  expires: number;
-  method: 'PUT';
+  fileKey?: string;
+  /** Where the bytes ended up — useful for log + error attribution. */
+  storage: 'cos' | 'dashscope-temp';
+  /** Set only for `dashscope-temp` (48h TTL ISO timestamp). */
+  expiresAt?: string;
+  bytes: number;
 }
 
 /**
@@ -63,26 +70,28 @@ interface UploadSignResponse {
  */
 export const api = {
   /**
-   * 上传文件（COS 预签名直传）
+   * 上传文件（multipart 代理路径）
    *
    * 流程：
-   * 1. POST /upload/sign 获取预签名 URL
-   * 2. PUT 直传文件到 COS
-   * 3. 返回永久访问地址 accessUrl
+   *   POST /upload/file  (Content-Type: multipart/form-data, field=file)
+   *   ↓ 后端按当前存储策略路由：
+   *     - COS 已配置  → 后端写入 COS bucket，返回 https URL
+   *     - 仅有 DashScope key  → 上传到 DashScope 临时存储，返回 oss:// URL
+   *     - 都没配  → 400，提示去 /admin/system 配置
+   *
+   * 早期版本走"先 POST /upload/sign 拿预签名 → 浏览器直传 COS"两步路径。
+   * 性能略好但要求 COS 必须配齐才能跑通；为了"开箱即用零配置"我们改回
+   * 单步代理。10MB 图多 100ms 而已，demo 阶段不感知。
    */
   uploadFile: async (file: File): Promise<string> => {
-    const signRes = await apiClient.post<UploadSignResponse>('/upload/sign', {
-      fileName: file.name,
-      fileType: file.type || 'application/octet-stream',
-      fileSize: file.size,
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    const res = await apiClient.post<UploadFileResponse>('/upload/file', fd, {
+      // 让浏览器自己设 multipart boundary；手动设 Content-Type 会丢 boundary
+      // 直接导致后端 400。
+      headers: { 'Content-Type': 'multipart/form-data' },
     });
-    const { uploadUrl, accessUrl } = signRes.data;
-
-    await axios.put(uploadUrl, file, {
-      headers: { 'Content-Type': file.type || 'application/octet-stream' },
-    });
-
-    return accessUrl;
+    return res.data.accessUrl;
   },
 
   /** 更新节点业务数据（直接更新 FlowNodeData，不影响 Flow.version） */
