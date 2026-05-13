@@ -7,6 +7,10 @@ Canvas Flow 的前端应用 —— 基于 [`@canvas-flow/core`](../../packages/c
 
 商业版的「探索 / 工作区 / 公开预览 / 短链分享」已从开源版移除。
 
+> 这份文档讲 **web app 内部结构**。
+> 想看完整部署 / env 请看 [📦 部署指南](../../docs/deployment.md)；
+> 想看本地 dev / 项目结构请看 [💻 开发指南](../../docs/development.md)。
+
 ## 本地开发
 
 请在 monorepo 根目录跑命令，pnpm workspace 会自动拉起 `@canvas-flow/core`：

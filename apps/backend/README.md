@@ -2,6 +2,11 @@
 
 NestJS + Prisma + MySQL —— Canvas Flow 的执行/编排/配置中枢。所有 AI 模型调用都在这里直连阿里云百炼（DashScope），开源版不依赖独立的 executor service。
 
+> 这份文档讲 **backend service 内部结构**。
+> 想看完整部署 / env / 存储策略请看 [📦 部署指南](../../docs/deployment.md)；
+> 想看怎么本地跑 dev / 项目结构请看 [💻 开发指南](../../docs/development.md)；
+> 想接新模型请看 [🔌 模型接入指南](../../MODEL_INTEGRATION.md)。
+
 ## 模块速览
 
 ```
