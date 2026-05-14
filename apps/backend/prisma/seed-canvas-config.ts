@@ -1,58 +1,60 @@
 import { PrismaClient } from '@prisma/client';
-import * as fs from 'fs';
-import * as path from 'path';
+import {
+  DEFAULT_NODE_DEFINITIONS,
+  DEFAULT_STYLE,
+  DEFAULT_TOKEN,
+} from './default-node-definitions';
 
 const prisma = new PrismaClient();
 
 /**
  * Seed Canvas Flow node-definition catalog into MySQL.
  *
- * 后端 DB 是配置的唯一权威源；本脚本只负责"首次部署 / 重置数据库"时
- * 把 seed-data/canvas-flow-config.json 灌进 node_definitions / global_configs。
- * 日常配置维护应通过后台编辑器写 DB（PUT /api/canvas-flow/config），
- * 不要再编辑这份 JSON。
+ * The DB (`node_definitions` + `global_configs`) is the single source of
+ * truth at runtime. This script only runs on a fresh deployment where
+ * `node_definitions` is empty — see `apps/backend/docker-entrypoint.sh`,
+ * which gates this call on a `count() === 0` probe so admin edits
+ * survive container restarts and image rebuilds.
  *
- * Phase 7-D 之后只剩 NodeDefinition 一张表，所有 model / mode / paramsSchema
- * 直接落在 NodeDefinition.models JSON 字段里。
+ * Default catalog data lives in {@link ./default-node-definitions} as a
+ * typed TypeScript constant. We deliberately moved away from the older
+ * `seed-data/canvas-flow-config.json`: a JSON file sitting next to the
+ * DB created the false impression of a parallel "config file" that
+ * needed manual sync. A `.ts` constant makes its role unambiguous —
+ * this is bootstrap *code*, not configuration.
+ *
+ * Day-to-day catalog edits go through `/admin/config` →
+ * `PUT /api/canvas-flow/config` → DB. Editing this file (or rebooting
+ * with a `node_definitions`-non-empty DB) has zero runtime effect.
+ *
+ * To back-port new SKUs into an existing deployment without rewriting
+ * the catalog, see `prisma/patches/` (idempotent append-only scripts).
  */
 async function main() {
-  console.log('🌱 开始导入 Canvas Flow 配置...');
-
-  const configPath = path.join(__dirname, 'seed-data/canvas-flow-config.json');
-
-  if (!fs.existsSync(configPath)) {
-    console.error('❌ 种子文件不存在:', configPath);
-    console.log('ℹ️  请确保 apps/backend/prisma/seed-data/canvas-flow-config.json 存在');
-    process.exit(1);
-  }
-
-  const configContent = fs.readFileSync(configPath, 'utf-8');
-  const config = JSON.parse(configContent);
-
-  console.log('📄 配置文件读取成功');
+  console.log('🌱 开始导入 Canvas Flow 默认节点定义...');
 
   // 只清节点定义；不要碰 globalConfig 表 —— 它存了 DashScope/COS 凭据，
-  // 跟 canvas-flow-config.json 没有任何关系。早期版本的 deleteMany() 是历史
-  // 遗留 bug，会在二次运行 seed 时把生产凭据全部清掉。
+  // 跟节点目录没有任何关系。早期版本的 deleteMany() 是历史遗留 bug，
+  // 会在二次运行 seed 时把生产凭据全部清掉。
   console.log('🗑️  清空现有节点定义...');
   await prisma.nodeDefinition.deleteMany();
 
   console.log('📝 写入 token / style 全局配置（upsert，二次运行不冲突）...');
   await prisma.globalConfig.upsert({
     where: { key: 'token' },
-    create: { key: 'token', value: config.token, description: 'Canvas Flow client token' },
-    update: { value: config.token },
+    create: { key: 'token', value: DEFAULT_TOKEN, description: 'Canvas Flow client token' },
+    update: { value: DEFAULT_TOKEN },
   });
   await prisma.globalConfig.upsert({
     where: { key: 'style' },
-    create: { key: 'style', value: config.style, description: 'Canvas Style Configuration' },
-    update: { value: config.style },
+    create: { key: 'style', value: DEFAULT_STYLE, description: 'Canvas Style Configuration' },
+    update: { value: DEFAULT_STYLE },
   });
 
   console.log('📦 开始导入节点定义...');
   let nodeCount = 0;
 
-  for (const [index, nodeDef] of config.nodeDefinitions.entries()) {
+  for (const [index, nodeDef] of DEFAULT_NODE_DEFINITIONS.entries()) {
     console.log(`  · ${nodeDef.type} (${nodeDef.label})`);
 
     await prisma.nodeDefinition.create({
@@ -60,11 +62,11 @@ async function main() {
         type: nodeDef.type,
         label: nodeDef.label,
         component: nodeDef.component,
-        width: nodeDef.width || 250,
-        height: nodeDef.height || 250,
-        defaultData: nodeDef.defaultData || {},
+        width: nodeDef.width ?? 250,
+        height: nodeDef.height ?? 250,
+        defaultData: nodeDef.defaultData,
         defaultParams: nodeDef.defaultParams ?? {},
-        connectionRules: nodeDef.connectionRules || {},
+        connectionRules: nodeDef.connectionRules,
         models: nodeDef.models ?? null,
         sortOrder: index,
       },

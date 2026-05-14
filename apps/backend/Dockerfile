@@ -43,8 +43,11 @@ RUN pnpm --filter canvas-flow-backend build
 # only emits files under src/; the seed lives in prisma/, so we run a
 # standalone tsc to drop seed-canvas-config.js next to dist/main.
 # Without --rootDir, tsc picks the single source file's parent dir as
-# the root, so output lands at apps/backend/dist/seed-canvas-config.js
+# the root (prisma/), so output lands at apps/backend/dist/seed-canvas-config.js
 # (NOT dist/prisma/...). Entry script already references it there.
+# tsc auto-follows the `./default-node-definitions` import and emits
+# default-node-definitions.js alongside seed-canvas-config.js — both
+# files live under prisma/, so rootDir inference stays consistent.
 RUN pnpm --filter canvas-flow-backend exec tsc \
       --target ES2022 --module CommonJS --moduleResolution node \
       --esModuleInterop --skipLibCheck --resolveJsonModule \
@@ -66,8 +69,7 @@ RUN pnpm --filter canvas-flow-backend exec tsc \
 # we don't need separate cp commands for .prisma / @prisma.
 RUN pnpm --filter canvas-flow-backend deploy --prod --legacy /deploy \
  && cp -r apps/backend/dist /deploy/dist \
- && cp -r apps/backend/prisma /deploy/prisma \
- && cp -r apps/backend/prisma/seed-data /deploy/dist/seed-data
+ && cp -r apps/backend/prisma /deploy/prisma
 
 # Regenerate Prisma Client INSIDE /deploy so it's wired against the
 # production-only node_modules tree. pnpm 10 ignores postinstall scripts
