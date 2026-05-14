@@ -24,7 +24,7 @@ import {
   TextField,
 } from '@radix-ui/themes';
 import { Cross2Icon, MagnifyingGlassIcon, TrashIcon } from '@radix-ui/react-icons';
-import { History, ImageIcon, Music, Type, Video } from 'lucide-react';
+import { History, ImageIcon, Music, Play, Type, Video } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   generationHistoryService,
@@ -174,7 +174,12 @@ export function GenerationHistoryPanel({
 
   const renderCard = (item: HistoryListItem) => {
     const isApplying = applyingId === item.id;
-    const showThumb = (item.nodeType === 'image' || item.nodeType === 'video') && item.thumbnail;
+    // backend writes the .mp4 URL into `thumbnail` for video rows (no
+    // separate poster column), so for video we render a <video> element
+    // that pulls just the metadata + first frame to act as the cover.
+    // image / audio still show as static <img> / icon.
+    const isVideoCover = item.nodeType === 'video' && !!item.thumbnail;
+    const isImageCover = item.nodeType === 'image' && !!item.thumbnail;
     return (
       <div
         key={item.id}
@@ -187,16 +192,34 @@ export function GenerationHistoryPanel({
         onClick={() => !isApplying && handleApply(item)}
       >
         <div style={cardCoverStyle}>
-          {showThumb ? (
+          {isImageCover ? (
             <img
               src={item.thumbnail!}
               alt={item.promptText || item.id}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              style={coverMediaStyle}
+            />
+          ) : isVideoCover ? (
+            // preload="metadata" 只下载视频前若干字节用来渲染首帧 / 时长，
+            // 不会拉完整文件；muted + playsInline 确保 iOS 上不被当作
+            // 自动播放拒绝；不挂 controls — 卡片只是封面，点击进入复用。
+            <video
+              src={item.thumbnail!}
+              preload="metadata"
+              muted
+              playsInline
+              style={coverMediaStyle}
             />
           ) : (
             <Flex align="center" justify="center" style={{ width: '100%', height: '100%' }}>
               <NodeTypeIcon type={item.nodeType as HistoryNodeType} />
             </Flex>
+          )}
+
+          {isVideoCover && (
+            // 视频封面是静帧，叠一个播放图标避免被误认为图片
+            <div style={videoPlayBadgeStyle}>
+              <Play size={14} fill="#fff" color="#fff" />
+            </div>
           )}
 
           {item.nodeType === 'video' && (
@@ -448,6 +471,26 @@ const cardCoverStyle: React.CSSProperties = {
   borderRadius: 8,
   overflow: 'hidden',
   background: 'linear-gradient(135deg, #1f2937 0%, #111827 100%)',
+};
+const coverMediaStyle: React.CSSProperties = {
+  width: '100%',
+  height: '100%',
+  objectFit: 'cover',
+  display: 'block',
+};
+const videoPlayBadgeStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: 32,
+  height: 32,
+  borderRadius: '50%',
+  background: 'rgba(0,0,0,0.55)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  pointerEvents: 'none',
 };
 const cardActionsStyle: React.CSSProperties = {
   position: 'absolute',
