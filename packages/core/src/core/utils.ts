@@ -20,27 +20,14 @@ export const toReactFlowNodes = (nodes: CanvasFlowNode[], groups: CanvasFlowGrou
     if (group) {
       parentId = group.id;
 
-      // 决定 position 是绝对坐标还是相对坐标，再翻译成 RF 需要的「父节点
-      // 局部坐标」。三条来源：
-      //   1) 显式标记 _coordinateType === 'absolute' → 减去 group 偏移
-      //   2) 显式标记 'relative' → 原样使用
-      //   3) 旧数据中曾经 GROUP_ADD 标了 'relative'，但用户后续拖拽走了
-      //      NODE_MOVE 路径，position 被覆写成绝对坐标却没更新标签。
-      //      这种情况坐标会跑到 group 几何之外（合法的相对坐标只可能在
-      //      [-margin, group.size + margin] 之间）。命中即按 'absolute'
-      //      自愈，避免节点 + 连线整体错位。
-      const claimsAbsolute = node._coordinateType === 'absolute';
-      const lacksTag = node._coordinateType !== 'relative' && !claimsAbsolute;
-      const margin = 200;
-      const looksLikeAbsolute =
-        node.position.x < -margin ||
-        node.position.x > (group.width || 0) + margin ||
-        node.position.y < -margin ||
-        node.position.y > (group.height || 0) + margin;
-
-      const treatAsAbsolute = claimsAbsolute || lacksTag || looksLikeAbsolute;
-
-      if (treatAsAbsolute) {
+      // RF 父子约定：子节点的 position 一律是「相对父节点」局部坐标。
+      // 持久化层维持双轨：GROUP_ADD 写相对、NODE_MOVE 走 fromReactFlowNodes
+      // 写绝对 + _coordinateType: 'absolute'（后端 applyNodeMove 也补盖
+      // 这个标签）。其他路径（NODE_ADD / 模板 / clone / instantiate 等）
+      // 从不带 _coordinateType，约定这些路径的 position 已经是相对坐标。
+      // 因此只在显式 'absolute' 时减偏移；任何"启发式自愈"都会把这些
+      // 无标签的合法相对坐标误判，连环错位。
+      if (node._coordinateType === 'absolute') {
         position = {
           x: node.position.x - group.position.x,
           y: node.position.y - group.position.y,
