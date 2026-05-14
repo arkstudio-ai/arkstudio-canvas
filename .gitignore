@@ -41,3 +41,6 @@ tmp/
 # Prisma
 apps/backend/prisma/*.db
 apps/backend/prisma/*.db-journal
+
+# 个人部署目录（含密钥/密码，不入库）
+deploy/

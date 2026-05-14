@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import {
   DEFAULT_NODE_DEFINITIONS,
   DEFAULT_STYLE,
@@ -42,13 +42,13 @@ async function main() {
   console.log('📝 写入 token / style 全局配置（upsert，二次运行不冲突）...');
   await prisma.globalConfig.upsert({
     where: { key: 'token' },
-    create: { key: 'token', value: DEFAULT_TOKEN, description: 'Canvas Flow client token' },
-    update: { value: DEFAULT_TOKEN },
+    create: { key: 'token', value: DEFAULT_TOKEN as unknown as Prisma.InputJsonValue, description: 'Canvas Flow client token' },
+    update: { value: DEFAULT_TOKEN as unknown as Prisma.InputJsonValue },
   });
   await prisma.globalConfig.upsert({
     where: { key: 'style' },
-    create: { key: 'style', value: DEFAULT_STYLE, description: 'Canvas Style Configuration' },
-    update: { value: DEFAULT_STYLE },
+    create: { key: 'style', value: DEFAULT_STYLE as unknown as Prisma.InputJsonValue, description: 'Canvas Style Configuration' },
+    update: { value: DEFAULT_STYLE as unknown as Prisma.InputJsonValue },
   });
 
   console.log('📦 开始导入节点定义...');
@@ -64,10 +64,10 @@ async function main() {
         component: nodeDef.component,
         width: nodeDef.width ?? 250,
         height: nodeDef.height ?? 250,
-        defaultData: nodeDef.defaultData,
-        defaultParams: nodeDef.defaultParams ?? {},
-        connectionRules: nodeDef.connectionRules,
-        models: nodeDef.models ?? null,
+        defaultData: nodeDef.defaultData as unknown as Prisma.InputJsonValue,
+        defaultParams: (nodeDef.defaultParams ?? {}) as unknown as Prisma.InputJsonValue,
+        connectionRules: nodeDef.connectionRules as unknown as Prisma.InputJsonValue,
+        models: (nodeDef.models ?? null) as unknown as Prisma.InputJsonValue,
         sortOrder: index,
       },
     });
