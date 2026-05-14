@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
-import { FlowNodeDataService } from '../flows/flow-node-data.service';
-import { FlowNodeParamsService } from '../flows/flow-node-params.service';
+import { FlowNodeStateService } from '../flows/flow-node-state.service';
 import { FileTransferService } from '../upload/file-transfer.service';
 
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
@@ -10,7 +9,7 @@ const EXCLUDED_PARAM_KEYS = ['prompt', 'action', 'model'];
 
 /**
  * Builds the SubmitRequest payload that ProviderRegistry consumes, from
- * FlowNode data / params, and persists the response back into FlowNodeData.
+ * FlowNode data / params, and persists the response back into FlowNode.data.
  *
  * Extracted out of ExecutionsService so the orchestrator (PENDING → RUNNING
  * → COMPLETED/FAILED state machine + concurrent runner + SSE emitter) stays
@@ -22,8 +21,7 @@ export class ParamsBuilderService {
   private readonly logger = new Logger(ParamsBuilderService.name);
 
   constructor(
-    private readonly nodeDataService: FlowNodeDataService,
-    private readonly nodeParamsService: FlowNodeParamsService,
+    private readonly nodeState: FlowNodeStateService,
     private readonly fileTransferService: FileTransferService,
   ) {}
 
@@ -40,37 +38,44 @@ export class ParamsBuilderService {
     _nodeType: string,
     upstreamNodeIds: string[],
   ): Promise<any> {
-    const currentParams = await this.nodeParamsService.getNodeParams(flowId, nodeId);
+    const currentParams = await this.nodeState.getNodeParams(flowId, nodeId);
     const params = currentParams?.params || {};
 
     const upstreamDataList = await Promise.all(
-      upstreamNodeIds.map(id => this.nodeDataService.getNodeData(flowId, id)),
+      upstreamNodeIds.map((id) => this.nodeState.getNodeData(flowId, id)),
     );
 
     const upstreamTexts: string[] = [];
     const negativeTexts: string[] = [];
 
-    upstreamDataList.forEach(data => {
-      if (!data?.data || typeof data.data !== 'object' || !('text' in data.data)) return;
-      const text = (data.data as any).text as string;
+    upstreamDataList.forEach((data) => {
+      if (
+        !data?.data ||
+        typeof data.data !== 'object' ||
+        !('text' in data.data)
+      )
+        return;
+      const text = data.data.text as string;
       if (!text) return;
-      if ((data.data as any).isNegativePrompt) {
+      if (data.data.isNegativePrompt) {
         negativeTexts.push(text);
       } else {
         upstreamTexts.push(text);
       }
     });
 
-    const currentPrompt = (params as any).prompt || '';
-    const finalPrompt = [...upstreamTexts, currentPrompt].filter(Boolean).join(';');
+    const currentPrompt = params.prompt || '';
+    const finalPrompt = [...upstreamTexts, currentPrompt]
+      .filter(Boolean)
+      .join(';');
 
     const inputs: any[] = [];
-    upstreamDataList.forEach(data => {
+    upstreamDataList.forEach((data) => {
       if (!data?.data || typeof data.data !== 'object') return;
-      const src = (data.data as any).src as string | undefined;
+      const src = data.data.src as string | undefined;
       if (!src) return;
 
-      const fileType = (data.data as any).fileType as string | undefined;
+      const fileType = data.data.fileType as string | undefined;
       if (fileType?.startsWith('audio/') || this.isAudio(src)) {
         inputs.push({ type: 'audio', url: src });
       } else if (fileType?.startsWith('video/') || this.isVideo(src)) {
@@ -82,9 +87,9 @@ export class ParamsBuilderService {
 
     const extraParams: Record<string, any> = {};
     if (typeof params === 'object' && params !== null) {
-      Object.keys(params).forEach(key => {
+      Object.keys(params).forEach((key) => {
         if (!EXCLUDED_PARAM_KEYS.includes(key)) {
-          extraParams[key] = (params as any)[key];
+          extraParams[key] = params[key];
         }
       });
     }
@@ -94,8 +99,8 @@ export class ParamsBuilderService {
 
     const request: any = {
       requestId: uuidv4(),
-      modelType: (params as any).action || 'generate',
-      modelName: (params as any).model || 'default',
+      modelType: params.action || 'generate',
+      modelName: params.model || 'default',
       prompt: finalPrompt,
     };
     if (Object.keys(extraParams).length > 0) request.extraParams = extraParams;
@@ -105,7 +110,7 @@ export class ParamsBuilderService {
   }
 
   /**
-   * Persist a provider response back into the node's FlowNodeData.
+   * Persist a provider response back into the node's FlowNode.data.
    *
    * For text nodes we keep the raw text; for media nodes we re-host the
    * upstream URL on our own COS bucket (so the transient AI provider URL
@@ -115,7 +120,7 @@ export class ParamsBuilderService {
    *
    * Returns the persisted `resultData` so the caller (ExecutionsService)
    * can forward it to GenerationHistoryService.record(...) without
-   * re-reading FlowNodeData.
+   * re-reading FlowNode.data.
    */
   async saveExecutionResult(
     flowId: string,
@@ -134,7 +139,9 @@ export class ParamsBuilderService {
       resultData.fileType = resource.type || nodeType;
 
       if (originalUrl) {
-        this.logger.log(`[转存] 开始转存媒体文件: ${originalUrl.substring(0, 60)}...`);
+        this.logger.log(
+          `[转存] 开始转存媒体文件: ${originalUrl.substring(0, 60)}...`,
+        );
         const transferResult = await this.fileTransferService.transferUrl(
           originalUrl,
           executionId,
@@ -151,17 +158,20 @@ export class ParamsBuilderService {
       }
     }
 
-    await this.nodeDataService.updateNodeData(flowId, nodeId, resultData);
+    await this.nodeState.updateNodeData(flowId, nodeId, resultData);
     return resultData;
   }
 
   private isVideo(src: string): boolean {
     const lower = src.toLowerCase();
-    return VIDEO_EXTENSIONS.some(ext => lower.includes(ext)) || lower.includes('video');
+    return (
+      VIDEO_EXTENSIONS.some((ext) => lower.includes(ext)) ||
+      lower.includes('video')
+    );
   }
 
   private isAudio(src: string): boolean {
     const lower = src.toLowerCase().split('?')[0];
-    return AUDIO_EXTENSIONS.some(ext => lower.endsWith(ext));
+    return AUDIO_EXTENSIONS.some((ext) => lower.endsWith(ext));
   }
 }

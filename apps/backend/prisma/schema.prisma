@@ -34,6 +34,17 @@ model Flow {
   @@map("flows")
 }
 
+// FlowNode carries both structural fields (type / position / groupId / ...) and
+// runtime state. `data` is the node's media payload (src / text / title / ...),
+// `params` is its model-invocation knobs (model / mode / prompt / ...).
+//
+// History: this used to be three tables -- FlowNode + FlowNodeData (1:1) +
+// FlowNodeParams (1:1), each backed by its own Nest service that mirrored
+// the other line-for-line. The split's only justification was an independent
+// `version` column for optimistic locking, but no caller ever read that
+// version, and every node load paid for two extra joins. Phase 8 collapsed
+// the two satellite tables into the two `Json?` columns below; service
+// layer is now a single FlowNodeStateService.
 model FlowNode {
   id     String @id @default(uuid())
   flowId String
@@ -46,8 +57,8 @@ model FlowNode {
   height   Int     @default(250)
   groupId  String?
 
-  data   FlowNodeData?
-  params FlowNodeParams?
+  data   Json?
+  params Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -56,30 +67,6 @@ model FlowNode {
   @@index([flowId])
   @@index([groupId])
   @@map("flow_nodes")
-}
-
-model FlowNodeData {
-  id         String   @id @default(uuid())
-  flowNodeId String   @unique
-  flowNode   FlowNode @relation(fields: [flowNodeId], references: [id], onDelete: Cascade)
-  data       Json
-  version    Int      @default(1)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@map("flow_node_data")
-}
-
-model FlowNodeParams {
-  id         String   @id @default(uuid())
-  flowNodeId String   @unique
-  flowNode   FlowNode @relation(fields: [flowNodeId], references: [id], onDelete: Cascade)
-  params     Json
-  version    Int      @default(1)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@map("flow_node_params")
 }
 
 model FlowOperation {
@@ -131,7 +118,7 @@ model FlowExecution {
   // modelSku at submit time. Persisted so admin / billing queries don't
   // need to repeat the lookup, and so each kind's billable unit lands in
   // its own column instead of being multiplexed onto inputTokens.
-  kind String?
+  kind      String?
 
   // Execution batch (nodes executed together share a batchId)
   batchId String?
@@ -193,9 +180,9 @@ model FlowExecution {
 // Retention: open-source build does NOT auto-clean this table; deployers
 // are expected to truncate old events as part of their own DB lifecycle.
 model FlowExecutionEvent {
-  id             String        @id @default(uuid())
-  executionId    String
-  execution      FlowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  id          String        @id @default(uuid())
+  executionId String
+  execution   FlowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
 
   // submitting | submitted | polling | completed | failed
   phase          String
@@ -205,7 +192,7 @@ model FlowExecutionEvent {
   // (e.g. 'pending', 'running', 'succeeded'); only set for polling/submitted
   externalStatus String?
   // Free-form human note for log scanning
-  message        String?       @db.VarChar(1024)
+  message        String? @db.VarChar(1024)
   // Failure-only sanitized upstream error body
   payloadSnippet Json?
 
@@ -354,21 +341,21 @@ model GlobalConfig {
 // can reuse the table without migration.
 
 model Voice {
-  id           String   @id @default(uuid())
+  id           String  @id @default(uuid())
   // Upstream MiniMax voice id (e.g. "cf-1700000000-abc"). Globally
   // unique on the upstream side; we mirror that uniqueness locally
   // so duplicate-create errors surface fast.
-  voiceId      String   @unique
+  voiceId      String  @unique
   name         String
   // Source clip URL (the file the user uploaded / recorded). Kept
   // for re-clone / debugging; the file lives in our upload bucket.
-  audioUrl     String?  @db.Text
+  audioUrl     String? @db.Text
   // Demo audio URL returned by the voice_clone call -- short sample
   // synthesized using the new voice. Used by the gallery for preview.
-  demoAudioUrl String?  @db.Text
+  demoAudioUrl String? @db.Text
   // SUCCESS | FAILED. Sync provider only ever writes SUCCESS today.
-  status       String   @default("SUCCESS")
-  errorMsg     String?  @db.Text
+  status       String  @default("SUCCESS")
+  errorMsg     String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -387,7 +374,7 @@ model Voice {
 // executions are NOT recorded -- FlowExecutionEvent already covers
 // the audit trail for debugging; history is for re-using outputs.
 //
-// `outputData` mirrors the node's persisted FlowNodeData payload at
+// `outputData` mirrors the node's persisted FlowNode.data payload at
 // the moment of generation, so an "instantiate" call can rebuild a
 // fresh node carrying the same media src / text / etc.
 // `params` captures the triggering ModelEntry params (model, mode,
@@ -413,7 +400,7 @@ model GenerationHistory {
   // text nodes this is null and the actual content lives on outputData.
   src         String? @db.Text
   // Full snapshot of the node's data after generation (mirrors
-  // FlowNodeData.data at the moment of record). Used by /instantiate
+  // FlowNode.data at the moment of record). Used by /instantiate
   // to rehydrate a brand new node carrying the same payload.
   outputData  Json?
   // Snapshot of params at submit time. Used so re-runs can land with

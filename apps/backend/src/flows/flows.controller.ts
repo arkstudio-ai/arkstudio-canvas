@@ -1,7 +1,19 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UsePipes, ValidationPipe, Query, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UsePipes,
+  ValidationPipe,
+  Query,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { FlowsService } from './flows.service';
-import { FlowNodeDataService } from './flow-node-data.service';
-import { FlowNodeParamsService } from './flow-node-params.service';
+import { FlowNodeStateService } from './flow-node-state.service';
 import { CreateFlowDto } from './dto/create-flow.dto';
 import { UpdateFlowDto } from './dto/update-flow.dto';
 import { QueryFlowDto } from './dto/query-flow.dto';
@@ -12,8 +24,7 @@ import { CloneFlowDto } from './dto/clone-flow.dto';
 export class FlowsController {
   constructor(
     private readonly flowsService: FlowsService,
-    private readonly nodeDataService: FlowNodeDataService,
-    private readonly nodeParamsService: FlowNodeParamsService,
+    private readonly nodeState: FlowNodeStateService,
   ) {}
 
   @Post()
@@ -53,7 +64,10 @@ export class FlowsController {
 
   @Post(':id/operations')
   @UsePipes(new ValidationPipe({ transform: true }))
-  applyOperations(@Param('id') id: string, @Body() batchDto: BatchOperationDto) {
+  applyOperations(
+    @Param('id') id: string,
+    @Body() batchDto: BatchOperationDto,
+  ) {
     return this.flowsService.applyOperations(id, batchDto);
   }
 
@@ -83,18 +97,18 @@ export class FlowsController {
     @Query('merge') merge?: string,
   ) {
     const mergeMode = merge !== 'false';
-    await this.nodeDataService.updateNodeData(id, nodeId, body.data, mergeMode);
+    await this.nodeState.updateNodeData(id, nodeId, body.data, mergeMode);
     return null;
   }
 
   @Get(':id/nodes/:nodeId/data')
   async getNodeData(@Param('id') id: string, @Param('nodeId') nodeId: string) {
-    return this.nodeDataService.getNodeData(id, nodeId);
+    return this.nodeState.getNodeData(id, nodeId);
   }
 
   @Get(':id/nodes/data')
   async getFlowNodesData(@Param('id') flowId: string) {
-    return this.nodeDataService.getFlowNodesData(flowId);
+    return this.nodeState.getFlowNodesData(flowId);
   }
 
   @Get(':id/groups/:groupId/nodes/data')
@@ -102,7 +116,7 @@ export class FlowsController {
     @Param('id') flowId: string,
     @Param('groupId') groupId: string,
   ) {
-    return this.nodeDataService.getGroupNodesData(flowId, groupId);
+    return this.nodeState.getGroupNodesData(flowId, groupId);
   }
 
   // ========== Node Params API ==========
@@ -115,18 +129,21 @@ export class FlowsController {
     @Query('merge') merge?: string,
   ) {
     const mergeMode = merge !== 'false';
-    await this.nodeParamsService.updateNodeParams(id, nodeId, params, mergeMode);
+    await this.nodeState.updateNodeParams(id, nodeId, params, mergeMode);
     return null;
   }
 
   @Get(':id/nodes/:nodeId/params')
-  async getNodeParams(@Param('id') id: string, @Param('nodeId') nodeId: string) {
-    return this.nodeParamsService.getNodeParams(id, nodeId);
+  async getNodeParams(
+    @Param('id') id: string,
+    @Param('nodeId') nodeId: string,
+  ) {
+    return this.nodeState.getNodeParams(id, nodeId);
   }
 
   @Get(':id/nodes/params')
   async getFlowNodesParams(@Param('id') flowId: string) {
-    return this.nodeParamsService.getFlowNodesParams(flowId);
+    return this.nodeState.getFlowNodesParams(flowId);
   }
 
   @Get(':id/groups/:groupId/nodes/params')
@@ -134,6 +151,6 @@ export class FlowsController {
     @Param('id') flowId: string,
     @Param('groupId') groupId: string,
   ) {
-    return this.nodeParamsService.getGroupNodesParams(flowId, groupId);
+    return this.nodeState.getGroupNodesParams(flowId, groupId);
   }
 }

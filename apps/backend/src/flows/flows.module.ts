@@ -1,16 +1,11 @@
 import { Module } from '@nestjs/common';
 import { FlowsService } from './flows.service';
 import { FlowsController } from './flows.controller';
-import { FlowNodeDataService } from './flow-node-data.service';
-import { FlowNodeParamsService } from './flow-node-params.service';
+import { FlowNodeStateService } from './flow-node-state.service';
 
 @Module({
   controllers: [FlowsController],
-  providers: [
-    FlowsService,
-    FlowNodeDataService,
-    FlowNodeParamsService,
-  ],
-  exports: [FlowsService, FlowNodeDataService, FlowNodeParamsService],
+  providers: [FlowsService, FlowNodeStateService],
+  exports: [FlowsService, FlowNodeStateService],
 })
 export class FlowsModule {}

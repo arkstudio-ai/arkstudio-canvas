@@ -1,23 +1,27 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateFlowDto } from './dto/create-flow.dto';
 import { UpdateFlowDto } from './dto/update-flow.dto';
 import { QueryFlowDto } from './dto/query-flow.dto';
 import { BatchOperationDto } from './dto/flow-operation.dto';
-import { FlowNodeDataService } from './flow-node-data.service';
 import { Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class FlowsService {
-  constructor(
-    private prisma: PrismaService,
-    private nodeDataService: FlowNodeDataService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   async create(createFlowDto: CreateFlowDto) {
-    const initialGraph = createFlowDto.initialGraph || { nodes: [], edges: [], meta: {} };
-    
+    const initialGraph = createFlowDto.initialGraph || {
+      nodes: [],
+      edges: [],
+      meta: {},
+    };
+
     const structureJson = {
       nodes: (initialGraph.nodes || []).map((n: any) => {
         const node: any = {
@@ -31,11 +35,11 @@ export class FlowsService {
         return node;
       }),
       edges: initialGraph.edges || [],
-      groups: initialGraph.groups || []
+      groups: initialGraph.groups || [],
     };
-    
+
     const serializedStructureJson = JSON.parse(JSON.stringify(structureJson));
-    
+
     const flow = await this.prisma.flow.create({
       data: {
         name: createFlowDto.name,
@@ -45,13 +49,13 @@ export class FlowsService {
         version: 1,
       },
     });
-    
+
     return flow;
   }
 
   async findAll() {
     return this.prisma.flow.findMany({
-      where: { 
+      where: {
         status: { not: 'DELETED' },
       },
       select: {
@@ -127,7 +131,11 @@ export class FlowsService {
         );
       }
 
-      const structure = (flow.structureJson as any) || { nodes: [], edges: [], groups: [] };
+      const structure = (flow.structureJson as any) || {
+        nodes: [],
+        edges: [],
+        groups: [],
+      };
 
       for (const operation of operations) {
         await this.applyOperation(tx, id, structure, operation);
@@ -170,7 +178,12 @@ export class FlowsService {
     });
   }
 
-  private async applyOperation(tx: any, flowId: string, structure: any, operation: any) {
+  private async applyOperation(
+    tx: any,
+    flowId: string,
+    structure: any,
+    operation: any,
+  ) {
     const { op, data } = operation;
 
     switch (op) {
@@ -214,7 +227,12 @@ export class FlowsService {
 
   // ========== Node Operations ==========
 
-  private async applyNodeAdd(tx: any, flowId: string, structure: any, payload: any) {
+  private async applyNodeAdd(
+    tx: any,
+    flowId: string,
+    structure: any,
+    payload: any,
+  ) {
     const { id, type, position, width, height, groupId } = payload;
 
     structure.nodes.push({
@@ -239,7 +257,12 @@ export class FlowsService {
     });
   }
 
-  private async applyNodeMove(tx: any, flowId: string, structure: any, payload: any) {
+  private async applyNodeMove(
+    tx: any,
+    flowId: string,
+    structure: any,
+    payload: any,
+  ) {
     const { id, position } = payload;
 
     const node = structure.nodes.find((n: any) => n.id === id);
@@ -259,7 +282,12 @@ export class FlowsService {
     });
   }
 
-  private async applyNodeUpdate(tx: any, flowId: string, structure: any, payload: any) {
+  private async applyNodeUpdate(
+    tx: any,
+    flowId: string,
+    structure: any,
+    payload: any,
+  ) {
     const { id, position, width, height, groupId, type } = payload;
 
     const node = structure.nodes.find((n: any) => n.id === id);
@@ -286,7 +314,12 @@ export class FlowsService {
     }
   }
 
-  private async applyNodeRemove(tx: any, flowId: string, structure: any, payload: any) {
+  private async applyNodeRemove(
+    tx: any,
+    flowId: string,
+    structure: any,
+    payload: any,
+  ) {
     const { id } = payload;
 
     structure.nodes = structure.nodes.filter((n: any) => n.id !== id);
@@ -318,8 +351,14 @@ export class FlowsService {
 
   // ========== Group Operations ==========
 
-  private async applyGroupAdd(tx: any, flowId: string, structure: any, payload: any) {
-    const { id, label, position, width, height, style, nodeIds, nodes } = payload;
+  private async applyGroupAdd(
+    tx: any,
+    flowId: string,
+    structure: any,
+    payload: any,
+  ) {
+    const { id, label, position, width, height, style, nodeIds, nodes } =
+      payload;
 
     structure.groups.push({
       id,
@@ -368,7 +407,12 @@ export class FlowsService {
     }
   }
 
-  private async applyGroupUpdate(tx: any, flowId: string, structure: any, payload: any) {
+  private async applyGroupUpdate(
+    tx: any,
+    flowId: string,
+    structure: any,
+    payload: any,
+  ) {
     const { id, label, position, width, height, style, nodeIds } = payload;
     const group = structure.groups.find((g: any) => g.id === id);
     if (group) {
@@ -386,7 +430,12 @@ export class FlowsService {
     structure.groups = structure.groups.filter((g: any) => g.id !== id);
   }
 
-  private async applyGroupRemove(tx: any, flowId: string, structure: any, payload: any) {
+  private async applyGroupRemove(
+    tx: any,
+    flowId: string,
+    structure: any,
+    payload: any,
+  ) {
     const { id } = payload;
 
     const nodeIds = structure.nodes
@@ -423,7 +472,7 @@ export class FlowsService {
 
   async update(id: string, dto: UpdateFlowDto) {
     const updateData: Prisma.FlowUpdateInput = {};
-    
+
     if (dto.name !== undefined) updateData.name = dto.name;
     if (dto.description !== undefined) updateData.description = dto.description;
     if (dto.cover !== undefined) updateData.cover = dto.cover;
@@ -446,21 +495,17 @@ export class FlowsService {
 
     const flowNodes = await this.prisma.flowNode.findMany({
       where: { flowId: id },
-      include: {
-        data: true,
-        params: true,
-      },
     });
 
-    const nodes = flowNodes.map(node => ({
+    const nodes = flowNodes.map((node) => ({
       nodeId: node.nodeId,
       type: node.type,
       position: node.position,
       width: node.width,
       height: node.height,
       groupId: node.groupId,
-      data: node.data?.data ?? null,
-      params: node.params?.params ?? null,
+      data: node.data ?? null,
+      params: node.params ?? null,
     }));
 
     return {
@@ -486,16 +531,12 @@ export class FlowsService {
 
     const sourceNodes = await this.prisma.flowNode.findMany({
       where: { flowId: id },
-      include: {
-        data: true,
-        params: true,
-      },
     });
 
     const nodeIdMap = new Map<string, string>();
     const groupIdMap = new Map<string, string>();
 
-    sourceNodes.forEach(node => {
+    sourceNodes.forEach((node) => {
       nodeIdMap.set(node.nodeId, uuidv4());
     });
 
@@ -513,7 +554,7 @@ export class FlowsService {
         position: n.position,
         width: n.width,
         height: n.height,
-        groupId: n.groupId ? (groupIdMap.get(n.groupId) || n.groupId) : null,
+        groupId: n.groupId ? groupIdMap.get(n.groupId) || n.groupId : null,
       })),
       edges: (structure.edges || [])
         .filter((e: any) => nodeIdMap.has(e.source) && nodeIdMap.has(e.target))
@@ -531,7 +572,9 @@ export class FlowsService {
         width: g.width,
         height: g.height,
         style: g.style,
-        nodeIds: (g.nodeIds || []).map((nid: string) => nodeIdMap.get(nid) || nid),
+        nodeIds: (g.nodeIds || []).map(
+          (nid: string) => nodeIdMap.get(nid) || nid,
+        ),
       })),
     };
 
@@ -550,9 +593,11 @@ export class FlowsService {
 
       for (const sourceNode of sourceNodes) {
         const newNodeId = nodeIdMap.get(sourceNode.nodeId)!;
-        const newGroupId = sourceNode.groupId ? (groupIdMap.get(sourceNode.groupId) || sourceNode.groupId) : null;
+        const newGroupId = sourceNode.groupId
+          ? groupIdMap.get(sourceNode.groupId) || sourceNode.groupId
+          : null;
 
-        const newFlowNode = await tx.flowNode.create({
+        await tx.flowNode.create({
           data: {
             flowId: newFlow.id,
             nodeId: newNodeId,
@@ -561,28 +606,12 @@ export class FlowsService {
             width: sourceNode.width,
             height: sourceNode.height,
             groupId: newGroupId,
+            // 双轨清理后 data/params 直接挂在 FlowNode 上，clone 一步搞定。
+            data: (sourceNode.data ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+            params: (sourceNode.params ??
+              Prisma.JsonNull) as Prisma.InputJsonValue,
           },
         });
-
-        if (sourceNode.data) {
-          await tx.flowNodeData.create({
-            data: {
-              flowNodeId: newFlowNode.id,
-              data: sourceNode.data.data as any,
-              version: 1,
-            },
-          });
-        }
-
-        if (sourceNode.params) {
-          await tx.flowNodeParams.create({
-            data: {
-              flowNodeId: newFlowNode.id,
-              params: sourceNode.params.params as any,
-              version: 1,
-            },
-          });
-        }
       }
 
       return { id: newFlow.id };

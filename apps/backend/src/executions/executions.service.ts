@@ -5,22 +5,41 @@ import { ExecutionTask, BatchProgressDto } from './dto/execute-response.dto';
 import { v4 as uuidv4 } from 'uuid';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { QueryExecutionsDto, EXECUTION_STATUSES, ExecutionStatus } from './dto/query-executions.dto';
+import {
+  QueryExecutionsDto,
+  EXECUTION_STATUSES,
+  ExecutionStatus,
+} from './dto/query-executions.dto';
 import { ExecutionEventsService } from './execution-events.service';
 import { ParamsBuilderService } from './params-builder.service';
 import { ModelResolverService } from './model-resolver.service';
-import { FlowNodeParamsService } from '../flows/flow-node-params.service';
+import { FlowNodeStateService } from '../flows/flow-node-state.service';
 import { ProviderRegistry } from '../providers/provider-registry.service';
-import type { PollResult, ProviderClient, ProviderUsage, SubmitResult } from '../providers/provider.types';
+import type {
+  PollResult,
+  ProviderClient,
+  ProviderUsage,
+  SubmitResult,
+} from '../providers/provider.types';
 import { inferModelKind } from './model-kind';
 import { GenerationHistoryService } from '../generation-history/generation-history.service';
 import type { HistoryNodeType } from '../generation-history/dto/query-history.dto';
 
-const HISTORY_NODE_TYPES = new Set<HistoryNodeType>(['image', 'video', 'audio', 'text']);
+const HISTORY_NODE_TYPES = new Set<HistoryNodeType>([
+  'image',
+  'video',
+  'audio',
+  'text',
+]);
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-type ExecutionPhase = 'submitting' | 'submitted' | 'polling' | 'completed' | 'failed';
+type ExecutionPhase =
+  | 'submitting'
+  | 'submitted'
+  | 'polling'
+  | 'completed'
+  | 'failed';
 
 /** Cap snippet at 2KB JSON to keep failure rows scannable. */
 const SNIPPET_MAX_BYTES = 2048;
@@ -51,18 +70,29 @@ const SNIPPET_MAX_BYTES = 2048;
 function usageToPatch(usage?: ProviderUsage): Prisma.FlowExecutionUpdateInput {
   if (!usage) return {};
   const patch: Prisma.FlowExecutionUpdateInput = {};
-  if (typeof usage.inputTokens === 'number') patch.inputTokens = usage.inputTokens;
-  if (typeof usage.outputTokens === 'number') patch.outputTokens = usage.outputTokens;
-  if (typeof usage.videoDurationSec === 'number') patch.outputDurationSec = usage.videoDurationSec;
-  else if (typeof usage.audioDurationSec === 'number') patch.outputDurationSec = usage.audioDurationSec;
-  if (typeof usage.imageCount === 'number') patch.outputCount = usage.imageCount;
+  if (typeof usage.inputTokens === 'number')
+    patch.inputTokens = usage.inputTokens;
+  if (typeof usage.outputTokens === 'number')
+    patch.outputTokens = usage.outputTokens;
+  if (typeof usage.videoDurationSec === 'number')
+    patch.outputDurationSec = usage.videoDurationSec;
+  else if (typeof usage.audioDurationSec === 'number')
+    patch.outputDurationSec = usage.audioDurationSec;
+  if (typeof usage.imageCount === 'number')
+    patch.outputCount = usage.imageCount;
   return patch;
 }
 
 function sanitizeSnippet(payload: unknown): Prisma.InputJsonValue | null {
   if (payload === undefined || payload === null) return null;
 
-  const sensitive = new Set(['authorization', 'api_key', 'apikey', 'token', 'access_token']);
+  const sensitive = new Set([
+    'authorization',
+    'api_key',
+    'apikey',
+    'token',
+    'access_token',
+  ]);
   const walk = (v: unknown): unknown => {
     if (v === null || typeof v !== 'object') return v;
     if (Array.isArray(v)) return v.map(walk);
@@ -89,7 +119,10 @@ function sanitizeSnippet(payload: unknown): Prisma.InputJsonValue | null {
   const cleaned = walk(normalized);
   const json = JSON.stringify(cleaned);
   if (json.length <= SNIPPET_MAX_BYTES) return cleaned as Prisma.InputJsonValue;
-  return { truncated: true, head: json.slice(0, SNIPPET_MAX_BYTES) } as Prisma.InputJsonValue;
+  return {
+    truncated: true,
+    head: json.slice(0, SNIPPET_MAX_BYTES),
+  };
 }
 
 @Injectable()
@@ -102,7 +135,7 @@ export class ExecutionsService {
     private readonly events: ExecutionEventsService,
     private readonly paramsBuilder: ParamsBuilderService,
     private readonly modelResolver: ModelResolverService,
-    private readonly nodeParamsService: FlowNodeParamsService,
+    private readonly nodeState: FlowNodeStateService,
     private readonly providers: ProviderRegistry,
     private readonly history: GenerationHistoryService,
   ) {}
@@ -127,10 +160,14 @@ export class ExecutionsService {
         : typeof resultData?.text === 'string' && resultData.text.trim()
           ? resultData.text.trim()
           : null;
-    const src = typeof resultData?.src === 'string' && resultData.src ? resultData.src : null;
+    const src =
+      typeof resultData?.src === 'string' && resultData.src
+        ? resultData.src
+        : null;
     await this.history.record({
       nodeType: historyType,
-      thumbnail: historyType === 'image' || historyType === 'video' ? src : null,
+      thumbnail:
+        historyType === 'image' || historyType === 'video' ? src : null,
       promptText,
       modelName,
       src,
@@ -141,7 +178,18 @@ export class ExecutionsService {
   }
 
   async listExecutions(query: QueryExecutionsDto) {
-    const { canvasId, batchId, nodeId, status, modelName, modelSku, modeId, phase, startDate, endDate } = query;
+    const {
+      canvasId,
+      batchId,
+      nodeId,
+      status,
+      modelName,
+      modelSku,
+      modeId,
+      phase,
+      startDate,
+      endDate,
+    } = query;
     const page = query.page || 1;
     const limit = query.limit || 20;
 
@@ -155,12 +203,18 @@ export class ExecutionsService {
     if (modeId) where.modeId = modeId;
 
     if (status) {
-      const parts = status.split(',').map((s) => s.trim()).filter(Boolean);
+      const parts = status
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
       where.status = parts.length === 1 ? parts[0] : { in: parts };
     }
 
     if (phase) {
-      const parts = phase.split(',').map((s) => s.trim()).filter(Boolean);
+      const parts = phase
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
       where.phase = parts.length === 1 ? parts[0] : { in: parts };
     }
 
@@ -213,7 +267,8 @@ export class ExecutionsService {
       if (EXECUTION_STATUSES.includes(key)) counts[key] = row._count._all;
     }
 
-    const total = counts.PENDING + counts.RUNNING + counts.COMPLETED + counts.FAILED;
+    const total =
+      counts.PENDING + counts.RUNNING + counts.COMPLETED + counts.FAILED;
     return {
       batchId,
       total,
@@ -225,12 +280,15 @@ export class ExecutionsService {
     };
   }
 
-  async execute(dto: ExecuteFlowDto, isSyncMode = false): Promise<ExecutionTask[]> {
+  async execute(
+    dto: ExecuteFlowDto,
+    isSyncMode = false,
+  ): Promise<ExecutionTask[]> {
     this.logger.log(
       `收到执行请求: canvasId=${dto.canvasId}` +
-      (dto.groupId ? `, groupId=${dto.groupId}` : '') +
-      (dto.targetNodeId ? `, targetNodeId=${dto.targetNodeId}` : '') +
-      (isSyncMode ? ' (同步模式)' : ' (异步模式)')
+        (dto.groupId ? `, groupId=${dto.groupId}` : '') +
+        (dto.targetNodeId ? `, targetNodeId=${dto.targetNodeId}` : '') +
+        (isSyncMode ? ' (同步模式)' : ' (异步模式)'),
     );
 
     if (!dto.groupId && !dto.targetNodeId) {
@@ -250,44 +308,72 @@ export class ExecutionsService {
   }
 
   private async executeSingleNode(
-    dto: ExecuteFlowDto, nodes: any[], edges: any[], isSyncMode: boolean,
+    dto: ExecuteFlowDto,
+    nodes: any[],
+    edges: any[],
+    isSyncMode: boolean,
   ): Promise<ExecutionTask[]> {
     const { targetNodeId } = dto;
-    if (!targetNodeId) throw new BadRequestException('targetNodeId is required');
-    return this.executeGroupNodes(dto, [targetNodeId], nodes, edges, isSyncMode);
+    if (!targetNodeId)
+      throw new BadRequestException('targetNodeId is required');
+    return this.executeGroupNodes(
+      dto,
+      [targetNodeId],
+      nodes,
+      edges,
+      isSyncMode,
+    );
   }
 
   private async executeGroup(
-    dto: ExecuteFlowDto, nodes: any[], edges: any[], isSyncMode: boolean,
+    dto: ExecuteFlowDto,
+    nodes: any[],
+    edges: any[],
+    isSyncMode: boolean,
   ): Promise<ExecutionTask[]> {
     const { groupId } = dto;
-    const groupNodes = nodes.filter(n => n.groupId === groupId);
-    
+    const groupNodes = nodes.filter((n) => n.groupId === groupId);
+
     if (groupNodes.length === 0) {
       throw new BadRequestException(`编组 ${groupId} 内没有节点`);
     }
 
-    const nodeIds = new Set(groupNodes.map(n => n.id));
-    const groupEdges = edges.filter(e => nodeIds.has(e.source) && nodeIds.has(e.target));
-    const executionOrder = this.topologicalSortExcludingRoots(groupNodes, groupEdges);
+    const nodeIds = new Set(groupNodes.map((n) => n.id));
+    const groupEdges = edges.filter(
+      (e) => nodeIds.has(e.source) && nodeIds.has(e.target),
+    );
+    const executionOrder = this.topologicalSortExcludingRoots(
+      groupNodes,
+      groupEdges,
+    );
 
     this.logger.log(`编组 ${groupId} 执行顺序: ${executionOrder.join(' → ')}`);
 
     if (executionOrder.length === 0) {
-      return [] as any;
+      return [];
     }
 
-    return this.executeGroupNodes(dto, executionOrder, nodes, edges, isSyncMode);
+    return this.executeGroupNodes(
+      dto,
+      executionOrder,
+      nodes,
+      edges,
+      isSyncMode,
+    );
   }
 
   private async executeGroupNodes(
-    dto: ExecuteFlowDto, nodeIds: string[], allNodes: any[], edges: any[], isSyncMode: boolean,
+    dto: ExecuteFlowDto,
+    nodeIds: string[],
+    allNodes: any[],
+    edges: any[],
+    isSyncMode: boolean,
   ): Promise<ExecutionTask[]> {
     const { canvasId } = dto;
     const batchId = nodeIds.length > 1 ? uuidv4() : null;
 
     const executions = await Promise.all(
-      nodeIds.map(nodeId =>
+      nodeIds.map((nodeId) =>
         this.prisma.flowExecution.create({
           data: {
             id: uuidv4(),
@@ -297,8 +383,8 @@ export class ExecutionsService {
             status: 'PENDING',
             createdAt: new Date(),
           },
-        })
-      )
+        }),
+      ),
     );
 
     // Notify SSE subscribers about all PENDING rows immediately so the
@@ -308,34 +394,35 @@ export class ExecutionsService {
       this.events.emit({
         executionId: exec.id,
         flowId: canvasId,
-        nodeId: exec.nodeId!,
+        nodeId: exec.nodeId,
         batchId: exec.batchId,
         status: 'PENDING',
       });
     }
 
-    const tasks: ExecutionTask[] = executions.map(exec => ({
+    const tasks: ExecutionTask[] = executions.map((exec) => ({
       executionId: exec.id,
-      nodeId: exec.nodeId!,
+      nodeId: exec.nodeId,
       status: 'PENDING',
       batchId: exec.batchId,
     }));
 
     if (!isSyncMode) {
-      this.executeNodesInBackground(canvasId, nodeIds, executions, edges)
-        .catch(err => this.logger.error(`后台执行失败: ${err.message}`));
+      this.executeNodesInBackground(canvasId, nodeIds, executions, edges).catch(
+        (err) => this.logger.error(`后台执行失败: ${err.message}`),
+      );
       return tasks;
     }
 
     await this.executeNodesInBackground(canvasId, nodeIds, executions, edges);
 
     const updatedExecutions = await this.prisma.flowExecution.findMany({
-      where: { id: { in: executions.map(e => e.id) } },
+      where: { id: { in: executions.map((e) => e.id) } },
     });
 
-    return updatedExecutions.map(exec => ({
+    return updatedExecutions.map((exec) => ({
       executionId: exec.id,
-      nodeId: exec.nodeId!,
+      nodeId: exec.nodeId,
       status: exec.status as ExecutionTask['status'],
       batchId: exec.batchId,
     }));
@@ -344,44 +431,44 @@ export class ExecutionsService {
   private topologicalSortExcludingRoots(nodes: any[], edges: any[]): string[] {
     const graph = new Map<string, string[]>();
     const inDegree = new Map<string, number>();
-    
-    nodes.forEach(n => {
+
+    nodes.forEach((n) => {
       graph.set(n.id, []);
       inDegree.set(n.id, 0);
     });
-    
-    edges.forEach(e => {
+
+    edges.forEach((e) => {
       const neighbors = graph.get(e.source) || [];
       neighbors.push(e.target);
       graph.set(e.source, neighbors);
       inDegree.set(e.target, (inDegree.get(e.target) || 0) + 1);
     });
-    
+
     const rootNodes: string[] = [];
     inDegree.forEach((degree, nodeId) => {
       if (degree === 0) rootNodes.push(nodeId);
     });
-    
+
     const queue: string[] = [...rootNodes];
     const result: string[] = [];
-    
+
     while (queue.length > 0) {
       const current = queue.shift()!;
       result.push(current);
-      
+
       const neighbors = graph.get(current) || [];
-      neighbors.forEach(neighbor => {
+      neighbors.forEach((neighbor) => {
         const newDegree = (inDegree.get(neighbor) || 0) - 1;
         inDegree.set(neighbor, newDegree);
         if (newDegree === 0) queue.push(neighbor);
       });
     }
-    
+
     if (result.length !== nodes.length) {
       throw new Error('图中存在环，无法执行');
     }
-    
-    return result.filter(nodeId => !rootNodes.includes(nodeId));
+
+    return result.filter((nodeId) => !rootNodes.includes(nodeId));
   }
 
   /**
@@ -404,7 +491,7 @@ export class ExecutionsService {
     edges: any[],
   ) {
     const edgeMap = new Map<string, string[]>();
-    edges.forEach(edge => {
+    edges.forEach((edge) => {
       if (!edgeMap.has(edge.target)) edgeMap.set(edge.target, []);
       edgeMap.get(edge.target)!.push(edge.source);
     });
@@ -413,17 +500,19 @@ export class ExecutionsService {
     const nodePromises = new Map<string, Promise<void>>();
 
     for (const nodeId of executionOrder) {
-      const execution = executions.find(e => e.nodeId === nodeId);
+      const execution = executions.find((e) => e.nodeId === nodeId);
       if (!execution) continue;
 
-      const upstreamNodeIds = (edgeMap.get(nodeId) || []).filter(id => executionNodeSet.has(id));
+      const upstreamNodeIds = (edgeMap.get(nodeId) || []).filter((id) =>
+        executionNodeSet.has(id),
+      );
       const upstreamPromises = upstreamNodeIds
-        .map(id => nodePromises.get(id))
+        .map((id) => nodePromises.get(id))
         .filter((p): p is Promise<void> => p !== undefined);
 
       const task = (async () => {
         const upstreamResults = await Promise.allSettled(upstreamPromises);
-        const failed = upstreamResults.find(r => r.status === 'rejected');
+        const failed = upstreamResults.find((r) => r.status === 'rejected');
 
         if (failed) {
           await this.markExecutionFailed(
@@ -502,7 +591,7 @@ export class ExecutionsService {
     const trimmedMsg =
       typeof opts.message === 'string' && opts.message.length > 1024
         ? opts.message.slice(0, 1024)
-        : opts.message ?? null;
+        : (opts.message ?? null);
 
     await this.prisma.$transaction([
       this.prisma.flowExecutionEvent.create({
@@ -512,14 +601,17 @@ export class ExecutionsService {
           attempt: opts.attempt ?? null,
           externalStatus: opts.externalStatus ?? null,
           message: trimmedMsg,
-          payloadSnippet: (opts.payloadSnippet as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+          payloadSnippet:
+            (opts.payloadSnippet as Prisma.InputJsonValue) ?? Prisma.JsonNull,
         },
       }),
       this.prisma.flowExecution.update({
         where: { id: executionId },
         data: {
           phase,
-          ...(opts.externalTaskId ? { externalTaskId: opts.externalTaskId } : {}),
+          ...(opts.externalTaskId
+            ? { externalTaskId: opts.externalTaskId }
+            : {}),
         },
       }),
     ]);
@@ -541,7 +633,10 @@ export class ExecutionsService {
     const reqPatch =
       requestPayload === undefined
         ? {}
-        : { requestPayload: (sanitizeSnippet(requestPayload) ?? Prisma.JsonNull) as Prisma.FlowExecutionUpdateInput['requestPayload'] };
+        : {
+            requestPayload: (sanitizeSnippet(requestPayload) ??
+              Prisma.JsonNull) as Prisma.FlowExecutionUpdateInput['requestPayload'],
+          };
 
     await this.transitionStatus(
       executionId,
@@ -565,7 +660,9 @@ export class ExecutionsService {
     batchId: string | null,
     edges: any[],
   ) {
-    this.logger.log(`开始执行节点: executionId=${executionId}, nodeId=${nodeId}`);
+    this.logger.log(
+      `开始执行节点: executionId=${executionId}, nodeId=${nodeId}`,
+    );
 
     try {
       const flow = await this.flowsService.findOne(flowId);
@@ -575,9 +672,12 @@ export class ExecutionsService {
 
       // 解析 family + mode → modelName / modelSku / modeId，从 RUNNING 起就写入，
       // 失败/超时也能在 flow_executions 行里查到当时跑的是哪个 SKU。
-      const currentParams = await this.nodeParamsService.getNodeParams(flowId, nodeId);
+      const currentParams = await this.nodeState.getNodeParams(flowId, nodeId);
       const params = currentParams?.params || {};
-      const resolved = await this.modelResolver.resolve(node.type, params as Record<string, any>);
+      const resolved = await this.modelResolver.resolve(
+        node.type,
+        params as Record<string, any>,
+      );
 
       await this.transitionStatus(
         executionId,
@@ -595,10 +695,15 @@ export class ExecutionsService {
       );
 
       const upstreamNodeIds = edges
-        .filter(e => e.target === nodeId)
-        .map(e => e.source);
+        .filter((e) => e.target === nodeId)
+        .map((e) => e.source);
 
-      const execRequest = await this.paramsBuilder.buildExecutionParams(flowId, nodeId, node.type, upstreamNodeIds);
+      const execRequest = await this.paramsBuilder.buildExecutionParams(
+        flowId,
+        nodeId,
+        node.type,
+        upstreamNodeIds,
+      );
 
       const provider = this.providers.resolve(resolved.modelSku);
       const submitReq = {
@@ -620,14 +725,17 @@ export class ExecutionsService {
         submitResult = await provider.submit(submitReq);
       } catch (submitErr: any) {
         submitErr.payloadSnippet =
-          submitErr.payloadSnippet ?? submitErr?.response?.data ?? submitErr?.message;
+          submitErr.payloadSnippet ??
+          submitErr?.response?.data ??
+          submitErr?.message;
         throw submitErr;
       }
       const latencyMs = Date.now() - startTime;
 
       if (submitResult.status === 'pending') {
         const taskId = submitResult.taskId ?? submitReq.requestId;
-        if (!taskId) throw new Error('Provider returned no task id, cannot poll');
+        if (!taskId)
+          throw new Error('Provider returned no task id, cannot poll');
         // Persist the upstream request body now (before polling starts) so
         // the admin LogDrawer can inspect "what we sent" while the task is
         // still RUNNING — not only after it terminates.
@@ -635,8 +743,8 @@ export class ExecutionsService {
           await this.prisma.flowExecution.update({
             where: { id: executionId },
             data: {
-              requestPayload: (sanitizeSnippet(submitResult.requestPayload) ??
-                Prisma.JsonNull) as Prisma.FlowExecutionUpdateInput['requestPayload'],
+              requestPayload:
+                sanitizeSnippet(submitResult.requestPayload) ?? Prisma.JsonNull,
             },
           });
         }
@@ -673,9 +781,9 @@ export class ExecutionsService {
           'COMPLETED',
           {
             finishedAt: new Date(),
-            responsePayload: (submitResult.raw ?? submitResult) as any,
-            requestPayload: (sanitizeSnippet(submitResult.requestPayload) ??
-              Prisma.JsonNull) as Prisma.FlowExecutionUpdateInput['requestPayload'],
+            responsePayload: submitResult.raw ?? submitResult,
+            requestPayload:
+              sanitizeSnippet(submitResult.requestPayload) ?? Prisma.JsonNull,
             latencyMs,
             ...usageToPatch(submitResult.usage),
           },
@@ -699,13 +807,17 @@ export class ExecutionsService {
         );
       } else {
         // status === 'failed'
-        const err: any = new Error(submitResult.errorMessage ?? 'submit failed');
+        const err: any = new Error(
+          submitResult.errorMessage ?? 'submit failed',
+        );
         err.payloadSnippet = submitResult.raw ?? submitResult.errorMessage;
         err.requestPayload = submitResult.requestPayload;
         throw err;
       }
     } catch (error: any) {
-      this.logger.error(`节点执行失败: executionId=${executionId}, error=${error.message}`);
+      this.logger.error(
+        `节点执行失败: executionId=${executionId}, error=${error.message}`,
+      );
       await this.markExecutionFailed(
         executionId,
         flowId,
@@ -748,7 +860,9 @@ export class ExecutionsService {
       try {
         pollResult = await provider.pollStatus(taskId);
       } catch (error: any) {
-        this.logger.warn(`[轮询] 第 ${attempts} 次错误: ${error?.message ?? error}`);
+        this.logger.warn(
+          `[轮询] 第 ${attempts} 次错误: ${error?.message ?? error}`,
+        );
         attempts++;
         await delay(1000);
         continue;
@@ -757,7 +871,11 @@ export class ExecutionsService {
       attempts++;
 
       const newStatus = pollResult.status;
-      if (newStatus !== lastStatus && newStatus !== 'completed' && newStatus !== 'failed') {
+      if (
+        newStatus !== lastStatus &&
+        newStatus !== 'completed' &&
+        newStatus !== 'failed'
+      ) {
         await this.recordPhase(executionId, 'polling', {
           attempt: attempts,
           externalStatus: newStatus,
@@ -788,7 +906,7 @@ export class ExecutionsService {
           'COMPLETED',
           {
             finishedAt: new Date(),
-            responsePayload: (pollResult.raw ?? pollResult) as any,
+            responsePayload: pollResult.raw ?? pollResult,
             latencyMs,
             ...usageToPatch(pollResult.usage),
           },
@@ -812,7 +930,9 @@ export class ExecutionsService {
       }
 
       if (newStatus === 'failed') {
-        const err: any = new Error(pollResult.errorMessage ?? '外部任务执行失败');
+        const err: any = new Error(
+          pollResult.errorMessage ?? '外部任务执行失败',
+        );
         err.payloadSnippet = pollResult.raw ?? pollResult.errorMessage;
         throw err;
       }
@@ -820,9 +940,15 @@ export class ExecutionsService {
       await delay(1000);
     }
 
-    const timeoutErr: any = new Error(`外部任务超时: provider=${provider.name} taskId=${taskId}`);
-    timeoutErr.payloadSnippet = { provider: provider.name, taskId, attempts, lastStatus };
+    const timeoutErr: any = new Error(
+      `外部任务超时: provider=${provider.name} taskId=${taskId}`,
+    );
+    timeoutErr.payloadSnippet = {
+      provider: provider.name,
+      taskId,
+      attempts,
+      lastStatus,
+    };
     throw timeoutErr;
   }
-
 }
