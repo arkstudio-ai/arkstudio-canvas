@@ -5,6 +5,7 @@ import { HistoryRetentionService } from './history-retention.service';
 import { OpenaiCompatConfigService } from './openai-compat-config.service';
 import { LocalStorageService } from '../storage/local-storage.service';
 import { SaveConfigDto } from './dto/save-config.dto';
+import { ImportConfigDto } from './dto/import-export-config.dto';
 import { UpdateProviderSettingsDto } from './dto/provider-settings.dto';
 import { UpdateOpenaiSettingsDto } from './dto/openai-settings.dto';
 import { UpdateHistorySettingsDto } from './dto/history-settings.dto';
@@ -57,6 +58,29 @@ export class CanvasConfigController {
   @Get('config/validate')
   async validateData() {
     return this.configService.validateData();
+  }
+
+  /**
+   * GET /api/canvas-flow/config/export
+   * Returns a versioned, portable JSON envelope of the catalog (token +
+   * style + nodeDefinitions). Excluded by design: API keys, storage
+   * settings, history retention. See ConfigExportEnvelope for the shape
+   * and {@link CanvasConfigService.exportConfig} for the rationale.
+   */
+  @Get('config/export')
+  async exportConfig() {
+    return this.configService.exportConfig();
+  }
+
+  /**
+   * POST /api/canvas-flow/config/import
+   * Two-step import. dto.mode='preview' validates + diffs and returns a
+   * summary without writing. dto.mode='apply' actually writes (calls the
+   * same saveConfig path PUT /config uses, replace-all semantics).
+   */
+  @Post('config/import')
+  async importConfig(@Body() dto: ImportConfigDto) {
+    return this.configService.importConfig(dto);
   }
 
   /**

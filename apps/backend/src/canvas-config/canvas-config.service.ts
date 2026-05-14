@@ -5,6 +5,13 @@ import {
   SaveConfigResponse,
   ConfigVersionResponse,
 } from './dto/save-config.dto';
+import {
+  CONFIG_EXPORT_SCHEMA,
+  ConfigExportEnvelope,
+  ImportConfigDto,
+  ImportConfigResponse,
+  normalizeImportEnvelope,
+} from './dto/import-export-config.dto';
 
 /**
  * Canvas Flow node-definition / model-catalog config service.
@@ -208,6 +215,127 @@ export class CanvasConfigService {
     const nodeCount = await this.prisma.nodeDefinition.count();
     return {
       nodeDefinitions: nodeCount,
+    };
+  }
+
+  // ---- portable JSON import / export --------------------------------------
+
+  /**
+   * Wrap the runtime config in a versioned envelope suitable for download +
+   * git commit + cross-instance transfer.
+   *
+   * Why an envelope instead of returning the bare runtime payload:
+   *   - We need a `$schema` discriminator so future format upgrades can
+   *     be detected on import (see `normalizeImportEnvelope`).
+   *   - Provenance fields (`exportedAt`, `exportedFromVersion`) help the
+   *     UI / file picker show "this came from instance X at time Y" with
+   *     zero extra metadata files.
+   *
+   * Excluded from the envelope on purpose: API keys, storage settings,
+   * history retention. Those are deployment-scoped, not catalog-scoped;
+   * mixing them into the export would leak secrets and would also fight
+   * an importing instance's own operations knobs.
+   */
+  async exportConfig(): Promise<ConfigExportEnvelope> {
+    const [runtime, ver] = await Promise.all([
+      this.getConfig(),
+      this.getVersion(),
+    ]);
+    return {
+      $schema: CONFIG_EXPORT_SCHEMA,
+      exportedAt: new Date().toISOString(),
+      exportedFromVersion: ver.version,
+      config: {
+        token: runtime.token,
+        style: runtime.style,
+        nodeDefinitions: runtime.nodeDefinitions as NodeDefinitionInput[],
+      },
+    };
+  }
+
+  /**
+   * Two-step replace-style import:
+   *
+   *   - mode='preview' → only diff incoming envelope vs current DB and
+   *                      return summary + warnings, no writes.
+   *   - mode='apply'   → run saveConfig() with the same replace-all
+   *                      semantics already used by PUT /config (types
+   *                      not in the envelope are deleted).
+   *
+   * `replace` is the only semantics in v1 because:
+   *   - it matches saveConfig's existing behaviour, so two paths collapse
+   *     to one; less code, less divergence risk.
+   *   - 'merge' is genuinely useful for cross-instance increments but
+   *     adds non-trivial conflict policy (do incoming model[] entries
+   *     replace, append, or merge by `value`?). We can layer it on later
+   *     without touching the v1 wire format.
+   */
+  async importConfig(dto: ImportConfigDto): Promise<ImportConfigResponse> {
+    const normalized = normalizeImportEnvelope(dto.envelope);
+    const incoming = normalized.config.nodeDefinitions;
+
+    const current = await this.prisma.nodeDefinition.findMany({
+      select: { type: true, label: true, models: true },
+    });
+    const currentByType = new Map(current.map((n) => [n.type, n]));
+    const incomingTypes = new Set(incoming.map((n) => n.type));
+
+    let nodesAdded = 0;
+    let nodesUpdated = 0;
+    let nodesUnchanged = 0;
+    for (const node of incoming) {
+      const existing = currentByType.get(node.type);
+      if (!existing) {
+        nodesAdded++;
+      } else if (
+        // structural equality is overkill here — the user is going to see
+        // a labelled "modified" entry anyway. Compare on the fields that
+        // round-trip through `getConfig` to keep the diff honest.
+        JSON.stringify(existing.models) !== JSON.stringify(node.models) ||
+        existing.label !== node.label
+      ) {
+        nodesUpdated++;
+      } else {
+        nodesUnchanged++;
+      }
+    }
+    const toDelete = [...currentByType.keys()].filter(
+      (t) => !incomingTypes.has(t),
+    );
+    const nodesDeleted = toDelete.length;
+
+    const warnings: string[] = [...normalized.warnings];
+    if (nodesDeleted > 0) {
+      warnings.push(
+        `replace 模式：当前 DB 里 ${nodesDeleted} 个节点类型不在导入文件中，将被删除（${toDelete.join(', ')}）`,
+      );
+    }
+    if (incoming.length === 0) {
+      warnings.push('envelope.config.nodeDefinitions 为空，apply 后 DB 将清空所有节点定义');
+    }
+
+    if (dto.mode === 'preview') {
+      return {
+        version: null,
+        summary: { nodesAdded, nodesUpdated, nodesDeleted, nodesUnchanged },
+        warnings,
+        dryRun: true,
+      };
+    }
+
+    const result = await this.saveConfig(
+      {
+        token: normalized.config.token,
+        style: normalized.config.style,
+        nodeDefinitions: incoming,
+      },
+      dto.modifiedBy,
+    );
+    return {
+      version: result.version,
+      summary: { nodesAdded, nodesUpdated, nodesDeleted, nodesUnchanged },
+      warnings,
+      dryRun: false,
     };
   }
 }

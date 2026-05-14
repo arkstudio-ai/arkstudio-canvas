@@ -71,6 +71,8 @@ src/
 | `POST` | `/upload/file` | multipart 代理 → LocalStorageService，落本地磁盘 |
 | `GET`  | `/api/canvas-flow/config` | 节点 / 模型 / 模式定义（前端启动必拉） |
 | `PUT`  | `/api/canvas-flow/config` | admin 保存节点配置 |
+| `GET`  | `/api/canvas-flow/config/export` | 导出 portable JSON envelope（带 `$schema` / `exportedAt` / `exportedFromVersion`） |
+| `POST` | `/api/canvas-flow/config/import` | 两步导入：`mode='preview'` 只 diff 不写库；`mode='apply'` 走 saveConfig replace 全量 |
 | `GET`/`PUT` | `/api/canvas-flow/provider-settings` | DashScope 设置 |
 | `GET`/`PUT` | `/api/canvas-flow/history-settings` | 历史保留策略 |
 | `POST` | `/api/canvas-flow/history-settings/prune` | 立即清理 |

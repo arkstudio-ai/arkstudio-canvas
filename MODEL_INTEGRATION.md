@@ -145,6 +145,15 @@ interface ProviderClient {
 
 > ⚠️ 注意：不要把新模型条目同步加到任何前端 JSON。**DB 是唯一事实源**，前端没有 fallback。
 
+#### 步骤 4：跨实例同步（可选）
+
+在 `/admin/config` 顶部 toolbar 有 **导出 / 导入** 按钮，可以把当前实例的整套节点 / 模型目录导出成带元信息的 JSON envelope（`canvas-config-v{N}-{date}.json`），扔进另一台实例的 admin 导入就能 replace 全量。
+
+- **导出**：返回 `{ $schema: "canvas-flow.config/v1", exportedAt, exportedFromVersion, config }`。**不**含 DashScope/OpenAI 凭据、本地存储设置、历史保留——这些是部署级配置，跨实例没意义。
+- **导入**：两步流程。先 `POST /api/canvas-flow/config/import` 用 `mode: 'preview'` 拿到 diff 摘要（增 N / 改 N / 删 N + warnings），用户在弹窗里 review 后再用 `mode: 'apply'` 真的写库，走的是跟 PUT /config 同一条 saveConfig 路径，**replace 全量**（DB 里 envelope 没出现的 type 会被删除）。
+
+适用场景：团队里某个人在 dev 实例上调好了一套节点 / 模型目录，导出 JSON 放进 git，其他人 / 生产实例 import 一下就能拿到一致版本，无需手动同步 admin 字段。
+
 ---
 
 ### 2.2 路径 B：百炼外的新模型源（接字节 / 谷歌 / 自建 OpenAI-compat 网关）

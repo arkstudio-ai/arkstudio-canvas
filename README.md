@@ -107,11 +107,11 @@ docker compose up -d --build
 
 - 画布编辑器 + admin 后台 + DashScope 全模型矩阵 + 本地磁盘存储 + 历史保留 + 加密凭据
 - **OpenAI 兼容协议 Provider**（chat / image）—— 任意 OpenAI 协议的 baseUrl + apiKey 都可挂入
+- **节点 / 模型配置导入导出** —— `/admin/config` 顶部一键 export / import portable JSON envelope，跨实例同步 / git 化
 - Docker compose 一键部署 + AGPL §13 合规 UI
 
 **后续规划（按优先级）**
 
-- **节点 / 模型配置导入导出** —— JSON 互通 / 跨实例同步
 - **可选的远程存储后端** —— S3 / OSS / R2 抽象（生产 multi-instance 部署用）
 - **自动化测试覆盖** —— unit + e2e
 - **画布 JSON 分享** —— 右上角分享按钮变成"导出可复制的画布 JSON"

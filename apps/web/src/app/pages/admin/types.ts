@@ -182,6 +182,37 @@ export interface SaveConfigResult {
   };
 }
 
+// ---- Portable config import/export ----
+//
+// Mirrors apps/backend/src/canvas-config/dto/import-export-config.dto.ts.
+// The frontend treats the envelope as opaque-ish: we only ever inspect
+// `$schema` for a sanity warning and the inner `config` shape (which is
+// the same CanvasConfigPayload runtime API uses).
+
+export const CONFIG_EXPORT_SCHEMA = 'canvas-flow.config/v1';
+
+export interface ConfigExportEnvelope {
+  $schema: typeof CONFIG_EXPORT_SCHEMA;
+  exportedAt: string;
+  exportedFromVersion: number;
+  config: CanvasConfigPayload;
+}
+
+export interface ImportConfigSummary {
+  nodesAdded: number;
+  nodesUpdated: number;
+  nodesDeleted: number;
+  nodesUnchanged: number;
+}
+
+export interface ImportConfigResponse {
+  /** null in preview mode, the new config_version in apply mode. */
+  version: number | null;
+  summary: ImportConfigSummary;
+  warnings: string[];
+  dryRun: boolean;
+}
+
 /**
  * Read-only payload for the Provider 设置 panel. The plaintext apiKey is
  * never returned -- only `apiKeyMask` (e.g. `sk-1de...0252`). `baseUrl`

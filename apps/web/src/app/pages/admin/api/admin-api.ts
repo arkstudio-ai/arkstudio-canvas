@@ -2,10 +2,12 @@ import type {
   ApiEnvelope,
   CanvasConfigPayload,
   CanvasConfigVersion,
+  ConfigExportEnvelope,
   ExecutionDetail,
   ExecutionListResponse,
   HistorySettingsUpdate,
   HistorySettingsView,
+  ImportConfigResponse,
   ListExecutionsParams,
   PruneResponse,
   OpenaiSettingsView,
@@ -104,6 +106,34 @@ export function saveCanvasConfig(
   return adminFetch<SaveConfigResult>(`/api/canvas-flow/config${qs}`, {
     method: 'PUT',
     body: JSON.stringify({ config }),
+  });
+}
+
+/**
+ * Returns the portable JSON envelope. The page just hands it to a Blob
+ * download — no client-side rewrap, the server already templated the
+ * `$schema` / `exportedAt` / `exportedFromVersion` fields.
+ */
+export function exportCanvasConfig(): Promise<ConfigExportEnvelope> {
+  return adminFetch<ConfigExportEnvelope>('/api/canvas-flow/config/export');
+}
+
+/**
+ * Two-step import. Pass the parsed file as `envelope` and pick mode:
+ *   - 'preview' → backend validates + computes the diff, no writes
+ *   - 'apply'   → backend runs replace-all save (same path as PUT /config)
+ *
+ * Caller is expected to fire 'preview' first, render the summary in a
+ * confirm dialog, then fire 'apply' on user OK.
+ */
+export function importCanvasConfig(
+  envelope: ConfigExportEnvelope | unknown,
+  mode: 'preview' | 'apply',
+  modifiedBy?: string,
+): Promise<ImportConfigResponse> {
+  return adminFetch<ImportConfigResponse>('/api/canvas-flow/config/import', {
+    method: 'POST',
+    body: JSON.stringify({ envelope, mode, modifiedBy }),
   });
 }
 

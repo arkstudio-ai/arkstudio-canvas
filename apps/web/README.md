@@ -72,7 +72,7 @@ src/
 模块通过 `apps/web/src/app/pages/admin/shell/adminModules.ts` 注册，每个 module 自带 `id / label / icon / path / Component`，shell 自动挂路由 + 侧边栏：
 
 - **概览** `/admin` — 今日/周/月用量按 kind 切片
-- **画布配置** `/admin/config` — 节点 / 模型 / 模式三层结构化编辑
+- **画布配置** `/admin/config` — 节点 / 模型 / 模式三层结构化编辑；toolbar 顶部 **导出 / 导入** 按钮可把整套目录序列化成 JSON envelope，方便跨实例同步 / git 化（详见 [模型接入指南 · 步骤 4](../../MODEL_INTEGRATION.md#步骤-4跨实例同步可选)）
 - **执行日志** `/admin/logs` — 历史执行 + Phase 流转
 - **系统设置** `/admin/system` — DashScope / OpenAI-compat 凭据 / 超时 / 生成历史保留 / 本地存储设置
 
