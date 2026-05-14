@@ -27,12 +27,8 @@ import {
   updateStorageSettings,
 } from '../../api/admin-api';
 import type {
-  DashscopeKind,
   HistoryKind,
   HistorySettingsView,
-  OpenaiCompatKind,
-  OpenaiSettingsView,
-  ProviderSettingsView,
   StorageSettingsView,
 } from '../../types';
 import {
@@ -50,30 +46,22 @@ import {
   tokens,
 } from '../config/styles';
 
-const DEFAULT_BASE_URL = 'https://dashscope.aliyuncs.com';
-
-const TIMEOUT_KINDS: { kind: DashscopeKind; label: string; hint: string }[] = [
-  { kind: 'chat', label: 'Chat', hint: '同步对话调用 (qwen / deepseek / glm)' },
-  { kind: 'image', label: 'Image', hint: '异步图像 submit；polling 固定 10s 不暴露' },
-  { kind: 'video', label: 'Video', hint: '异步视频 submit；polling 固定 10s 不暴露' },
-  { kind: 'audio', label: 'Audio', hint: 'TTS / FunMusic / 音色复刻 submit' },
-];
 
 /**
  * /admin/system — 系统设置 page.
  *
  * Aggregates everything an operator can tune at runtime without a
- * backend restart, in four independent always-visible sections so a
- * first-time visitor immediately sees what's configurable:
- *   1. DashScope (Bailian) base URL + API key
- *   2. DashScope per-kind submit timeouts
+ * backend restart, as a stack of self-contained section components:
+ *   1. Source · License (AGPL §13 compliance)
+ *   2. 模型 Provider 设置 (DashScope + OpenAI-compat in one card,
+ *      tabbed; future ByteDance / Google add a tab without changing
+ *      the layout)
  *   3. 生成历史保留策略 (max age / max per kind / 立即清理)
  *   4. 对象存储 (Tencent COS) 凭据 + bucket / region / 自定义域名 / TTL / 大小上限
  *
- * Same dark palette + section/sectionBody primitives as UsagePage /
- * LogsPage so the layout blends with the rest of the shell. Each
- * section owns its own load/save state, so a backend hiccup on one
- * endpoint never blocks the rest of the page from rendering.
+ * The page itself is just a router — every section owns its own
+ * load/save state so a backend hiccup on one endpoint never blocks
+ * the rest of the page from rendering.
  *
  * Save semantics mirror the backend DTOs:
  *   - field omitted        → untouched
@@ -81,228 +69,32 @@ const TIMEOUT_KINDS: { kind: DashscopeKind; label: string; hint: string }[] = [
  *   - timeouts.{kind} = 0  → clear (revert to per-kind hard-coded fallback)
  *   - history/storage numeric -1 sentinel → clear (revert to built-in default)
  */
-export const SystemSettingsPage: React.FC = () => {
-  const [view, setView] = useState<ProviderSettingsView | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [baseUrlDraft, setBaseUrlDraft] = useState('');
-  const [apiKeyDraft, setApiKeyDraft] = useState('');
-  const [showKey, setShowKey] = useState(false);
+export const SystemSettingsPage: React.FC = () => (
+  <div style={pageStyle}>
+    <Header />
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const v = await getProviderSettings();
-      setView(v);
-      setBaseUrlDraft(v.baseUrlConfigured ? v.baseUrl : '');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : '加载 Provider 设置失败');
-    } finally {
-      setLoading(false);
-    }
-  };
+    {/* AGPL §13 注脚：网络服务部署必须给用户一个明显的途径拿到对应版本源码。
+        这一段在 /admin/system 顶部 + 在普通 canvas 页底部的 Footer 里都
+        挂一份，确保 SaaS 部署也满足 corresponding source 要求。 */}
+    <SourceLicenseSection />
 
-  useEffect(() => {
-    void load();
-  }, []);
+    {/* 模型 provider —— DashScope + OpenAI-compat 合并 tab 卡片 */}
+    <ProvidersSection />
 
-  const apply = async (patch: {
-    baseUrl?: string;
-    apiKey?: string;
-    timeouts?: Partial<Record<DashscopeKind, number>>;
-  }) => {
-    setSaving(true);
-    try {
-      const v = await updateProviderSettings(patch);
-      setView(v);
-      if (patch.baseUrl !== undefined) {
-        setBaseUrlDraft(v.baseUrlConfigured ? v.baseUrl : '');
-      }
-      if (patch.apiKey !== undefined) {
-        setApiKeyDraft('');
-        setShowKey(false);
-      }
-      toast.success('已保存');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : '保存失败');
-    } finally {
-      setSaving(false);
-    }
-  };
+    {/* Generation history retention */}
+    <HistoryRetentionSection />
 
-  const baseUrlDirty = view ? baseUrlDraft.trim() !== (view.baseUrlConfigured ? view.baseUrl : '') : false;
-  const apiKeyDirty = apiKeyDraft.trim().length > 0;
-
-  if (!view) {
-    return (
-      <div style={pageStyle}>
-        <Header />
-        <div style={emptyStyle}>{loading ? '加载中…' : '配置未加载'}</div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={pageStyle}>
-      <Header />
-
-      {/* AGPL §13 注脚：网络服务部署必须给用户一个明显的途径拿到对应版本源码。
-          这一段在 /admin/system 顶部 + 在普通 canvas 页底部的 Footer 里都
-          挂一份，确保 SaaS 部署也满足 corresponding source 要求。 */}
-      <SourceLicenseSection />
-
-      {/* 顶部状态条：一眼看清两个核心凭据有没有配 */}
-      <div style={statusGridStyle}>
-        <StatusCard
-          icon={<Link2 size={14} />}
-          label="Base URL"
-          value={view.baseUrl}
-          source={view.baseUrlConfigured ? 'DB 覆盖' : '内置默认'}
-          ok
-        />
-        <StatusCard
-          icon={<KeyRound size={14} />}
-          label="API Key"
-          value={view.apiKeyConfigured ? view.apiKeyMask ?? '已配置' : '未配置'}
-          source={view.apiKeyConfigured ? 'DB · 加密存储' : '⚠ 未配置'}
-          ok={view.apiKeyConfigured}
-        />
-      </div>
-
-      {/* Base URL */}
-      <section style={sectionStyle}>
-        <h3 style={sectionTitleStyle}>Base URL</h3>
-        <div style={sectionBodyStyle}>
-          <p style={hintStyle}>
-            DashScope (Bailian) 网关地址。留空回退到默认 <code>{DEFAULT_BASE_URL}</code>。
-            国际版账号请改 <code>https://dashscope-intl.aliyuncs.com</code>。
-          </p>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>Base URL</span>
-            <input
-              value={baseUrlDraft}
-              onChange={(e) => setBaseUrlDraft(e.target.value)}
-              placeholder={`默认 ${DEFAULT_BASE_URL}`}
-              style={inputMonoStyle}
-              disabled={saving}
-            />
-            <button
-              type="button"
-              onClick={() => apply({ baseUrl: baseUrlDraft.trim() })}
-              style={baseUrlDirty ? buttonAccentStyle : buttonStyle}
-              disabled={!baseUrlDirty || saving}
-            >
-              保存
-            </button>
-            {view.baseUrlConfigured && (
-              <button
-                type="button"
-                onClick={() => apply({ baseUrl: '' })}
-                style={buttonGhostStyle}
-                disabled={saving}
-                title="清除 DB 配置，回退到默认 URL"
-              >
-                重置默认
-              </button>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* API Key */}
-      <section style={sectionStyle}>
-        <h3 style={sectionTitleStyle}>API Key</h3>
-        <div style={sectionBodyStyle}>
-          <p style={hintStyle}>
-            落库前会用 <code>ENCRYPTION_KEY</code> 做 aes-256-gcm 加密。
-            页面只显示掩码（如 <code>sk-1de...0252</code>），永不回传明文。
-            修改新值约 30 秒内对所有 model 调用生效（provider 内有短缓存）。
-          </p>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>API Key</span>
-            <div style={apiKeyInputWrapStyle}>
-              <input
-                value={apiKeyDraft}
-                onChange={(e) => setApiKeyDraft(e.target.value)}
-                placeholder={
-                  view.apiKeyConfigured
-                    ? `当前: ${view.apiKeyMask} · 输入新值覆盖`
-                    : '尚未配置 · 输入 sk-... 并保存'
-                }
-                type={showKey ? 'text' : 'password'}
-                style={{ ...inputMonoStyle, paddingRight: 36 }}
-                disabled={saving}
-                autoComplete="off"
-              />
-              <button
-                type="button"
-                onClick={() => setShowKey((s) => !s)}
-                style={eyeBtnStyle}
-                title={showKey ? '隐藏' : '显示'}
-                tabIndex={-1}
-              >
-                {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => apply({ apiKey: apiKeyDraft.trim() })}
-              style={apiKeyDirty ? buttonAccentStyle : buttonStyle}
-              disabled={!apiKeyDirty || saving}
-            >
-              保存
-            </button>
-            {view.apiKeyConfigured && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (!confirm('确认清除 API Key? 清除后所有模型调用都会失败，直到重新配置。')) return;
-                  void apply({ apiKey: '' });
-                }}
-                style={buttonGhostStyle}
-                disabled={saving}
-                title="从 DB 删除 apiKey 行"
-              >
-                清除
-              </button>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Timeouts */}
-      <section style={sectionStyle}>
-        <h3 style={sectionTitleStyle}>
-          <Timer size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-          超时设置 (秒)
-        </h3>
-        <div style={sectionBodyStyle}>
-          <p style={hintStyle}>
-            按 model kind 分别设置 submit 调用超时。Polling（image/video）固定 10s 不暴露 —
-            polling 是轻 GET，过长意味着是 bug，不是 tuning knob。留空 = 用内置默认；保存值 ≥ 1s。
-          </p>
-          <TimeoutsTable view={view} saving={saving} apply={apply} />
-        </div>
-      </section>
-
-      {/* OpenAI-compatible provider (OpenAI / OpenRouter / vLLM / ...) */}
-      <OpenaiSection />
-
-      {/* Generation history retention */}
-      <HistoryRetentionSection />
-
-      {/* Object Storage (Tencent COS) */}
-      <StorageSection />
-    </div>
-  );
-};
+    {/* Object Storage (Tencent COS) */}
+    <StorageSection />
+  </div>
+);
 
 const Header: React.FC = () => (
   <header style={headerStyle}>
     <div>
       <h1 style={titleStyle}>系统设置</h1>
       <div style={subTitleStyle}>
-        开源信息 · DashScope 凭据 / 超时 · OpenAI-compat · 生成历史保留 · 对象存储
+        开源信息 · 模型 Provider · 生成历史保留 · 对象存储
       </div>
     </div>
   </header>
@@ -1149,65 +941,195 @@ const StatusCard: React.FC<{
   </div>
 );
 
-// ---- OpenAI-compatible provider section -----------------------------------
+// ---- 模型 Provider 设置（合并卡片）-----------------------------------------
 //
-// Self-contained: owns its own load / save / draft state so a backend hiccup
-// on /openai-settings doesn't block the rest of the page from rendering, and
-// so the DashScope state above stays untouched. UI deliberately mirrors the
-// DashScope cards above (status grid + base URL + API key + timeouts) so an
-// operator can apply the exact same mental model: `(undefined → untouched,
-// '' → clear/revert, value → upsert)`. This pattern is the template future
-// providers (字节 / 谷歌) will follow.
+// 把 DashScope 和 OpenAI-compat 的配置合在一张大卡片里，UI 解决三个迷惑点：
+//   1. 顶部 4 张状态卡（两个 provider × baseUrl/apiKey）一眼看全配置态，
+//      不用滚屏来回对比。
+//   2. Tabs 切换具体 provider 的详细配置 —— 一屏只看一个，避免之前
+//      "一直往下滚不知道还在配 DashScope 还是已经到 OpenAI" 的混乱。
+//   3. 每个 tab 顶部一行"影响范围" callout，明确告诉操作者：改这里的
+//      凭据/超时 影响的是哪些 SKU 前缀。前缀表跟 ProviderRegistry 的
+//      supports() 一致，没有"文档跟代码漂移"的风险。
+//
+// 未来加字节/谷歌：在 PROVIDER_CARDS 数组里加一项即可，UI 自动多一个 tab。
 
-const OPENAI_DEFAULT_BASE_URL = 'https://api.openai.com/v1';
+interface ProviderCard {
+  id: 'dashscope' | 'openai';
+  label: string;
+  defaultBaseUrl: string;
+  /** 影响范围 chips：每条对应 ProviderRegistry 里的一个 supports() 前缀。 */
+  scopeChips: { sku: string; modality: 'chat' | 'image' | 'video' | 'audio' }[];
+  /** 超时档位 + 文案。video/audio 两档保留即使没 provider，让 schema 一致。 */
+  timeoutKinds: { kind: ProviderKind; label: string; hint: string }[];
+  /** 各档说明 callout 的文字。 */
+  timeoutsHint: string;
+  baseUrlHint: React.ReactNode;
+  apiKeyHint: React.ReactNode;
+  load: () => Promise<ProviderConfigView>;
+  save: (patch: ProviderConfigPatch) => Promise<ProviderConfigView>;
+  /** 只在确认清除 apiKey 时弹的话术；默认是通用文案。 */
+  clearKeyConfirm: string;
+}
 
-const OPENAI_TIMEOUT_KINDS: { kind: OpenaiCompatKind; label: string; hint: string }[] = [
-  { kind: 'chat', label: 'Chat', hint: '/chat/completions (gpt-* / openrouter / vllm ...)' },
-  { kind: 'image', label: 'Image', hint: '/images/generations (dall-e-3 偶发 60s+)' },
-  { kind: 'video', label: 'Video', hint: '当前 OpenAI 无标准视频接口；保留以兼容未来扩展' },
-  { kind: 'audio', label: 'Audio', hint: '/audio/speech TTS（暂未接入 provider，预留 schema）' },
+type ProviderKind = 'chat' | 'image' | 'video' | 'audio';
+
+interface ProviderConfigView {
+  baseUrl: string;
+  baseUrlConfigured: boolean;
+  apiKeyMask: string | null;
+  apiKeyConfigured: boolean;
+  timeouts: Record<ProviderKind, { value: number; default: number; configured: boolean }>;
+}
+
+interface ProviderConfigPatch {
+  baseUrl?: string;
+  apiKey?: string;
+  timeouts?: Partial<Record<ProviderKind, number>>;
+}
+
+const PROVIDER_CARDS: ProviderCard[] = [
+  {
+    id: 'dashscope',
+    label: 'DashScope (阿里百炼)',
+    defaultBaseUrl: 'https://dashscope.aliyuncs.com',
+    scopeChips: [
+      { sku: 'qwen-*', modality: 'chat' },
+      { sku: 'deepseek*', modality: 'chat' },
+      { sku: 'glm*', modality: 'chat' },
+      { sku: 'qwen-image*', modality: 'image' },
+      { sku: 'wanx*', modality: 'image' },
+      { sku: 'wan2.* / wanx2.*', modality: 'video' },
+      { sku: 'happyhorse*', modality: 'video' },
+      { sku: 'speech-* / fun-music*', modality: 'audio' },
+    ],
+    timeoutKinds: [
+      { kind: 'chat', label: 'Chat', hint: '同步对话调用 (qwen / deepseek / glm)' },
+      { kind: 'image', label: 'Image', hint: '异步图像 submit；polling 固定 10s 不暴露' },
+      { kind: 'video', label: 'Video', hint: '异步视频 submit；polling 固定 10s 不暴露' },
+      { kind: 'audio', label: 'Audio', hint: 'TTS / FunMusic / 音色复刻 submit' },
+    ],
+    timeoutsHint:
+      '按 model kind 分别设置 submit 调用超时。Polling（image/video）固定 10s 不暴露 — polling 是轻 GET，过长意味着是 bug，不是 tuning knob。留空 = 用内置默认；保存值 ≥ 1s。',
+    baseUrlHint: (
+      <>
+        DashScope (Bailian) 网关地址。留空回退到默认 <code>https://dashscope.aliyuncs.com</code>。
+        国际版账号请改 <code>https://dashscope-intl.aliyuncs.com</code>。
+      </>
+    ),
+    apiKeyHint: (
+      <>
+        落库前用 <code>ENCRYPTION_KEY</code> 做 aes-256-gcm 加密；页面只显示掩码（如{' '}
+        <code>sk-1de...0252</code>），永不回传明文。修改约 30 秒内对所有 model 调用生效。
+      </>
+    ),
+    load: getProviderSettings,
+    save: updateProviderSettings,
+    clearKeyConfirm:
+      '确认清除 DashScope API Key? 清除后 qwen-* / wanx-* / glm / deepseek / speech-* 等所有阿里系 SKU 都会调用失败。',
+  },
+  {
+    id: 'openai',
+    label: 'OpenAI-compatible',
+    defaultBaseUrl: 'https://api.openai.com/v1',
+    scopeChips: [
+      { sku: 'openai-chat/*', modality: 'chat' },
+      { sku: 'openai-image/*', modality: 'image' },
+    ],
+    timeoutKinds: [
+      { kind: 'chat', label: 'Chat', hint: '/chat/completions (gpt-* / openrouter / vllm ...)' },
+      { kind: 'image', label: 'Image', hint: '/images/generations (dall-e-3 偶发 60s+)' },
+      { kind: 'video', label: 'Video', hint: '当前 OpenAI 无标准视频接口；保留以兼容未来扩展' },
+      { kind: 'audio', label: 'Audio', hint: '/audio/speech TTS（暂未接入 provider，预留 schema）' },
+    ],
+    timeoutsHint:
+      'DALL-E 3 / GPT-image-1 偶发 60s+，所以默认值比 DashScope 略宽。video / audio 两档暂时无对应 provider，配置仍保留以便未来加入。留空 = 用内置默认；保存值 ≥ 1s。',
+    baseUrlHint: (
+      <>
+        支持任何 <strong>OpenAI Chat Completions / Images Generations</strong> 协议的网关：
+        <code>OpenAI</code> · <code>OpenRouter</code> · <code>Together</code> ·{' '}
+        <code>Groq</code> · 自建 <code>vLLM</code>。约定 base URL <strong>包含 <code>/v1</code> 且末尾不含斜线</strong>（保存时自动剪掉）。OpenRouter 用{' '}
+        <code>https://openrouter.ai/api/v1</code>，自建 vLLM 用 <code>http://your-host:8000/v1</code>。
+      </>
+    ),
+    apiKeyHint: (
+      <>
+        落库前用 <code>ENCRYPTION_KEY</code> 做 aes-256-gcm 加密；页面只显示掩码（如{' '}
+        <code>sk-1de...0252</code>），永不回传明文。配置后才能在 <code>/admin/config</code> 把
+        <code>openai-chat/&lt;model&gt;</code>、<code>openai-image/&lt;model&gt;</code> 加进节点 models 列表。
+      </>
+    ),
+    load: getOpenaiSettings,
+    save: updateOpenaiSettings,
+    clearKeyConfirm:
+      '确认清除 OpenAI API Key? 清除后所有 openai-chat/* / openai-image/* SKU 都会调用失败。',
+  },
 ];
 
-const OpenaiSection: React.FC = () => {
-  const [view, setView] = useState<OpenaiSettingsView | null>(null);
+const ProvidersSection: React.FC = () => {
+  const [activeId, setActiveId] = useState<ProviderCard['id']>('dashscope');
+  // 两个 provider 各自的 view + draft 都 own 在这里，并发 load 一次拿到。
+  const [views, setViews] = useState<Record<ProviderCard['id'], ProviderConfigView | null>>({
+    dashscope: null,
+    openai: null,
+  });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [baseUrlDraft, setBaseUrlDraft] = useState('');
-  const [apiKeyDraft, setApiKeyDraft] = useState('');
-  const [showKey, setShowKey] = useState(false);
+  const [baseUrlDrafts, setBaseUrlDrafts] = useState<Record<ProviderCard['id'], string>>({
+    dashscope: '',
+    openai: '',
+  });
+  const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<ProviderCard['id'], string>>({
+    dashscope: '',
+    openai: '',
+  });
+  const [showKey, setShowKey] = useState<Record<ProviderCard['id'], boolean>>({
+    dashscope: false,
+    openai: false,
+  });
 
-  const load = async () => {
+  const loadAll = async () => {
     setLoading(true);
     try {
-      const v = await getOpenaiSettings();
-      setView(v);
-      setBaseUrlDraft(v.baseUrlConfigured ? v.baseUrl : '');
+      const entries = await Promise.all(
+        PROVIDER_CARDS.map(async (c) => {
+          const v = await c.load();
+          return [c.id, v] as const;
+        }),
+      );
+      const next = { ...views };
+      const nextBaseDrafts = { ...baseUrlDrafts };
+      for (const [id, v] of entries) {
+        next[id] = v;
+        nextBaseDrafts[id] = v.baseUrlConfigured ? v.baseUrl : '';
+      }
+      setViews(next);
+      setBaseUrlDrafts(nextBaseDrafts);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '加载 OpenAI 设置失败');
+      toast.error(err instanceof Error ? err.message : '加载 Provider 设置失败');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    void load();
+    void loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const apply = async (patch: {
-    baseUrl?: string;
-    apiKey?: string;
-    timeouts?: Partial<Record<OpenaiCompatKind, number>>;
-  }) => {
+  const apply = async (id: ProviderCard['id'], patch: ProviderConfigPatch) => {
+    const card = PROVIDER_CARDS.find((c) => c.id === id);
+    if (!card) return;
     setSaving(true);
     try {
-      const v = await updateOpenaiSettings(patch);
-      setView(v);
+      const v = await card.save(patch);
+      setViews((s) => ({ ...s, [id]: v }));
       if (patch.baseUrl !== undefined) {
-        setBaseUrlDraft(v.baseUrlConfigured ? v.baseUrl : '');
+        setBaseUrlDrafts((s) => ({ ...s, [id]: v.baseUrlConfigured ? v.baseUrl : '' }));
       }
       if (patch.apiKey !== undefined) {
-        setApiKeyDraft('');
-        setShowKey(false);
+        setApiKeyDrafts((s) => ({ ...s, [id]: '' }));
+        setShowKey((s) => ({ ...s, [id]: false }));
       }
       toast.success('已保存');
     } catch (err) {
@@ -1217,245 +1139,270 @@ const OpenaiSection: React.FC = () => {
     }
   };
 
-  if (!view) {
-    return (
-      <section style={sectionStyle}>
-        <h3 style={sectionTitleStyle}>
-          <Plug size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-          OpenAI-compatible
-        </h3>
-        <div style={sectionBodyStyle}>
-          <div style={emptyStyle}>{loading ? '加载中…' : '加载失败'}</div>
-        </div>
-      </section>
-    );
-  }
+  const allLoaded = PROVIDER_CARDS.every((c) => views[c.id] !== null);
 
+  return (
+    <section style={sectionStyle}>
+      <h3 style={sectionTitleStyle}>
+        <Plug size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+        模型 Provider 设置
+      </h3>
+      <div style={sectionBodyStyle}>
+        <p style={hintStyle}>
+          每个 Provider 接管一组 SKU 前缀；在下方 tab 里改 baseUrl / apiKey / timeout
+          只会影响该 provider 的 SKU。新增的模型条目仍然在 <code>/admin/config</code> 的节点 models 列表里挂。
+        </p>
+
+        {/* 4 张状态卡：两 provider × (baseUrl, apiKey) —— 一眼看全配置态 */}
+        <div style={statusGridStyle}>
+          {PROVIDER_CARDS.map((card) => {
+            const v = views[card.id];
+            return (
+              <React.Fragment key={card.id}>
+                <StatusCard
+                  icon={<Link2 size={14} />}
+                  label={`${card.label} · Base URL`}
+                  value={v ? v.baseUrl : '加载中…'}
+                  source={v ? (v.baseUrlConfigured ? 'DB 覆盖' : '内置默认') : ''}
+                  ok
+                />
+                <StatusCard
+                  icon={<KeyRound size={14} />}
+                  label={`${card.label} · API Key`}
+                  value={v ? (v.apiKeyConfigured ? v.apiKeyMask ?? '已配置' : '未配置') : '加载中…'}
+                  source={
+                    v
+                      ? v.apiKeyConfigured
+                        ? 'DB · 加密存储'
+                        : '⚠ 未配置 · 该 provider 不可用'
+                      : ''
+                  }
+                  ok={v ? v.apiKeyConfigured : true}
+                />
+              </React.Fragment>
+            );
+          })}
+        </div>
+
+        {/* Tabs */}
+        <div style={tabBarStyle}>
+          {PROVIDER_CARDS.map((card) => {
+            const active = card.id === activeId;
+            return (
+              <button
+                key={card.id}
+                type="button"
+                onClick={() => setActiveId(card.id)}
+                style={active ? tabActiveStyle : tabStyle}
+              >
+                {card.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {!allLoaded ? (
+          <div style={emptyStyle}>{loading ? '加载中…' : '加载失败'}</div>
+        ) : (
+          <ProviderTabBody
+            card={PROVIDER_CARDS.find((c) => c.id === activeId)!}
+            view={views[activeId]!}
+            saving={saving}
+            baseUrlDraft={baseUrlDrafts[activeId]}
+            setBaseUrlDraft={(s) => setBaseUrlDrafts((prev) => ({ ...prev, [activeId]: s }))}
+            apiKeyDraft={apiKeyDrafts[activeId]}
+            setApiKeyDraft={(s) => setApiKeyDrafts((prev) => ({ ...prev, [activeId]: s }))}
+            showKey={showKey[activeId]}
+            setShowKey={(b) => setShowKey((prev) => ({ ...prev, [activeId]: b }))}
+            apply={(patch) => apply(activeId, patch)}
+          />
+        )}
+      </div>
+    </section>
+  );
+};
+
+const ProviderTabBody: React.FC<{
+  card: ProviderCard;
+  view: ProviderConfigView;
+  saving: boolean;
+  baseUrlDraft: string;
+  setBaseUrlDraft: (s: string) => void;
+  apiKeyDraft: string;
+  setApiKeyDraft: (s: string) => void;
+  showKey: boolean;
+  setShowKey: (b: boolean) => void;
+  apply: (patch: ProviderConfigPatch) => void;
+}> = ({
+  card,
+  view,
+  saving,
+  baseUrlDraft,
+  setBaseUrlDraft,
+  apiKeyDraft,
+  setApiKeyDraft,
+  showKey,
+  setShowKey,
+  apply,
+}) => {
   const baseUrlDirty = baseUrlDraft.trim() !== (view.baseUrlConfigured ? view.baseUrl : '');
   const apiKeyDirty = apiKeyDraft.trim().length > 0;
 
   return (
-    <>
-      <section style={sectionStyle}>
-        <h3 style={sectionTitleStyle}>
-          <Plug size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-          OpenAI-compatible · Base URL & API Key
-        </h3>
-        <div style={sectionBodyStyle}>
-          <p style={hintStyle}>
-            支持任何 <strong>OpenAI Chat Completions / Images Generations</strong> 协议的网关：
-            <code>OpenAI</code> / <code>OpenRouter</code> / <code>Together</code> / <code>Groq</code> /
-            自建 <code>vLLM</code>。SKU 用 <code>openai-chat/&lt;model&gt;</code> 或{' '}
-            <code>openai-image/&lt;model&gt;</code> 前缀（如 <code>openai-chat/gpt-4o-mini</code>、
-            <code>openai-image/dall-e-3</code>），在 <code>/admin/config</code> 的节点 models 列表里挂上即可。
-          </p>
+    <div style={tabBodyStyle}>
+      {/* 影响范围 callout：明确告诉用户改这个 provider 会影响哪些 SKU */}
+      <ScopeCallout chips={card.scopeChips} vendorLabel={card.label} />
 
-          <div style={statusGridStyle}>
-            <StatusCard
-              icon={<Link2 size={14} />}
-              label="Base URL"
-              value={view.baseUrl}
-              source={view.baseUrlConfigured ? 'DB 覆盖' : '内置默认'}
-              ok
-            />
-            <StatusCard
-              icon={<KeyRound size={14} />}
-              label="API Key"
-              value={view.apiKeyConfigured ? view.apiKeyMask ?? '已配置' : '未配置'}
-              source={view.apiKeyConfigured ? 'DB · 加密存储' : '⚠ 未配置 · 该 provider 不可用'}
-              ok={view.apiKeyConfigured}
-            />
-          </div>
-
-          <div style={{ ...fieldRowStyle, marginTop: 12 }}>
-            <span style={fieldLabelStyle}>Base URL</span>
-            <input
-              value={baseUrlDraft}
-              onChange={(e) => setBaseUrlDraft(e.target.value)}
-              placeholder={`默认 ${OPENAI_DEFAULT_BASE_URL}`}
-              style={inputMonoStyle}
+      {/* Base URL */}
+      <div style={fieldGroupStyle}>
+        <div style={fieldGroupHeadStyle}>
+          <Link2 size={12} />
+          <span>Base URL</span>
+        </div>
+        <p style={hintStyle}>{card.baseUrlHint}</p>
+        <div style={fieldRowStyle}>
+          <span style={fieldLabelStyle}>Base URL</span>
+          <input
+            value={baseUrlDraft}
+            onChange={(e) => setBaseUrlDraft(e.target.value)}
+            placeholder={`默认 ${card.defaultBaseUrl}`}
+            style={inputMonoStyle}
+            disabled={saving}
+          />
+          <button
+            type="button"
+            onClick={() => apply({ baseUrl: baseUrlDraft.trim() })}
+            style={baseUrlDirty ? buttonAccentStyle : buttonStyle}
+            disabled={!baseUrlDirty || saving}
+          >
+            保存
+          </button>
+          {view.baseUrlConfigured && (
+            <button
+              type="button"
+              onClick={() => apply({ baseUrl: '' })}
+              style={buttonGhostStyle}
               disabled={saving}
+              title="清除 DB 配置，回退到默认 URL"
+            >
+              重置默认
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* API Key */}
+      <div style={fieldGroupStyle}>
+        <div style={fieldGroupHeadStyle}>
+          <KeyRound size={12} />
+          <span>API Key</span>
+        </div>
+        <p style={hintStyle}>{card.apiKeyHint}</p>
+        <div style={fieldRowStyle}>
+          <span style={fieldLabelStyle}>API Key</span>
+          <div style={apiKeyInputWrapStyle}>
+            <input
+              value={apiKeyDraft}
+              onChange={(e) => setApiKeyDraft(e.target.value)}
+              placeholder={
+                view.apiKeyConfigured
+                  ? `当前: ${view.apiKeyMask} · 输入新值覆盖`
+                  : '尚未配置 · 输入 sk-... 并保存'
+              }
+              type={showKey ? 'text' : 'password'}
+              style={{ ...inputMonoStyle, paddingRight: 36 }}
+              disabled={saving}
+              autoComplete="off"
             />
             <button
               type="button"
-              onClick={() => apply({ baseUrl: baseUrlDraft.trim() })}
-              style={baseUrlDirty ? buttonAccentStyle : buttonStyle}
-              disabled={!baseUrlDirty || saving}
+              onClick={() => setShowKey(!showKey)}
+              style={eyeBtnStyle}
+              title={showKey ? '隐藏' : '显示'}
+              tabIndex={-1}
             >
-              保存
+              {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
             </button>
-            {view.baseUrlConfigured && (
-              <button
-                type="button"
-                onClick={() => apply({ baseUrl: '' })}
-                style={buttonGhostStyle}
-                disabled={saving}
-                title="清除 DB 配置，回退到默认 URL"
-              >
-                重置默认
-              </button>
-            )}
           </div>
-
-          <p style={{ ...hintStyle, marginTop: 0 }}>
-            约定 base URL <strong>包含 <code>/v1</code> 且末尾不含斜线</strong>（保存时自动剪掉）。
-            OpenRouter 用 <code>https://openrouter.ai/api/v1</code>，自建 vLLM 用{' '}
-            <code>http://your-host:8000/v1</code>。
-          </p>
-
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>API Key</span>
-            <div style={apiKeyInputWrapStyle}>
-              <input
-                value={apiKeyDraft}
-                onChange={(e) => setApiKeyDraft(e.target.value)}
-                placeholder={
-                  view.apiKeyConfigured
-                    ? `当前: ${view.apiKeyMask} · 输入新值覆盖`
-                    : '尚未配置 · 输入 sk-... 并保存'
-                }
-                type={showKey ? 'text' : 'password'}
-                style={{ ...inputMonoStyle, paddingRight: 36 }}
-                disabled={saving}
-                autoComplete="off"
-              />
-              <button
-                type="button"
-                onClick={() => setShowKey((s) => !s)}
-                style={eyeBtnStyle}
-                title={showKey ? '隐藏' : '显示'}
-                tabIndex={-1}
-              >
-                {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => apply({ apiKey: apiKeyDraft.trim() })}
-              style={apiKeyDirty ? buttonAccentStyle : buttonStyle}
-              disabled={!apiKeyDirty || saving}
-            >
-              保存
-            </button>
-            {view.apiKeyConfigured && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (!confirm('确认清除 OpenAI API Key? 清除后所有 openai-chat/ openai-image/ 模型调用都会失败。')) return;
-                  void apply({ apiKey: '' });
-                }}
-                style={buttonGhostStyle}
-                disabled={saving}
-                title="从 DB 删除 apiKey 行"
-              >
-                清除
-              </button>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section style={sectionStyle}>
-        <h3 style={sectionTitleStyle}>
-          <Timer size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-          OpenAI-compatible · 超时设置 (秒)
-        </h3>
-        <div style={sectionBodyStyle}>
-          <p style={hintStyle}>
-            DALL-E 3 / GPT-image-1 偶发 60s+，所以默认值比 DashScope 略宽。video / audio
-            两档暂时无对应 provider，配置仍保留以便未来加入。留空 = 用内置默认；保存值 ≥ 1s。
-          </p>
-          <OpenaiTimeoutsTable view={view} saving={saving} apply={apply} />
-        </div>
-      </section>
-    </>
-  );
-};
-
-const OpenaiTimeoutsTable: React.FC<{
-  view: OpenaiSettingsView;
-  saving: boolean;
-  apply: (patch: { timeouts?: Partial<Record<OpenaiCompatKind, number>> }) => void;
-}> = ({ view, saving, apply }) => {
-  const [drafts, setDrafts] = useState<Record<OpenaiCompatKind, string>>({
-    chat: '',
-    image: '',
-    video: '',
-    audio: '',
-  });
-
-  return (
-    <div style={timeoutTableStyle}>
-      {OPENAI_TIMEOUT_KINDS.map(({ kind, label, hint }) => {
-        const entry = view.timeouts[kind];
-        const draft = drafts[kind];
-        const draftNum = Number(draft);
-        const dirty =
-          draft !== '' &&
-          Number.isFinite(draftNum) &&
-          draftNum > 0 &&
-          draftNum !== entry.value;
-        return (
-          <div key={kind} style={timeoutRowStyle}>
-            <div style={timeoutLabelColStyle}>
-              <span style={timeoutLabelStyle}>{label}</span>
-              <span style={timeoutHintStyle}>{hint}</span>
-            </div>
-            <div style={timeoutValueColStyle}>
-              <span style={timeoutCurrentStyle}>{entry.value}s</span>
-              {entry.configured ? (
-                <span style={{ ...badgeStyle, color: tokens.ok, borderColor: 'rgba(155,227,154,0.3)' }}>
-                  DB
-                </span>
-              ) : (
-                <span style={badgeStyle}>默认</span>
-              )}
-            </div>
-            <input
-              value={draft}
-              onChange={(e) => setDrafts((s) => ({ ...s, [kind]: e.target.value }))}
-              placeholder="新值"
-              style={{ ...inputStyle, width: 100, flex: 'none' }}
-              type="number"
-              min="1"
-              disabled={saving}
-            />
+          <button
+            type="button"
+            onClick={() => apply({ apiKey: apiKeyDraft.trim() })}
+            style={apiKeyDirty ? buttonAccentStyle : buttonStyle}
+            disabled={!apiKeyDirty || saving}
+          >
+            保存
+          </button>
+          {view.apiKeyConfigured && (
             <button
               type="button"
               onClick={() => {
-                if (!Number.isFinite(draftNum) || draftNum <= 0) return;
-                apply({ timeouts: { [kind]: Math.floor(draftNum) } });
-                setDrafts((s) => ({ ...s, [kind]: '' }));
+                if (!confirm(card.clearKeyConfirm)) return;
+                apply({ apiKey: '' });
               }}
-              style={dirty ? buttonAccentStyle : buttonStyle}
-              disabled={!dirty || saving}
+              style={buttonGhostStyle}
+              disabled={saving}
+              title="从 DB 删除 apiKey 行"
             >
-              保存
+              清除
             </button>
-            {entry.configured ? (
-              <button
-                type="button"
-                onClick={() => apply({ timeouts: { [kind]: 0 } })}
-                style={buttonGhostStyle}
-                disabled={saving}
-                title="清除 DB 配置，回退到内置默认"
-              >
-                重置
-              </button>
-            ) : null}
-          </div>
-        );
-      })}
+          )}
+        </div>
+      </div>
+
+      {/* Timeouts */}
+      <div style={fieldGroupStyle}>
+        <div style={fieldGroupHeadStyle}>
+          <Timer size={12} />
+          <span>超时设置 (秒)</span>
+        </div>
+        <p style={hintStyle}>{card.timeoutsHint}</p>
+        <TimeoutsTable
+          view={view}
+          kinds={card.timeoutKinds}
+          saving={saving}
+          apply={(timeouts) => apply({ timeouts })}
+        />
+      </div>
     </div>
   );
 };
 
+/**
+ * 影响范围 callout：列出当前 provider 接管的 SKU 前缀，按 modality 分组色码。
+ * 单一目的就是回答 "我改这里会影响哪些模型？" — 不夹杂任何其它信息。
+ *
+ * 数据是静态的（{@link PROVIDER_CARDS}.scopeChips），跟 ProviderRegistry 的
+ * supports() 保持手工对齐。一旦后端加新前缀，这里要顺手更新一行。
+ */
+const ScopeCallout: React.FC<{
+  chips: ProviderCard['scopeChips'];
+  vendorLabel: string;
+}> = ({ chips, vendorLabel }) => (
+  <div style={scopeCalloutStyle}>
+    <div style={scopeCalloutHeadStyle}>
+      <span style={scopeCalloutLabelStyle}>影响范围</span>
+      <span style={scopeCalloutDescStyle}>
+        改 <strong>{vendorLabel}</strong> 的 baseUrl / apiKey / timeout 会影响以下 SKU 前缀：
+      </span>
+    </div>
+    <div style={scopeChipsStyle}>
+      {chips.map((c, i) => (
+        <span key={`${c.sku}-${i}`} style={{ ...scopeChipStyle, ...modalityChipStyle[c.modality] }}>
+          <code style={{ background: 'transparent', padding: 0 }}>{c.sku}</code>
+          <span style={scopeChipModalityStyle}>{c.modality}</span>
+        </span>
+      ))}
+    </div>
+  </div>
+);
+
 const TimeoutsTable: React.FC<{
-  view: ProviderSettingsView;
+  view: ProviderConfigView;
+  kinds: ProviderCard['timeoutKinds'];
   saving: boolean;
-  apply: (patch: { timeouts?: Partial<Record<DashscopeKind, number>> }) => void;
-}> = ({ view, saving, apply }) => {
-  const [drafts, setDrafts] = useState<Record<DashscopeKind, string>>({
+  apply: (timeouts: Partial<Record<ProviderKind, number>>) => void;
+}> = ({ view, kinds, saving, apply }) => {
+  const [drafts, setDrafts] = useState<Record<ProviderKind, string>>({
     chat: '',
     image: '',
     video: '',
@@ -1464,7 +1411,7 @@ const TimeoutsTable: React.FC<{
 
   return (
     <div style={timeoutTableStyle}>
-      {TIMEOUT_KINDS.map(({ kind, label, hint }) => {
+      {kinds.map(({ kind, label, hint }) => {
         const entry = view.timeouts[kind];
         const draft = drafts[kind];
         const draftNum = Number(draft);
@@ -1502,7 +1449,7 @@ const TimeoutsTable: React.FC<{
               type="button"
               onClick={() => {
                 if (!Number.isFinite(draftNum) || draftNum <= 0) return;
-                apply({ timeouts: { [kind]: Math.floor(draftNum) } });
+                apply({ [kind]: Math.floor(draftNum) });
                 setDrafts((s) => ({ ...s, [kind]: '' }));
               }}
               style={dirty ? buttonAccentStyle : buttonStyle}
@@ -1513,7 +1460,7 @@ const TimeoutsTable: React.FC<{
             {entry.configured ? (
               <button
                 type="button"
-                onClick={() => apply({ timeouts: { [kind]: 0 } })}
+                onClick={() => apply({ [kind]: 0 })}
                 style={buttonGhostStyle}
                 disabled={saving}
                 title="清除 DB 配置，回退到内置默认"
@@ -1622,6 +1569,126 @@ const eyeBtnStyle: React.CSSProperties = {
   padding: 4,
   display: 'inline-flex',
   alignItems: 'center',
+};
+
+// ---- ProvidersSection 专用样式 -------------------------------------------
+
+const tabBarStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: 2,
+  borderBottom: `1px solid ${tokens.border}`,
+  marginTop: 16,
+};
+
+const tabStyle: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  borderBottom: '2px solid transparent',
+  color: tokens.textMuted,
+  fontSize: 12,
+  padding: '8px 14px',
+  cursor: 'pointer',
+  fontWeight: 500,
+  marginBottom: -1,
+};
+
+const tabActiveStyle: React.CSSProperties = {
+  ...tabStyle,
+  color: tokens.textPrimary,
+  borderBottomColor: tokens.accent,
+};
+
+const tabBodyStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 16,
+  paddingTop: 14,
+};
+
+const fieldGroupStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+  paddingBottom: 8,
+  borderBottom: `1px dashed ${tokens.border}`,
+};
+
+const fieldGroupHeadStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  color: tokens.textPrimary,
+  fontSize: 12,
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: 0.4,
+};
+
+const scopeCalloutStyle: React.CSSProperties = {
+  background: tokens.bgCard,
+  border: `1px solid ${tokens.border}`,
+  borderRadius: 8,
+  padding: '10px 12px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+};
+
+const scopeCalloutHeadStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'baseline',
+  gap: 8,
+  flexWrap: 'wrap',
+};
+
+const scopeCalloutLabelStyle: React.CSSProperties = {
+  color: tokens.accent,
+  fontSize: 11,
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: 0.4,
+};
+
+const scopeCalloutDescStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: tokens.textMuted,
+  lineHeight: 1.5,
+};
+
+const scopeChipsStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 6,
+};
+
+const scopeChipStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '3px 8px',
+  borderRadius: 6,
+  fontSize: 11,
+  fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+  border: '1px solid',
+};
+
+const scopeChipModalityStyle: React.CSSProperties = {
+  fontSize: 9,
+  textTransform: 'uppercase',
+  letterSpacing: 0.6,
+  opacity: 0.7,
+  fontFamily: 'inherit',
+};
+
+/**
+ * 按 modality 着色 —— 让"chat / image / video / audio"在 chips 里一眼区分。
+ * 颜色取自现有 tokens 体系，避免引入新的颜色变量。
+ */
+const modalityChipStyle: Record<ProviderKind, React.CSSProperties> = {
+  chat: { color: tokens.textPrimary, borderColor: tokens.border, background: 'rgba(255,255,255,0.02)' },
+  image: { color: tokens.accent, borderColor: 'rgba(180,200,255,0.3)', background: 'rgba(120,140,255,0.06)' },
+  video: { color: tokens.ok, borderColor: 'rgba(155,227,154,0.3)', background: 'rgba(120,200,120,0.06)' },
+  audio: { color: '#e6c97a', borderColor: 'rgba(230,201,122,0.3)', background: 'rgba(230,201,122,0.06)' },
 };
 
 const timeoutTableStyle: React.CSSProperties = {
