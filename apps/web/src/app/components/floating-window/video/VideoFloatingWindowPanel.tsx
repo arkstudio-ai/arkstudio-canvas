@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import type { CanvasConfig, ModelEntry, ParamFieldSpec } from '@canvas-flow/core';
+import type { CanvasConfig, ModelEntry, ParamFieldOption, ParamFieldSpec } from '@canvas-flow/core';
 import type { NodeConfig } from '../../../store/nodeConfigStore';
 
 import {
@@ -20,6 +20,12 @@ import {
   isUpstreamActiveForMode,
   buildParamSummary,
 } from './modeUtils';
+import {
+  ParamsPopoverContainer,
+  ParamsPopoverEmpty,
+  RatioGrid,
+  SegmentedRow,
+} from '../common/ParamsPopover';
 
 export interface VideoFloatingWindowPanelProps {
   nodeId: string;
@@ -290,7 +296,7 @@ export const VideoFloatingWindowPanel: React.FC<VideoFloatingWindowPanelProps> =
                 summary={paramSummary}
                 title="参数"
                 disabled={paramSchema.length === 0}
-                renderPopover={({ close }) => (
+                renderPopover={() => (
                   <VideoParamsPopover
                     schema={paramSchema}
                     params={params}
@@ -298,7 +304,6 @@ export const VideoFloatingWindowPanel: React.FC<VideoFloatingWindowPanelProps> =
                     onPick={(key, value) => {
                       updateParams({ [key]: value });
                     }}
-                    onDone={close}
                   />
                 )}
               />
@@ -311,117 +316,48 @@ export const VideoFloatingWindowPanel: React.FC<VideoFloatingWindowPanelProps> =
   );
 };
 
-/* ============== 参数 popover ============== */
-
+/* ============== 参数 popover ==============
+ *
+ * 与 image 节点共用 ../common/ParamsPopover 的 RatioGrid / SegmentedRow
+ * 视觉，保持跨节点一致。video 特有的「mode-aware 灰态」通过
+ * isOptionDisabled 回调注入：当 option.enabledForModes 不含当前 mode 时，
+ * 返回原因字符串 → 公共组件按 disabled + title 渲染。
+ */
 const VideoParamsPopover: React.FC<{
   schema: ParamFieldSpec[];
   params: Record<string, unknown>;
   /** 当前 mode.id；用于按 option.enabledForModes 灰态某些选项 */
   currentModeId: string;
   onPick: (paramKey: string, value: string) => void;
-  onDone: () => void;
-}> = ({ schema, params, currentModeId, onPick, onDone }) => {
+}> = ({ schema, params, currentModeId, onPick }) => {
   if (schema.length === 0) {
-    return <div style={emptyStyle}>该模型暂无可调参数</div>;
+    return <ParamsPopoverEmpty />;
   }
 
+  const isOptionDisabled = (o: ParamFieldOption): string | null => {
+    const allowed = o.enabledForModes;
+    if (!Array.isArray(allowed) || allowed.length === 0) return null;
+    if (allowed.includes(currentModeId)) return null;
+    return `仅 ${allowed.join(' / ')} 模式可选`;
+  };
+
   return (
-    <div style={containerStyle}>
+    <ParamsPopoverContainer>
       {schema.map((field) => {
         const raw = params[field.key];
         const current =
           raw === undefined || raw === null ? field.defaultValue : String(raw);
-
+        const Comp = field.key === 'aspectRatio' ? RatioGrid : SegmentedRow;
         return (
-          <div key={field.key} style={fieldRowStyle}>
-            <div style={fieldLabelStyle}>{field.label}</div>
-            <div style={optionsWrapStyle}>
-              {field.options.map((o) => {
-                const active = current === o.value;
-                const restricted =
-                  Array.isArray(o.enabledForModes) && o.enabledForModes.length > 0;
-                const disabled = restricted && !o.enabledForModes!.includes(currentModeId);
-                const title = disabled
-                  ? `仅 ${o.enabledForModes!.join(' / ')} 模式可选`
-                  : undefined;
-                return (
-                  <button
-                    key={o.value}
-                    type="button"
-                    onClick={() => {
-                      if (disabled) return;
-                      onPick(field.key, o.value);
-                    }}
-                    disabled={disabled}
-                    title={title}
-                    style={chipBtnStyle(active, disabled)}
-                  >
-                    {o.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <Comp
+            key={field.key}
+            field={field}
+            current={current}
+            onPick={(v) => onPick(field.key, v)}
+            isOptionDisabled={isOptionDisabled}
+          />
         );
       })}
-      <button type="button" onClick={onDone} style={doneBtnStyle}>
-        完成
-      </button>
-    </div>
+    </ParamsPopoverContainer>
   );
-};
-
-const containerStyle: React.CSSProperties = {
-  padding: 10,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 10,
-  minWidth: 280,
-  maxWidth: 360,
-};
-
-const fieldRowStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-};
-
-const fieldLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: '#888',
-};
-
-const optionsWrapStyle: React.CSSProperties = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: 6,
-};
-
-const chipBtnStyle = (active: boolean, disabled = false): React.CSSProperties => ({
-  padding: '4px 10px',
-  borderRadius: 6,
-  border: '1px solid #333',
-  background: active ? 'rgba(59,130,246,0.2)' : '#1a1a1a',
-  color: active ? '#6b9fff' : disabled ? '#555' : '#ddd',
-  cursor: disabled ? 'not-allowed' : 'pointer',
-  fontSize: 12,
-  opacity: disabled ? 0.5 : 1,
-});
-
-const doneBtnStyle: React.CSSProperties = {
-  marginTop: 4,
-  padding: '6px 10px',
-  borderRadius: 6,
-  border: '1px solid #333',
-  background: '#141414',
-  color: '#bbb',
-  cursor: 'pointer',
-  fontSize: 12,
-  alignSelf: 'flex-end',
-};
-
-const emptyStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  fontSize: 12,
-  color: '#777',
 };
