@@ -48,6 +48,16 @@
             "text",
             "image"
           ]
+        },
+        {
+          "value": "openai-chat/gpt-5.5",
+          "label": "GPT-5.5",
+          "action": "chat",
+          "icon": "Bot",
+          "allowedUpstreamTypes": [
+            "text",
+            "image"
+          ]
         }
       ],
       "connectionRules": {
@@ -162,6 +172,63 @@
                   "label": "3:4",
                   "value": "3:4"
                 }
+              ]
+            }
+          ]
+        },
+        {
+          "value": "openai-image/gpt-image-2",
+          "label": "GPT Image 2",
+          "action": "image_generate",
+          "icon": "Image",
+          "allowedUpstreamTypes": [
+            "text"
+          ],
+          "defaultParams": {
+            "aspectRatio": "auto",
+            "quality": "medium",
+            "resolution": "2k"
+          },
+          "paramsSchema": [
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "defaultValue": "auto",
+              "options": [
+                { "label": "自适应", "value": "auto" },
+                { "label": "1:1", "value": "1:1" },
+                { "label": "2:3", "value": "2:3" },
+                { "label": "3:2", "value": "3:2" },
+                { "label": "4:5", "value": "4:5" },
+                { "label": "5:4", "value": "5:4" },
+                { "label": "16:9", "value": "16:9" },
+                { "label": "9:16", "value": "9:16" },
+                { "label": "21:9", "value": "21:9" },
+                { "label": "3:4", "value": "3:4" },
+                { "label": "4:3", "value": "4:3" }
+              ]
+            },
+            {
+              "key": "quality",
+              "label": "图像质量",
+              "type": "select",
+              "defaultValue": "medium",
+              "options": [
+                { "label": "低", "value": "low" },
+                { "label": "中", "value": "medium" },
+                { "label": "高", "value": "high" }
+              ]
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "defaultValue": "2k",
+              "options": [
+                { "label": "1k", "value": "1k" },
+                { "label": "2k", "value": "2k" },
+                { "label": "4k", "value": "4k" }
               ]
             }
           ]
