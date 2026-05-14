@@ -78,6 +78,27 @@ export const CanvasConfigPage: React.FC = () => {
 
   const handleModelPatch = (patch: Partial<ModelEntryDraft>) => {
     if (!activeNodeType || !openModelValue) return;
+
+    // Renaming `value` requires special handling: we (a) reject duplicates
+    // up front so editor.setDraft() stays a pure transform, and (b) re-aim
+    // openModelValue afterwards so the drawer keeps showing the row
+    // instead of disappearing (drawer visibility is keyed on openModel,
+    // which looks up by the current openModelValue).
+    let nextValue: string | null = null;
+    if (typeof patch.value === 'string') {
+      const trimmed = patch.value.trim();
+      if (trimmed && trimmed !== openModelValue) {
+        const conflict = (activeNode?.models ?? []).some(
+          (m: any) => m.value !== openModelValue && m.value === trimmed,
+        );
+        if (conflict) {
+          alert(`已有同名 value "${trimmed}"，请改一个`);
+          return;
+        }
+        nextValue = trimmed;
+      }
+    }
+
     editor.setDraft((draft) => {
       const node = draft.nodeDefinitions.find((n: any) => n.type === activeNodeType);
       if (!node) return;
@@ -85,6 +106,8 @@ export const CanvasConfigPage: React.FC = () => {
       if (i === -1) return;
       node.models[i] = { ...node.models[i], ...patch };
     });
+
+    if (nextValue) setOpenModelValue(nextValue);
   };
 
   const handleAddModel = (m: { value: string; label: string; action: string }) => {

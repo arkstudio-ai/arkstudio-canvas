@@ -44,9 +44,11 @@ export interface ModelDetailDrawerProps {
  *   - paramsSchema (per-field editor with options + enabledForModes)
  *   - modes (only meaningful for video family models)
  *
- * `value` and `nodeType` are intentionally read-only here -- changing the
- * model's `value` would invalidate every stored canvas; rename has to be
- * a deliberate add+remove flow handled at the grid level.
+ * `value` is editable but flagged: renaming a model leaves any saved
+ * canvas referencing the old `value` displaying as "Unknown model"
+ * until those nodes are reconfigured. Parent (CanvasConfigPage) re-aims
+ * `openModelValue` after a value patch so the drawer keeps showing the
+ * row instead of disappearing.
  */
 export const ModelDetailDrawer: React.FC<ModelDetailDrawerProps> = ({
   open,
@@ -77,12 +79,17 @@ export const ModelDetailDrawer: React.FC<ModelDetailDrawerProps> = ({
         <Section label="基本信息">
           <div style={fieldRowStyle}>
             <span style={fieldLabelStyle}>value</span>
-            <input
-              value={model.value}
-              disabled
-              style={{ ...inputMonoStyle, opacity: 0.6, cursor: 'not-allowed' }}
-              title="value 修改需用「删除 + 新增」流程以保证已有画布兼容"
-            />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+              <input
+                value={model.value}
+                onChange={(e) => onChange({ value: e.target.value })}
+                style={inputMonoStyle}
+                placeholder="e.g. openai-image/your-vendor-id"
+              />
+              <span style={valueHintStyle}>
+                修改 value 后，画布上引用此模型的旧节点会显示为「未知模型」直到重新选择。
+              </span>
+            </div>
           </div>
           <div style={fieldRowStyle}>
             <span style={fieldLabelStyle}>label</span>
@@ -224,6 +231,12 @@ const subtitleStyle: React.CSSProperties = {
   fontSize: 11,
   fontFamily: 'ui-monospace, SFMono-Regular, monospace',
   marginTop: 4,
+};
+
+const valueHintStyle: React.CSSProperties = {
+  color: tokens.textMuted,
+  fontSize: 11,
+  lineHeight: 1.4,
 };
 
 const closeBtnStyle: React.CSSProperties = {

@@ -31,11 +31,11 @@ import { OpenaiCompatConfigService } from '../canvas-config/openai-compat-config
  *   - `openai-image/gpt-image-2`  → gpt-image-2 (low/med/high quality, flexible size up to ~4K)
  *   - `openai-image/<vendor>/<sku>` → forwarded as-is for OpenRouter etc.
  *
- * Image-to-image / edits / variations are intentionally NOT covered
- * here — those endpoints (`/images/edits`, `/images/variations`) are
- * `multipart/form-data`. We'll add them when there's a node type that
- * actually needs them; until then, declining loudly is better than
- * silently dropping the upstream image.
+ * Image-to-image / edits / variations are NOT covered here — those
+ * endpoints (`/images/edits`, `/images/variations`) take
+ * `multipart/form-data`. When the node has upstream image inputs we
+ * silently drop them (with a warn log) and proceed as text-to-image,
+ * so a connected image node doesn't kill the whole call.
  *
  * Frontend params used:
  *   - `aspectRatio` → mapped to a `size` string. Three flavours:
@@ -126,14 +126,19 @@ export class OpenAICompatImageProvider implements ProviderClient {
     if (!req.prompt) {
       throw this.toHttpException(`${req.modelSku} requires a prompt`, 400, null);
     }
-    // Image-to-image is a different endpoint; refuse upfront so the
-    // operator sees the limitation instead of silently losing the input.
-    const refImage = (req.inputs ?? []).find((i) => i.type === 'image');
-    if (refImage) {
-      throw this.toHttpException(
-        'OpenAI-compat 生图暂不支持参考图（i2i / edit）。请使用 wanx 系列或纯文生图模式。',
-        400,
-        null,
+    // Image-to-image lives on a different endpoint (`/images/edits`,
+    // multipart). We don't implement it yet, but hard-rejecting was
+    // hostile: any upstream image (intentional reference OR just an
+    // `@`-mention from a connected image node) blew up the whole call,
+    // even though the user clearly wanted text-to-image. Drop the
+    // image inputs with a warn instead — the prompt still goes
+    // through and the user gets a result.
+    const imageInputCount = (req.inputs ?? []).filter((i) => i.type === 'image').length;
+    if (imageInputCount > 0) {
+      this.logger.warn(
+        `[openai-compat-image:submit] sku=${req.modelSku} requestId=${req.requestId} ` +
+          `dropping ${imageInputCount} upstream image input(s); /images/edits is not wired up yet, ` +
+          `proceeding as text-to-image.`,
       );
     }
 
