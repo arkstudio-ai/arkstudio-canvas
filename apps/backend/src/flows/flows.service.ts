@@ -245,6 +245,16 @@ export class FlowsService {
     const node = structure.nodes.find((n: any) => n.id === id);
     if (node) {
       node.position = position;
+      // Frontend's fromReactFlowNodes always converts in-group children
+      // to absolute coordinates before sending NODE_MOVE. Stamp the
+      // coordinate type so a subsequent reload's toReactFlowNodes knows
+      // to subtract the group offset. Without this, GROUP_ADD's
+      // _coordinateType: 'relative' lingers on the row, the loader
+      // believes the now-absolute position is relative, and children
+      // (and their edges) snap to wrong screen positions.
+      if (node.groupId) {
+        node._coordinateType = 'absolute';
+      }
     }
 
     await tx.flowNode.updateMany({

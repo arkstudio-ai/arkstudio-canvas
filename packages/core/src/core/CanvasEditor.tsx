@@ -359,7 +359,13 @@ export const CanvasEditor = React.forwardRef<any, CanvasEditorProps>(({
     });
     const boundsWithDims = hasSizeInfo ? boundsWithSize : approximateBounds;
 
-    const padding = 20;
+    // Distance from each child node's bbox to the group border. 20 was
+    // visually cramped — children sit flush with the rounded border and
+    // the floating label/toolbar on top eat the perceived top margin.
+    // 40 leaves a comfortable gutter without making fresh groups feel
+    // bloated. Existing groups keep their persisted size; only newly
+    // created groups pick this up.
+    const padding = 40;
     const groupId = generateId('group');
     const newGroup: CanvasFlowGroup = {
       id: groupId,

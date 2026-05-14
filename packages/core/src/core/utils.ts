@@ -19,18 +19,33 @@ export const toReactFlowNodes = (nodes: CanvasFlowNode[], groups: CanvasFlowGrou
 
     if (group) {
       parentId = group.id;
-      
-      // ✅ 根据坐标类型标记判断是否需要转换
-      // - 如果标记为 'absolute'，需要转换为相对坐标
-      // - 如果标记为 'relative' 或未标记，直接使用（假设已是相对坐标）
-      if (node._coordinateType === 'absolute') {
-        // 绝对坐标 → 相对坐标
+
+      // 决定 position 是绝对坐标还是相对坐标，再翻译成 RF 需要的「父节点
+      // 局部坐标」。三条来源：
+      //   1) 显式标记 _coordinateType === 'absolute' → 减去 group 偏移
+      //   2) 显式标记 'relative' → 原样使用
+      //   3) 旧数据中曾经 GROUP_ADD 标了 'relative'，但用户后续拖拽走了
+      //      NODE_MOVE 路径，position 被覆写成绝对坐标却没更新标签。
+      //      这种情况坐标会跑到 group 几何之外（合法的相对坐标只可能在
+      //      [-margin, group.size + margin] 之间）。命中即按 'absolute'
+      //      自愈，避免节点 + 连线整体错位。
+      const claimsAbsolute = node._coordinateType === 'absolute';
+      const lacksTag = node._coordinateType !== 'relative' && !claimsAbsolute;
+      const margin = 200;
+      const looksLikeAbsolute =
+        node.position.x < -margin ||
+        node.position.x > (group.width || 0) + margin ||
+        node.position.y < -margin ||
+        node.position.y > (group.height || 0) + margin;
+
+      const treatAsAbsolute = claimsAbsolute || lacksTag || looksLikeAbsolute;
+
+      if (treatAsAbsolute) {
         position = {
           x: node.position.x - group.position.x,
-          y: node.position.y - group.position.y
+          y: node.position.y - group.position.y,
         };
       } else {
-        // 已经是相对坐标，直接使用
         position = node.position;
       }
     }
