@@ -13,10 +13,9 @@ export interface UploadFileResult {
  * Direct multipart upload endpoint backing `POST /upload/file`.
  *
  * Open-source build writes everything to local disk via
- * `LocalStorageService` — see the D2 design discussion for why we
- * deleted the COS / S3 branch instead of abstracting them: an
- * open-source canvas should not require a paid cloud account just to
- * persist a generated PNG.
+ * `LocalStorageService`. No cloud-storage abstraction; an open-source
+ * canvas should not require a paid cloud account just to persist a
+ * generated PNG (this is the ComfyUI-style philosophy).
  *
  * For i2i / i2v reference assets that ALSO need to be readable by a
  * cloud model, the upload still goes here first; the dashscope provider

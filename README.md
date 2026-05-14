@@ -73,6 +73,25 @@ docker compose up -d --build
 
 > 完整步骤、配置详解、备份 / 升级 / 排错请见 [📦 部署指南](docs/deployment.md)。
 
+## 文件存哪了
+
+开源版只有一种存储后端：**写到 backend 服务器的本地磁盘**（参考 ComfyUI 思路，零云端凭据依赖）。
+
+| 模式 | 默认数据目录 | 持久化方式 |
+|---|---|---|
+| Docker compose | `/data/uploads`（容器内） | named volume `canvas_flow_uploads`，`docker compose down` 不丢 |
+| 本地 dev (`pnpm dev`) | `apps/backend/.env` 里 `STORAGE_LOCAL_DATA_DIR` 指定的路径（建议设 `<repo>/.dev-uploads`，已被 git 忽略） | 直接落主机 |
+
+对外访问统一走同源相对路径 `/static/uploads/<key>`，无 CORS。
+
+调整方式（按优先级）：
+
+1. **运行时 admin 改**：登录 `/admin/system → 本地存储` 卡片，可改 `数据目录` 与 `单文件上限`
+2. **env 改**：在 `.env` / `.env.docker.example` 里设 `STORAGE_LOCAL_DATA_DIR=...`（首次启动生效，之后 admin 配置覆盖）
+3. **挂载方式改**（生产建议）：在 `docker-compose.yml` backend service 的 `volumes:` 里把 named volume 换成宿主机目录，例如 `/srv/canvas-flow/uploads:/data/uploads`，方便备份
+
+> i2i / i2v 链路需要让阿里云模型读到本地图片时，dashscope provider 会自动把对应文件临时上传到百炼 48h 临时桶（`oss://`）然后传给模型，最终结果仍落回本地磁盘。完整说明见 [部署指南 · 存储策略](docs/deployment.md#存储策略local-only)。
+
 ## 文档
 
 | 你想干啥 | 看哪份 |

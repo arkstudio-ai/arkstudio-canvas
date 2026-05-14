@@ -296,8 +296,7 @@ export interface PruneResponse {
 // ---- Storage (local disk) -------------------------------------------------
 //
 // Mirrors apps/backend/src/storage/local-storage.service.ts. Open-source
-// build is local-disk-only; the legacy COS / DashScope-temp storage strategy
-// was removed in D2. Bytes live under `dataDir`, served by
+// build is local-disk-only — bytes live under `dataDir`, served by
 // `StaticUploadsController` on `/static/uploads/<key>`.
 
 export interface LocalStorageStats {

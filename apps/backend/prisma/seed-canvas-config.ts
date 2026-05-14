@@ -33,9 +33,9 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 开始导入 Canvas Flow 默认节点定义...');
 
-  // 只清节点定义；不要碰 globalConfig 表 —— 它存了 DashScope/COS 凭据，
-  // 跟节点目录没有任何关系。早期版本的 deleteMany() 是历史遗留 bug，
-  // 会在二次运行 seed 时把生产凭据全部清掉。
+  // 只清节点定义；不要碰 globalConfig 表 —— 它存了 DashScope/OpenAI 凭据
+  // 与本地存储设置，跟节点目录没有任何关系。早期版本的 deleteMany() 是
+  // 历史遗留 bug，会在二次运行 seed 时把生产凭据全部清掉。
   console.log('🗑️  清空现有节点定义...');
   await prisma.nodeDefinition.deleteMany();
 

@@ -47,17 +47,14 @@ export interface ExecutionResult {
 
 interface UploadFileResponse {
   /**
-   * Permanent URL for COS uploads, or `oss://...` for DashScope temp
-   * uploads. Either form is accepted by the backend providers (the
-   * `oss://` scheme is auto-resolved via the
-   * `X-DashScope-OssResourceResolve: enable` request header).
+   * Same-origin relative URL like `/static/uploads/<key>`. Frontend
+   * renders it directly; nginx / vite proxy hands it to backend's
+   * StaticUploadsController.
    */
   accessUrl: string;
   fileKey?: string;
-  /** Where the bytes ended up — useful for log + error attribution. */
-  storage: 'cos' | 'dashscope-temp';
-  /** Set only for `dashscope-temp` (48h TTL ISO timestamp). */
-  expiresAt?: string;
+  /** Always 'local' in the open-source build (single storage backend). */
+  storage: 'local';
   bytes: number;
 }
 
@@ -73,15 +70,12 @@ export const api = {
    * 上传文件（multipart 代理路径）
    *
    * 流程：
-   *   POST /upload/file  (Content-Type: multipart/form-data, field=file)
-   *   ↓ 后端按当前存储策略路由：
-   *     - COS 已配置  → 后端写入 COS bucket，返回 https URL
-   *     - 仅有 DashScope key  → 上传到 DashScope 临时存储，返回 oss:// URL
-   *     - 都没配  → 400，提示去 /admin/system 配置
+   *   POST /upload/file (multipart/form-data, field=file)
+   *     → backend 写本地磁盘（LocalStorageService）
+   *     → 返回 `/static/uploads/<key>` 同源相对 URL
    *
-   * 单步 multipart 代理。性能比"前端直传 COS"略差但不依赖 COS 凭据，
-   * 让"零配置开箱即用"成为可能（仅 DashScope key 即可跑通）。
-   * 10MB 图多 100ms 而已，demo 阶段不感知。
+   * i2i / i2v 节点要把这张本地图喂给 DashScope 模型时，submit 那一步
+   * provider 会再把对应文件 stage 到百炼临时桶（48h），前端不感知。
    */
   uploadFile: async (file: File): Promise<string> => {
     const fd = new FormData();

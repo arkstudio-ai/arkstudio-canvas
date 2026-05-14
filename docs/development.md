@@ -36,7 +36,9 @@ pnpm --filter canvas-flow-backend run seed:canvas-config
 pnpm dev
 ```
 
-打开 <http://localhost:5173/admin/system> 填一份 DashScope API Key（COS 可选 —— 不填会自动 fallback 到 DashScope 临时存储），然后 <http://localhost:5173/canvas> 就能开跑。
+打开 <http://localhost:5173/admin/system> 填一份 DashScope API Key，然后 <http://localhost:5173/canvas> 就能开跑。
+
+> 上传 / 模型生成结果默认落到 `apps/backend/.env` 里 `STORAGE_LOCAL_DATA_DIR` 指定的本地目录（不设的话 fallback 到 `/data/uploads`，开发机一般要显式指向 repo 内可写路径，例如 `STORAGE_LOCAL_DATA_DIR="<repo>/.dev-uploads"`）。`/static/uploads/<key>` 经 vite proxy 反代到后端读盘，浏览器无 CORS。详见 [部署指南 · 存储策略](./deployment.md#存储策略local-only)。
 
 ## 项目结构
 
@@ -84,12 +86,12 @@ canvas-flow/
 | 前端 | Vite (rolldown-vite) / React Router 7 / Zustand / Sonner / Lucide |
 | 后端 | NestJS 11 / Prisma 5 / MySQL 8 / class-validator |
 | 模型 | DashScope (Bailian) — qwen / 万相 2.7 image / 万相 2.6+2.7 video / MiniMax-tts / FunMusic |
-| 存储 | MySQL（结构 + 配置 + 凭据加密）+ Tencent COS（媒体可选，无 COS 时自动走 DashScope 临时） |
+| 存储 | MySQL（结构 + 配置 + 凭据加密）+ 本地磁盘（媒体落 `STORAGE_LOCAL_DATA_DIR`，i2i/i2v 时按需经百炼临时桶中转） |
 | 安全 | AES-256-GCM 加密敏感字段（`ENCRYPTION_KEY` 落 env，密文落 DB） |
 
 ## 几个开发约定
 
-- **DB 是配置权威源**：节点定义 / 模型清单 / DashScope 凭据 / COS 凭据全部存在 MySQL，admin 页面改完下一次请求即生效。前端没有 fallback、没有静态 JSON 兜底 —— 后端没起 admin 整页 503。
+- **DB 是配置权威源**：节点定义 / 模型清单 / DashScope 凭据 / 本地存储设置全部存在 MySQL，admin 页面改完下一次请求即生效。前端没有 fallback、没有静态 JSON 兜底 —— 后端没起 admin 整页 503。
 - **写数据库前必须确认 `DATABASE_URL`**：仓库根目录 `.cursor/rules/db-safety.mdc` 列了所有需要确认的破坏性 DB 操作。
 - **新增模型走 Provider 层**：不要给 `model-providers/` 里加 OpenAI / Anthropic / Stability 等非阿里直连 Provider —— 第一期开源版仅适配阿里系。后续接 OpenAI 协议见 [模型接入指南](../MODEL_INTEGRATION.md)。
 - **不要再扩 inspector 配置**：旧的 `inspector` / `inspectorFields` 字段仅做向后兼容保留；新功能都落到 `NodeDefinition.models[*].defaultParams` 或节点级 `defaultParams`。

@@ -110,9 +110,9 @@ docker compose up -d --build
 
 > 想保留 admin 改过的配置但**重灌默认节点**：登录 `/admin/canvas-config` 手动重置，或者临时 `docker compose exec backend node dist/seed-canvas-config.js`（这一步是破坏性的，会清空 `node_definitions` 全表）。
 
-### 从 pre-D2（含 COS 支持的旧版）升级
+### 从含云对象存储凭据的旧版升级
 
-D2 之后的开源版只支持本地磁盘存储，移除了 COS 相关的所有代码。如果你之前在 admin 配过 Tencent COS 凭据，DB `global_configs` 里会有 7 行已无人读取的 `storage.cos.*` 行。可以一次性清理掉：
+如果你来自更早的版本，DB `global_configs` 里可能残留若干 `storage.cos.*` 行（开源版只支持本地磁盘存储，这些行已无人读取）。一次性清理：
 
 ```bash
 # dry-run 预览
@@ -121,7 +121,7 @@ docker compose exec backend node dist/patches/cleanup-storage-cos-keys.js
 docker compose exec backend node dist/patches/cleanup-storage-cos-keys.js --apply
 ```
 
-> 这一步**只是清残留**，不影响任何运行时逻辑。代码里已经没人读这 7 行了。
+> 这一步**只是清残留**，不影响任何运行时逻辑。代码里已经没人读这些行了。
 
 ## 备份
 
@@ -135,7 +135,7 @@ docker compose exec mysql mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" --all-databa
 docker compose exec -T mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < backup-2026-05-13.sql
 ```
 
-> ⚠️ `ENCRYPTION_KEY` 必须和备份时一致 —— 它解密 DashScope / COS 凭据。轮换 key 等于把所有加密凭据扔了，必须先把所有凭据从 admin 重填一遍才能换。
+> ⚠️ `ENCRYPTION_KEY` 必须和备份时一致 —— 它解密 DashScope / OpenAI 凭据。轮换 key 等于把所有加密凭据扔了，必须先把所有凭据从 admin 重填一遍才能换。
 
 ## 反向代理 / HTTPS
 

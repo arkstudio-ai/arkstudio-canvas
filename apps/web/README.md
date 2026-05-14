@@ -3,7 +3,7 @@
 Canvas Flow 的前端应用 —— 基于 [`@canvas-flow/core`](../../packages/core) 构建的可视化 AI 工作流编辑器。开源版只跑两类视图：
 
 - **编辑器** `/canvas`：拖拽节点、连线、批量分组、就地预览生成结果
-- **后台** `/admin/*`：节点/模型配置、执行日志、用量概览、系统设置（DashScope 凭据 / 历史保留 / 对象存储）
+- **后台** `/admin/*`：节点/模型配置、执行日志、用量概览、系统设置（DashScope 凭据 / 历史保留 / 本地存储）
 
 商业版的「探索 / 工作区 / 公开预览 / 短链分享」已从开源版移除。
 
@@ -36,14 +36,14 @@ pnpm dev:web
 
 ## 环境变量
 
-前端只读一个变量；落库的可配置项（DashScope key / COS 凭据 / 历史保留策略）由后台 `/admin/system` 直接管理，无需重启。
+前端只读一个变量；落库的可配置项（DashScope key / 本地存储 / 历史保留策略）由后台 `/admin/system` 直接管理，无需重启。
 
 ```env
 # apps/web/.env (可选；不设则走默认 http://localhost:18500)
 VITE_API_BASE_URL=http://localhost:18500
 ```
 
-模板见 `apps/web/.env.example`。后端的环境变量在 `apps/backend/.env.example`：仅 `DATABASE_URL` / `PORT` / `ENCRYPTION_KEY` 必填，其余 `DASHSCOPE_*` / `COS_*` 都是首次启动时一次性迁到 DB 的 bootstrap 值，之后通过 `/admin/system` 维护，env 可清空。
+模板见 `apps/web/.env.example`。后端的环境变量在 `apps/backend/.env.example`：仅 `DATABASE_URL` / `PORT` / `ENCRYPTION_KEY` 必填，其余 `DASHSCOPE_*` / `OPENAI_*` / `STORAGE_LOCAL_DATA_DIR` 都是首次启动时一次性迁到 DB 的 bootstrap 值（或运维侧偏好），之后通过 `/admin/system` 维护，env 可清空。
 
 ## 目录结构
 
@@ -74,7 +74,7 @@ src/
 - **概览** `/admin` — 今日/周/月用量按 kind 切片
 - **画布配置** `/admin/config` — 节点 / 模型 / 模式三层结构化编辑
 - **执行日志** `/admin/logs` — 历史执行 + Phase 流转
-- **系统设置** `/admin/system` — DashScope 凭据 / 超时 / 生成历史保留 / 对象存储 (COS)
+- **系统设置** `/admin/system` — DashScope / OpenAI-compat 凭据 / 超时 / 生成历史保留 / 本地存储设置
 
 ## 与 `@canvas-flow/core` 的关系
 

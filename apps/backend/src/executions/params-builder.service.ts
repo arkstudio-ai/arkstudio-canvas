@@ -113,8 +113,8 @@ export class ParamsBuilderService {
    * Persist a provider response back into the node's FlowNode.data.
    *
    * For text nodes we keep the raw text; for media nodes we re-host the
-   * upstream URL on our own COS bucket (so the transient AI provider URL
-   * isn't load-bearing) and fall back to the original URL if transfer
+   * upstream URL on local disk (so the transient AI provider URL isn't
+   * load-bearing) and fall back to the original URL if transfer
    * fails — the node still gets a working src, just without the
    * persistence guarantee.
    *

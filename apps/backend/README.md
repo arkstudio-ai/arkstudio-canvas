@@ -68,7 +68,7 @@ src/
 | `GET`  | `/voices` | 复刻音色列表 |
 | `POST` | `/voices` | 创建复刻音色 |
 | `GET`  | `/generation-history` | 生成历史（按 kind 过滤 / 分页） |
-| `POST` | `/upload/file` | multipart 代理；后端按存储策略路由（COS / DashScope 临时） |
+| `POST` | `/upload/file` | multipart 代理 → LocalStorageService，落本地磁盘 |
 | `GET`  | `/api/canvas-flow/config` | 节点 / 模型 / 模式定义（前端启动必拉） |
 | `PUT`  | `/api/canvas-flow/config` | admin 保存节点配置 |
 | `GET`/`PUT` | `/api/canvas-flow/provider-settings` | DashScope 设置 |

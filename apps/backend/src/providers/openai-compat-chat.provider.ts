@@ -43,8 +43,9 @@ import { summarizeBody } from './log-utils';
  *     `content: [{type:'image_url', image_url:{url}}, {type:'text', text:prompt}]`
  *   - `oss://` URLs are rejected up front because OpenAI / OpenRouter
  *     can't dereference DashScope's private temp scheme. Operators get
- *     a clear error pointing them at COS instead of a confusing 400
- *     from upstream.
+ *     a clear error telling them to upload via `/upload/file` (which
+ *     produces a `/static/uploads/<key>` URL the OpenAI side can read
+ *     when proxied) or switch to a DashScope SKU.
  *
  * No `pollStatus` — chat is synchronous; throws if reached so a routing
  * bug surfaces loudly instead of looping.
@@ -199,7 +200,7 @@ export class OpenAICompatChatProvider implements ProviderClient {
     const offending = (inputs ?? []).find((i) => i.url?.startsWith('oss://'));
     if (offending) {
       throw this.toHttpException(
-        `OpenAI-compat 模型不支持 oss:// 输入（DashScope 临时存储）。请到 /admin/system 配置腾讯 COS，让上传产生公网 URL；或改用 qwen / glm / deepseek 等阿里系模型。出错的输入: ${offending.url.substring(0, 80)}`,
+        `OpenAI 兼容模型不支持 oss:// 输入（DashScope 私有临时存储）。请改用 qwen / glm / deepseek 等阿里系模型，或先把图片通过 /upload/file 上传得到 /static/uploads/<key> 的可读 URL。出错的输入: ${offending.url.substring(0, 80)}`,
         400,
         null,
       );

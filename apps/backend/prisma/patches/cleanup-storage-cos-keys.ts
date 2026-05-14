@@ -3,11 +3,10 @@
  *
  * Why this exists
  * ---------------
- * D2 (May 2026) collapsed permanent storage onto local disk only —
- * Tencent COS support and the entire `StorageConfigService` were
- * removed. Fresh installs never see those keys, but deployments that
- * upgraded from a pre-D2 version still carry seven stale rows under
- * `storage.cos.*`:
+ * The open-source build only supports local-disk storage; the legacy
+ * cloud-object-storage adapter is gone. Fresh installs never write
+ * those keys. Deployments that upgraded from older versions still
+ * carry seven stale rows whose key prefix is `storage.cos.*`:
  *
  *   - storage.cos.secretId        (encrypted)
  *   - storage.cos.secretKey       (encrypted)

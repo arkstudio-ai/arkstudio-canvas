@@ -14,7 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 const KEY_MAX_FILE_SIZE = 'storage.local.maxFileSize';
 const KEY_DATA_DIR = 'storage.local.dataDir';
 
-/** 100 MiB. Same default the old COS path had so existing UI numbers stay sensible. */
+/** 100 MiB. Aligns with DashScope temp-bucket per-file cap so i2i/i2v staging never gets surprise-rejected. */
 const DEFAULT_MAX_FILE_SIZE = 100 * 1024 * 1024;
 /**
  * Default mount point inside the docker container. `deploy/docker-compose.yml`
@@ -82,10 +82,10 @@ export interface ReadObjectResult {
  * open-source build persists permanently (uploaded reference assets,
  * mirrored generation results, history thumbnails).
  *
- * Why disk-only (no S3/COS abstraction)? See the D2 decision discussion:
+ * Why disk-only (no cloud-storage abstraction)?
  *
- *   - Tencent COS demanded paid cloud account + public domain just to run
- *     the canvas locally — antithetical to "open-source, zero-cost demo".
+ *   - "Open-source, zero-cost demo" rules out making any paid cloud
+ *     bucket a hard dependency.
  *   - The same dev-then-Electron progression we expect future contributors
  *     to follow lands on `app.getPath('userData')`, which is also disk.
  *   - i2i / i2v reference upload to Aliyun is solved separately by the
@@ -190,8 +190,8 @@ export class LocalStorageService implements OnModuleInit {
    * Persist a buffer under `${dataDir}/${key}` and return a relative
    * accessUrl the frontend can render directly.
    *
-   * Throws BadRequestException for >maxFileSize (matches the old COS
-   * path's behaviour so callers don't change error handling).
+   * Throws BadRequestException for >maxFileSize so callers can map to
+   * a 400 with the standard "文件大小超出限制" message.
    */
   async putObject(args: PutObjectArgs): Promise<PutObjectResult> {
     const { key, buffer, contentType } = args;

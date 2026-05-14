@@ -57,7 +57,7 @@ import { summarizeBody } from './log-utils';
  *                     gpt-image-* refuses it, so we drop on that family.
  *
  * Result URLs from OpenAI are short-lived (≈ 1h). The orchestrator's
- * `FileTransferService` mirrors them to COS / DashScope-temp storage
+ * `FileTransferService` mirrors them to local disk (LocalStorageService)
  * before we hand the URL to the frontend, so this provider doesn't
  * need to download/re-upload itself.
  */
@@ -374,7 +374,7 @@ export class OpenAICompatImageProvider implements ProviderClient {
       }
       // `b64_json` is what gpt-image-1 returns when `response_format`
       // is missing/unsupported. We refuse silently here (callers see
-      // "no usable url" instead of trying to base64 → dataURL → COS,
+      // "no usable url" instead of trying to base64 → dataURL → disk,
       // which would explode the `flow_executions.outputs` JSON column
       // for a single 1024x1024 image).
     }

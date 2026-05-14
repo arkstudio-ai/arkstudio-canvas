@@ -400,8 +400,8 @@ const HistoryRetentionSection: React.FC = () => {
 /**
  * Local storage settings card.
  *
- * Open-source build is local-disk-only (D2 collapsed the COS / cloud
- * abstraction). Two knobs total:
+ * Open-source build is local-disk-only — no cloud-storage abstraction.
+ * Two knobs total:
  *
  *   - dataDir       : where bytes live on disk. Source precedence is
  *                     DB → env(`STORAGE_LOCAL_DATA_DIR`) → built-in
