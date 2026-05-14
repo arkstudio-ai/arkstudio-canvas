@@ -1,6 +1,7 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { DashscopeConfigService } from '../canvas-config/dashscope-config.service';
+import { summarizeBody } from './log-utils';
 import { firstValueFrom } from 'rxjs';
 import type {
   PollResult,
@@ -101,7 +102,8 @@ export class DashScopeAudioProvider implements ProviderClient {
     const body = this.buildTtsBody(req);
 
     this.logger.log(
-      `[dashscope-audio:tts] sku=${req.modelSku} requestId=${req.requestId}`,
+      `[dashscope-audio:tts] sku=${req.modelSku} requestId=${req.requestId} ` +
+        `url=${url} body=${summarizeBody(body)}`,
     );
 
     let resp;
@@ -242,7 +244,8 @@ export class DashScopeAudioProvider implements ProviderClient {
     const body = this.buildMusicBody(req, lyrics);
 
     this.logger.log(
-      `[dashscope-audio:music] sku=${req.modelSku} requestId=${req.requestId} mode=${lyrics ? 'lyrics' : 'prompt'}`,
+      `[dashscope-audio:music] sku=${req.modelSku} requestId=${req.requestId} ` +
+        `mode=${lyrics ? 'lyrics' : 'prompt'} url=${url} body=${summarizeBody(body)}`,
     );
 
     let resp;

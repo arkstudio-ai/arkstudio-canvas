@@ -10,6 +10,7 @@ import type {
   SubmitResult,
 } from './provider.types';
 import { OpenaiCompatConfigService } from '../canvas-config/openai-compat-config.service';
+import { summarizeBody } from './log-utils';
 
 /**
  * OpenAI-compatible synchronous chat provider.
@@ -120,7 +121,8 @@ export class OpenAICompatChatProvider implements ProviderClient {
 
     const url = `${baseUrl}${this.CHAT_PATH}`;
     this.logger.log(
-      `[openai-compat-chat:submit] sku=${req.modelSku} (real=${realSku}) requestId=${req.requestId} msgs=${messages.length} images=${imageInputs.length}`,
+      `[openai-compat-chat:submit] sku=${req.modelSku} (real=${realSku}) ` +
+        `requestId=${req.requestId} url=${url} body=${summarizeBody(body)}`,
     );
 
     let resp;

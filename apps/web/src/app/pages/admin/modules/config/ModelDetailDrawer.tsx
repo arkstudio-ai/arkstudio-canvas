@@ -14,6 +14,7 @@ import { ChipMultiSelect } from './forms/ChipMultiSelect';
 import { KeyValueEditor } from './forms/KeyValueEditor';
 import { ParamsSchemaEditor, type ParamFieldSpec } from './forms/ParamsSchemaEditor';
 import { ModesEditor, type ModeEntry } from './forms/ModesEditor';
+import { SkuValueEditor } from './forms/SkuValueEditor';
 
 const UPSTREAM_PRESETS = ['text', 'image', 'video', 'audio'];
 
@@ -79,34 +80,14 @@ export const ModelDetailDrawer: React.FC<ModelDetailDrawerProps> = ({
         <Section label="基本信息">
           <div style={fieldRowStyle}>
             <span style={fieldLabelStyle}>value</span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-              <input
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+              <SkuValueEditor
                 value={model.value}
-                onChange={(e) => onChange({ value: e.target.value })}
-                style={inputMonoStyle}
-                placeholder="e.g. openai-image/gpt-image-2"
+                onChange={(v) => onChange({ value: v })}
               />
               <span style={valueHintStyle}>
-                value 的前缀决定路由到哪个 provider — backend 按前缀分发请求：
-              </span>
-              <ul style={hintListStyle}>
-                <li>
-                  <code style={hintCodeStyle}>qwen-*</code> / <code style={hintCodeStyle}>wanx*</code> /{' '}
-                  <code style={hintCodeStyle}>wan2.*</code> / <code style={hintCodeStyle}>happyhorse*</code> /{' '}
-                  <code style={hintCodeStyle}>speech-*</code> / <code style={hintCodeStyle}>fun-music*</code> →
-                  DashScope（百炼）
-                </li>
-                <li>
-                  <code style={hintCodeStyle}>openai-chat/*</code> → OpenAI-compat 文本（如{' '}
-                  <code style={hintCodeStyle}>openai-chat/gpt-5.5</code>）
-                </li>
-                <li>
-                  <code style={hintCodeStyle}>openai-image/*</code> → OpenAI-compat 图像（如{' '}
-                  <code style={hintCodeStyle}>openai-image/gpt-image-2</code>）
-                </li>
-              </ul>
-              <span style={valueHintStyle}>
                 修改 value 后，画布上引用此模型的旧节点会显示为「未知模型」直到重新选择。
+                如需切换 vendor（前缀），请改用「删除 + 新增」流程。
               </span>
             </div>
           </div>
@@ -256,22 +237,6 @@ const valueHintStyle: React.CSSProperties = {
   color: tokens.textMuted,
   fontSize: 11,
   lineHeight: 1.4,
-};
-
-const hintListStyle: React.CSSProperties = {
-  margin: 0,
-  paddingLeft: 18,
-  color: tokens.textMuted,
-  fontSize: 11,
-  lineHeight: 1.6,
-};
-
-const hintCodeStyle: React.CSSProperties = {
-  fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-  background: tokens.bgChip,
-  color: tokens.textPrimary,
-  padding: '0 4px',
-  borderRadius: 3,
 };
 
 const closeBtnStyle: React.CSSProperties = {

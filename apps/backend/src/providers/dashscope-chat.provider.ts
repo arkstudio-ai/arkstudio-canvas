@@ -9,6 +9,7 @@ import type {
   SubmitResult,
 } from './provider.types';
 import { DashscopeConfigService } from '../canvas-config/dashscope-config.service';
+import { summarizeBody } from './log-utils';
 
 /**
  * DashScope (Bailian) synchronous chat provider.
@@ -84,7 +85,8 @@ export class DashScopeChatProvider implements ProviderClient {
 
     const url = `${baseUrl}${this.CHAT_PATH}`;
     this.logger.log(
-      `[dashscope-chat:submit] sku=${req.modelSku} requestId=${req.requestId} msgs=${messages.length}`,
+      `[dashscope-chat:submit] sku=${req.modelSku} requestId=${req.requestId} ` +
+        `url=${url} body=${summarizeBody(body)}`,
     );
 
     let resp;

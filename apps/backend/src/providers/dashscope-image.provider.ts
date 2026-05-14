@@ -1,6 +1,7 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { DashscopeConfigService } from '../canvas-config/dashscope-config.service';
+import { summarizeBody } from './log-utils';
 import { firstValueFrom } from 'rxjs';
 import type {
   PollResult,
@@ -88,7 +89,8 @@ export class DashScopeImageProvider implements ProviderClient {
 
     const url = `${baseUrl}${this.SUBMIT_PATH}`;
     this.logger.log(
-      `[dashscope-image:submit] sku=${req.modelSku} requestId=${req.requestId} ref=${refImage ? 1 : 0}`,
+      `[dashscope-image:submit] sku=${req.modelSku} requestId=${req.requestId} ` +
+        `ref=${refImage ? 1 : 0} url=${url} body=${summarizeBody(body)}`,
     );
 
     let resp;

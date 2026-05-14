@@ -10,6 +10,7 @@ import type {
   SubmitResult,
 } from './provider.types';
 import { OpenaiCompatConfigService } from '../canvas-config/openai-compat-config.service';
+import { summarizeBody } from './log-utils';
 
 /**
  * OpenAI-compatible synchronous text-to-image provider.
@@ -169,7 +170,8 @@ export class OpenAICompatImageProvider implements ProviderClient {
 
     const url = `${baseUrl}${this.IMAGE_PATH}`;
     this.logger.log(
-      `[openai-compat-image:submit] sku=${req.modelSku} (real=${realSku}) requestId=${req.requestId} n=${body.n} size=${size ?? '<default>'}`,
+      `[openai-compat-image:submit] sku=${req.modelSku} (real=${realSku}) ` +
+        `requestId=${req.requestId} url=${url} body=${summarizeBody(body)}`,
     );
 
     let resp;

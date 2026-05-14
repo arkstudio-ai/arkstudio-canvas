@@ -1,6 +1,7 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { DashscopeConfigService } from '../canvas-config/dashscope-config.service';
+import { summarizeBody } from './log-utils';
 import { firstValueFrom } from 'rxjs';
 import type {
   PollResult,
@@ -83,7 +84,8 @@ export class DashScopeVideoProvider implements ProviderClient {
 
     const url = `${baseUrl}${this.SUBMIT_PATH}`;
     this.logger.log(
-      `[dashscope-video:submit] sku=${req.modelSku} mode=${mode} requestId=${req.requestId} media=${media.length}`,
+      `[dashscope-video:submit] sku=${req.modelSku} mode=${mode} requestId=${req.requestId} ` +
+        `media=${media.length} url=${url} body=${summarizeBody(body)}`,
     );
 
     let resp;
