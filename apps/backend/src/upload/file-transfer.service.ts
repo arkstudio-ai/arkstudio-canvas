@@ -203,7 +203,7 @@ export class FileTransferService {
       case 'image':
         return 'qwen-vl-plus';
       case 'video':
-        return 'wanx2.7';
+        return 'wan2.7-i2v';
       case 'audio':
         return 'qwen-audio-turbo';
       default:

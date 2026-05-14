@@ -83,7 +83,7 @@ canvas-flow/
 | 画布 | React 19 / TypeScript / [@xyflow/react](https://reactflow.dev) |
 | 前端 | Vite (rolldown-vite) / React Router 7 / Zustand / Sonner / Lucide |
 | 后端 | NestJS 11 / Prisma 5 / MySQL 8 / class-validator |
-| 模型 | DashScope (Bailian) — qwen / wanx / wanx-video / MiniMax-tts / FunMusic |
+| 模型 | DashScope (Bailian) — qwen / 万相 2.7 image / 万相 2.6+2.7 video / MiniMax-tts / FunMusic |
 | 存储 | MySQL（结构 + 配置 + 凭据加密）+ Tencent COS（媒体可选，无 COS 时自动走 DashScope 临时） |
 | 安全 | AES-256-GCM 加密敏感字段（`ENCRYPTION_KEY` 落 env，密文落 DB） |
 

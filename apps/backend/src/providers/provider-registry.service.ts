@@ -14,12 +14,12 @@ import type { ProviderClient } from './provider.types';
  * or params, so it stays independent of frontend config.
  *
  * SKU namespaces shipped today:
- *   - `qwen-*` / `deepseek*` / `glm*`        → DashScope chat
- *   - `qwen-image*` / `wanx*`                → DashScope image
- *   - `wan2.*` / `wanx2.*` / `happyhorse*`   → DashScope video
- *   - `speech-*` / `fun-music*`              → DashScope audio
- *   - `openai-chat/*`                        → OpenAI-compat chat
- *   - `openai-image/*`                       → OpenAI-compat image
+ *   - `qwen-*` / `deepseek*` / `glm*`             → DashScope chat
+ *   - `wan2.7-image*`                             → DashScope 万相 2.7 image (sync multimodal)
+ *   - `wan2.6*` / `wan2.7*` (non-image) / `happyhorse*` → DashScope video
+ *   - `speech-*` / `fun-music*`                   → DashScope audio
+ *   - `openai-chat/*`                             → OpenAI-compat chat
+ *   - `openai-image/*`                            → OpenAI-compat image
  *
  * Adding a new provider = inject it into the constructor and push into
  * `priority`. SKUs that no provider claims throw a clear 400 listing
@@ -38,9 +38,13 @@ export class ProviderRegistry {
     openaiChat: OpenAICompatChatProvider,
     openaiImage: OpenAICompatImageProvider,
   ) {
+    // Order matters as a defence-in-depth: image before video so that
+    // wan2.7-image* never falls through to the video provider even if a
+    // future regression in dashscope-video's supports() forgets to
+    // exclude -image. Each provider's supports() is still authoritative.
     this.priority = [
-      dashscopeVideo,
       dashscopeImage,
+      dashscopeVideo,
       dashscopeChat,
       dashscopeAudio,
       openaiChat,
@@ -58,7 +62,10 @@ export class ProviderRegistry {
     }
     this.logger.warn(`unsupported sku=${sku || '<none>'}; no provider claims this SKU prefix`);
     throw new HttpException(
-      `Unsupported model SKU "${sku}". Routable namespaces: qwen-* / wanx* / wan2.* / happyhorse* / speech-* / fun-music* (DashScope) · openai-chat/* · openai-image/* (OpenAI-compat).`,
+      `Unsupported model SKU "${sku}". Routable namespaces: ` +
+        `wan2.7-image* (DashScope 万相图像) · wan2.7-* / wan2.6-* / happyhorse* (DashScope 视频) · ` +
+        `qwen-* / deepseek* / glm* (DashScope 文本) · speech-* / fun-music* (DashScope 音频) · ` +
+        `openai-chat/* · openai-image/* (OpenAI 兼容).`,
       400,
     );
   }

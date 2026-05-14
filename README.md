@@ -39,10 +39,10 @@
 
 下面这些场景在画布上都是一条线性 pipeline，对应一组节点连接：
 
-- **电商主图换装 / 多 SKU 出图** —— `text(prompt) → image(wanx-v1) → image(wanx-edit, 引用上一张)`
+- **电商主图换装 / 多 SKU 出图** —— `text(prompt) → image(wan2.7-image-pro) → image(wan2.7-image-pro, 引用上一张)`
 - **短视频 30s 成片** —— `text(脚本) → image(分镜) → video(wan2.7-i2v, 引用分镜) → audio(MiniMax-tts)`
 - **广告 TVC 多版本批量** —— 一份 prompt + 编组运行，一次性产出 N 个分辨率/比例
-- **角色三视图保持一致性** —— `image(角色基础图) → image(wanx-edit, 多次)`
+- **角色三视图保持一致性** —— `image(角色基础图) → image(wan2.7-image-pro, 多次编辑)`
 - **口播配音 + BGM** —— `text → audio(tts) + audio(FunMusic)`
 
 每个节点的"模型 + 参数 + 输入输出"都落 MySQL，可以在 `/admin` 看历史、复跑、按 kind 看用量。

@@ -32,8 +32,8 @@ src/
 │
 ├── providers/                 ⭐ 模型适配层（只对接百炼）
 │   ├── dashscope-chat.provider.ts      qwen-* / deepseek-* / glm-*
-│   ├── dashscope-image.provider.ts     wanx-*
-│   ├── dashscope-video.provider.ts     wanx2.1-* / happyhorse-*
+│   ├── dashscope-image.provider.ts     wan2.7-image* （同步 multimodal-generation）
+│   ├── dashscope-video.provider.ts     wan2.6-* / wan2.7-* (video) / happyhorse-*
 │   ├── dashscope-audio.provider.ts     MiniMax-tts / FunMusic（百炼托管）
 │   └── provider-registry.service.ts    SKU → provider 路由
 │

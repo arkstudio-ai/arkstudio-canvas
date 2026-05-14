@@ -53,7 +53,7 @@ export class DashscopeUploadService {
    * Upload a buffer and return the resulting `oss://...` URL.
    *
    * @param model        DashScope model SKU (e.g. `qwen-vl-plus`,
-   *                     `wanx2.7`, `wan2.7-i2v`). The policy is scoped
+   *                     `wan2.7-image-pro`, `wan2.7-i2v`). The policy is scoped
    *                     to a model — using a different model when calling
    *                     later usually still works for image/video, but
    *                     it's cleaner to pass the same SKU you'll invoke.

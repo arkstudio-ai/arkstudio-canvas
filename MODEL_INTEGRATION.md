@@ -48,7 +48,7 @@
    ┌──────────────────┐                          ┌──────────────────┐
    │  DashScope       │                          │  MySQL           │
    │  (Bailian)       │                          │                  │
-   │  qwen / wanx /   │                          │  global_configs  │
+   │  qwen / wan2.7 / │                          │  global_configs  │
    │  tts / tasks     │                          │  + node_definitions│
    └──────────────────┘                          └──────────────────┘
 ```
@@ -106,8 +106,8 @@ interface ProviderClient {
 | Provider | 命中规则 |
 |---|---|
 | `DashScopeChatProvider`  | `qwen-*` / `deepseek-*` / `glm-*` 等 |
-| `DashScopeImageProvider` | `qwen-image*` / `wanx*` |
-| `DashScopeVideoProvider` | `wan2.*` / `happyhorse*` 等 |
+| `DashScopeImageProvider` | `wan2.7-image*`（同步 multimodal-generation） |
+| `DashScopeVideoProvider` | `wan2.6-*` / `wan2.7-*`（视频）/ `happyhorse*` 等 |
 | `DashScopeAudioProvider` | `speech-*` / `fun-music*` 等 |
 
 如果新 SKU 字符串前缀已经匹配，**直接进步骤 2**。否则修改对应 provider 的 `supports()` 加一条 `startsWith` 即可。

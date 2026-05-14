@@ -53,6 +53,11 @@ export class DashScopeVideoProvider implements ProviderClient {
   supports(modelSku: string): boolean {
     if (!modelSku) return false;
     const sku = modelSku.toLowerCase();
+    // Wan 2.7 ships both video (wan2.7-{t2v,i2v,r2v,videoedit}) and image
+    // (wan2.7-image{,-pro}) SKUs. Image goes through DashScopeImageProvider
+    // (sync multimodal-generation), so explicitly exclude the -image
+    // suffix here — the registry's priority order is no longer load-bearing.
+    if (sku.startsWith('wan2.7-image') || sku.startsWith('wan2.6-image')) return false;
     return (
       sku.startsWith('wan2.7') ||
       sku.startsWith('wan2.6') ||

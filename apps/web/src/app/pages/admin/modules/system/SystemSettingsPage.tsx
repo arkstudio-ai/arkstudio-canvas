@@ -997,15 +997,14 @@ const PROVIDER_CARDS: ProviderCard[] = [
       { sku: 'qwen-*', modality: 'chat' },
       { sku: 'deepseek*', modality: 'chat' },
       { sku: 'glm*', modality: 'chat' },
-      { sku: 'qwen-image*', modality: 'image' },
-      { sku: 'wanx*', modality: 'image' },
-      { sku: 'wan2.* / wanx2.*', modality: 'video' },
+      { sku: 'wan2.7-image*', modality: 'image' },
+      { sku: 'wan2.6-* / wan2.7-*', modality: 'video' },
       { sku: 'happyhorse*', modality: 'video' },
       { sku: 'speech-* / fun-music*', modality: 'audio' },
     ],
     timeoutKinds: [
       { kind: 'chat', label: 'Chat', hint: '同步对话调用 (qwen / deepseek / glm)' },
-      { kind: 'image', label: 'Image', hint: '异步图像 submit；polling 固定 10s 不暴露' },
+      { kind: 'image', label: 'Image', hint: '同步万相 2.7 图像 submit（multimodal-generation）' },
       { kind: 'video', label: 'Video', hint: '异步视频 submit；polling 固定 10s 不暴露' },
       { kind: 'audio', label: 'Audio', hint: 'TTS / FunMusic / 音色复刻 submit' },
     ],
@@ -1026,7 +1025,7 @@ const PROVIDER_CARDS: ProviderCard[] = [
     load: getProviderSettings,
     save: updateProviderSettings,
     clearKeyConfirm:
-      '确认清除 DashScope API Key? 清除后 qwen-* / wanx-* / glm / deepseek / speech-* 等所有阿里系 SKU 都会调用失败。',
+      '确认清除 DashScope API Key? 清除后 qwen-* / wan2.7-* / glm / deepseek / speech-* / fun-music 等所有阿里系 SKU 都会调用失败。',
   },
   {
     id: 'openai',
