@@ -15,6 +15,8 @@
 #
 # Persistent data:
 #   - canvas_flow_mysql_data  (named volume, survives `docker compose down`)
+#   - canvas_flow_uploads     (named volume, holds uploads + AI generation
+#                              results; survives `docker compose down`)
 #   - destroyed by `docker compose down -v` only.
 # ============================================================================
 
@@ -61,11 +63,13 @@ services:
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      COS_SECRET_ID: ${COS_SECRET_ID:-}
-      COS_SECRET_KEY: ${COS_SECRET_KEY:-}
-      COS_BUCKET: ${COS_BUCKET:-}
-      COS_REGION: ${COS_REGION:-ap-hongkong}
-      COS_CUSTOM_DOMAIN: ${COS_CUSTOM_DOMAIN:-}
+      # --- Local storage ----------------------------------------------------
+      # Where uploaded images + AI generation results land on disk.
+      # Override to point at a host bind-mount for easier backup; if you do,
+      # update the volumes: mapping below to match.
+      STORAGE_LOCAL_DATA_DIR: ${STORAGE_LOCAL_DATA_DIR:-/data/uploads}
+    volumes:
+      - canvas_flow_uploads:/data/uploads
     healthcheck:
       # Every backend image bundles wget (busybox)
       test: ["CMD", "wget", "--quiet", "--spider", "http://localhost:18500/health"]
@@ -91,3 +95,4 @@ services:
 
 volumes:
   canvas_flow_mysql_data:
+  canvas_flow_uploads:

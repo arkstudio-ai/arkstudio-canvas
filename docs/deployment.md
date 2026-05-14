@@ -110,19 +110,6 @@ docker compose up -d --build
 
 > 想保留 admin 改过的配置但**重灌默认节点**：登录 `/admin/canvas-config` 手动重置，或者临时 `docker compose exec backend node dist/seed-canvas-config.js`（这一步是破坏性的，会清空 `node_definitions` 全表）。
 
-### 从含云对象存储凭据的旧版升级
-
-如果你来自更早的版本，DB `global_configs` 里可能残留若干 `storage.cos.*` 行（开源版只支持本地磁盘存储，这些行已无人读取）。一次性清理：
-
-```bash
-# dry-run 预览
-docker compose exec backend node dist/patches/cleanup-storage-cos-keys.js
-# 确认无误后实际删除
-docker compose exec backend node dist/patches/cleanup-storage-cos-keys.js --apply
-```
-
-> 这一步**只是清残留**，不影响任何运行时逻辑。代码里已经没人读这些行了。
-
 ## 备份
 
 最重要的就是 MySQL 那个 volume：
