@@ -72,7 +72,8 @@ export const ModelGrid: React.FC<ModelGridProps> = ({ models, onSelect, onAdd, o
           <input
             value={draftValue}
             onChange={(e) => setDraftValue(e.target.value)}
-            placeholder="value (e.g. wan2.7)"
+            placeholder="value（前缀决定路由：openai-image/… / wan2.* / qwen-* …）"
+            title="前缀决定 backend 把请求送给哪个 provider，详见配置抽屉里的说明"
             style={{ ...inputMonoStyle, flex: 1 }}
             autoFocus
           />

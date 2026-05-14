@@ -84,8 +84,27 @@ export const ModelDetailDrawer: React.FC<ModelDetailDrawerProps> = ({
                 value={model.value}
                 onChange={(e) => onChange({ value: e.target.value })}
                 style={inputMonoStyle}
-                placeholder="e.g. openai-image/your-vendor-id"
+                placeholder="e.g. openai-image/gpt-image-2"
               />
+              <span style={valueHintStyle}>
+                value 的前缀决定路由到哪个 provider — backend 按前缀分发请求：
+              </span>
+              <ul style={hintListStyle}>
+                <li>
+                  <code style={hintCodeStyle}>qwen-*</code> / <code style={hintCodeStyle}>wanx*</code> /{' '}
+                  <code style={hintCodeStyle}>wan2.*</code> / <code style={hintCodeStyle}>happyhorse*</code> /{' '}
+                  <code style={hintCodeStyle}>speech-*</code> / <code style={hintCodeStyle}>fun-music*</code> →
+                  DashScope（百炼）
+                </li>
+                <li>
+                  <code style={hintCodeStyle}>openai-chat/*</code> → OpenAI-compat 文本（如{' '}
+                  <code style={hintCodeStyle}>openai-chat/gpt-5.5</code>）
+                </li>
+                <li>
+                  <code style={hintCodeStyle}>openai-image/*</code> → OpenAI-compat 图像（如{' '}
+                  <code style={hintCodeStyle}>openai-image/gpt-image-2</code>）
+                </li>
+              </ul>
               <span style={valueHintStyle}>
                 修改 value 后，画布上引用此模型的旧节点会显示为「未知模型」直到重新选择。
               </span>
@@ -237,6 +256,22 @@ const valueHintStyle: React.CSSProperties = {
   color: tokens.textMuted,
   fontSize: 11,
   lineHeight: 1.4,
+};
+
+const hintListStyle: React.CSSProperties = {
+  margin: 0,
+  paddingLeft: 18,
+  color: tokens.textMuted,
+  fontSize: 11,
+  lineHeight: 1.6,
+};
+
+const hintCodeStyle: React.CSSProperties = {
+  fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+  background: tokens.bgChip,
+  color: tokens.textPrimary,
+  padding: '0 4px',
+  borderRadius: 3,
 };
 
 const closeBtnStyle: React.CSSProperties = {
