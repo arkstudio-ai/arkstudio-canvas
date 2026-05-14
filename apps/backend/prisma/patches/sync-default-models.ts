@@ -29,7 +29,7 @@
  * Default is dry-run by design: per the repo's db-safety rule, any DB write
  * needs an explicit signal.
  */
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { DEFAULT_NODE_DEFINITIONS } from '../default-node-definitions';
 
 const prisma = new PrismaClient();
@@ -94,9 +94,10 @@ async function main() {
     totalNodes += 1;
 
     if (apply) {
+      const merged = [...existing, ...missing] as Prisma.InputJsonValue;
       await prisma.nodeDefinition.update({
         where: { type: def.type },
-        data: { models: [...existing, ...missing] as unknown[] },
+        data: { models: merged },
       });
     }
   }
