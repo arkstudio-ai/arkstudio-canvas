@@ -187,17 +187,21 @@ export class OpenAICompatImageProvider implements ProviderClient {
       );
     } catch (e: any) {
       const data = e?.response?.data ?? null;
-      throw this.toHttpException(
+      const err = this.toHttpException(
         data?.error?.message || data?.message || e?.message || 'OpenAI-compat image failed',
         e?.response?.status ?? 502,
         data ?? { requestBody: body },
       );
+      (err as any).requestPayload = body;
+      throw err;
     }
 
     const data = resp.data ?? {};
     const resources = this.extractResources(data);
     if (resources.length === 0) {
-      throw this.toHttpException('OpenAI-compat image returned no usable url', 502, data);
+      const err = this.toHttpException('OpenAI-compat image returned no usable url', 502, data);
+      (err as any).requestPayload = body;
+      throw err;
     }
 
     return {
@@ -205,6 +209,7 @@ export class OpenAICompatImageProvider implements ProviderClient {
       resources,
       usage: this.extractUsage(data?.usage, resources.length),
       raw: data,
+      requestPayload: body,
     };
   }
 

@@ -532,14 +532,24 @@ export class ExecutionsService {
     batchId: string | null,
     message: string,
     payloadSnippet?: unknown,
+    requestPayload?: unknown,
   ) {
+    // Persist requestPayload alongside the failure so admin LogDrawer can
+    // show "what we actually sent" even on errors. Sanitised through the
+    // same path as the snippet (drops auth-ish keys, truncates >2KB) so a
+    // huge prompt or a leaked token can't bloat / poison the DB row.
+    const reqPatch =
+      requestPayload === undefined
+        ? {}
+        : { requestPayload: (sanitizeSnippet(requestPayload) ?? Prisma.JsonNull) as Prisma.FlowExecutionUpdateInput['requestPayload'] };
+
     await this.transitionStatus(
       executionId,
       flowId,
       nodeId,
       batchId,
       'FAILED',
-      { errorMsg: message, finishedAt: new Date() },
+      { errorMsg: message, finishedAt: new Date(), ...reqPatch },
       { errorMsg: message },
     );
     await this.recordPhase(executionId, 'failed', {
@@ -618,6 +628,18 @@ export class ExecutionsService {
       if (submitResult.status === 'pending') {
         const taskId = submitResult.taskId ?? submitReq.requestId;
         if (!taskId) throw new Error('Provider returned no task id, cannot poll');
+        // Persist the upstream request body now (before polling starts) so
+        // the admin LogDrawer can inspect "what we sent" while the task is
+        // still RUNNING — not only after it terminates.
+        if (submitResult.requestPayload !== undefined) {
+          await this.prisma.flowExecution.update({
+            where: { id: executionId },
+            data: {
+              requestPayload: (sanitizeSnippet(submitResult.requestPayload) ??
+                Prisma.JsonNull) as Prisma.FlowExecutionUpdateInput['requestPayload'],
+            },
+          });
+        }
         await this.recordPhase(executionId, 'submitted', {
           externalTaskId: taskId,
           externalStatus: 'pending',
@@ -652,6 +674,8 @@ export class ExecutionsService {
           {
             finishedAt: new Date(),
             responsePayload: (submitResult.raw ?? submitResult) as any,
+            requestPayload: (sanitizeSnippet(submitResult.requestPayload) ??
+              Prisma.JsonNull) as Prisma.FlowExecutionUpdateInput['requestPayload'],
             latencyMs,
             ...usageToPatch(submitResult.usage),
           },
@@ -677,6 +701,7 @@ export class ExecutionsService {
         // status === 'failed'
         const err: any = new Error(submitResult.errorMessage ?? 'submit failed');
         err.payloadSnippet = submitResult.raw ?? submitResult.errorMessage;
+        err.requestPayload = submitResult.requestPayload;
         throw err;
       }
     } catch (error: any) {
@@ -688,6 +713,7 @@ export class ExecutionsService {
         batchId,
         error.message,
         error.payloadSnippet,
+        error.requestPayload,
       );
       throw error;
     }

@@ -72,6 +72,16 @@ export interface SubmitResult {
   usage?: ProviderUsage;
   /** Upstream raw response for audit / debugging (already inspected) */
   raw?: unknown;
+  /**
+   * Actual JSON body the provider POSTed to upstream. Persisted by
+   * ExecutionsService into `flow_executions.requestPayload` so the admin
+   * LogDrawer can show "what we actually sent" — diagnosing provider
+   * issues without needing backend stdout. Provider should fill this
+   * even on `status: 'failed'` (alongside throwing) so failed rows still
+   * carry the request context. Headers are intentionally NOT included
+   * (auth tokens live there).
+   */
+  requestPayload?: unknown;
 }
 
 export interface PollResult {

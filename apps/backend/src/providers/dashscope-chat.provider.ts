@@ -107,18 +107,22 @@ export class DashScopeChatProvider implements ProviderClient {
       );
     } catch (e: any) {
       const data = e?.response?.data ?? null;
-      throw this.toHttpException(
+      const err = this.toHttpException(
         data?.error?.message || data?.message || e?.message || 'DashScope chat failed',
         e?.response?.status ?? 502,
         data ?? { requestBody: body },
       );
+      (err as any).requestPayload = body;
+      throw err;
     }
 
     const data = resp.data ?? {};
     const choice = data?.choices?.[0];
     const text: string | undefined = choice?.message?.content;
     if (typeof text !== 'string') {
-      throw this.toHttpException('DashScope chat returned no message content', 502, data);
+      const err = this.toHttpException('DashScope chat returned no message content', 502, data);
+      (err as any).requestPayload = body;
+      throw err;
     }
 
     return {
@@ -126,6 +130,7 @@ export class DashScopeChatProvider implements ProviderClient {
       text,
       usage: this.extractUsage(data?.usage),
       raw: data,
+      requestPayload: body,
     };
   }
 

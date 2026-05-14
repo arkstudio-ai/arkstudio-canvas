@@ -122,11 +122,13 @@ export class DashScopeAudioProvider implements ProviderClient {
       );
     } catch (e: any) {
       const data = e?.response?.data ?? null;
-      throw this.toHttpException(
+      const err = this.toHttpException(
         data?.message || e?.message || 'DashScope TTS submit failed',
         e?.response?.status ?? 502,
         data ?? { requestBody: body },
       );
+      (err as any).requestPayload = body;
+      throw err;
     }
 
     const data = resp.data ?? {};
@@ -134,31 +136,37 @@ export class DashScopeAudioProvider implements ProviderClient {
     // MiniMax 用 base_resp.status_code 描述业务级失败 (0 = ok)，HTTP 200 不代表
     // 业务成功——必须显式校验。
     if (baseResp && Number(baseResp.status_code) !== 0) {
-      throw this.toHttpException(
+      const err = this.toHttpException(
         baseResp.status_msg || `MiniMax TTS failed: ${baseResp.status_code}`,
         502,
         data,
       );
+      (err as any).requestPayload = body;
+      throw err;
     }
 
     const audioField = data?.output?.data?.audio;
     if (!audioField || typeof audioField !== 'string') {
-      throw this.toHttpException(
+      const err = this.toHttpException(
         'DashScope TTS returned no audio payload',
         502,
         data,
       );
+      (err as any).requestPayload = body;
+      throw err;
     }
 
     // output_format=url 时 audio 是 OSS URL；其他情况是 hex / base64。我们要
     // url 就为了能直接挂到 image/video/audio 节点的 src 上。如果上游回了
     // hex（理论上不该），直接报错让用户重试更安全。
     if (!audioField.startsWith('http')) {
-      throw this.toHttpException(
+      const err = this.toHttpException(
         'DashScope TTS returned non-URL audio (output_format must be url)',
         502,
         { audioPrefix: audioField.slice(0, 16), data },
       );
+      (err as any).requestPayload = body;
+      throw err;
     }
 
     return {
@@ -166,6 +174,7 @@ export class DashScopeAudioProvider implements ProviderClient {
       resources: [{ type: 'audio', url: audioField }],
       usage: this.extractTtsUsage(data),
       raw: data,
+      requestPayload: body,
     };
   }
 
@@ -264,30 +273,36 @@ export class DashScopeAudioProvider implements ProviderClient {
       );
     } catch (e: any) {
       const data = e?.response?.data ?? null;
-      throw this.toHttpException(
+      const err = this.toHttpException(
         data?.message || e?.message || 'DashScope FunMusic submit failed',
         e?.response?.status ?? 502,
         data ?? { requestBody: body },
       );
+      (err as any).requestPayload = body;
+      throw err;
     }
 
     const data = resp.data ?? {};
     const finishReason = data?.output?.finish_reason;
     if (finishReason && finishReason !== 'stop') {
-      throw this.toHttpException(
+      const err = this.toHttpException(
         `FunMusic finish_reason=${finishReason}`,
         502,
         data,
       );
+      (err as any).requestPayload = body;
+      throw err;
     }
 
     const audioUrl = data?.output?.audio?.url;
     if (typeof audioUrl !== 'string' || !audioUrl.startsWith('http')) {
-      throw this.toHttpException(
+      const err = this.toHttpException(
         'DashScope FunMusic returned no audio url',
         502,
         data,
       );
+      (err as any).requestPayload = body;
+      throw err;
     }
 
     return {
@@ -295,6 +310,7 @@ export class DashScopeAudioProvider implements ProviderClient {
       resources: [{ type: 'audio', url: audioUrl }],
       usage: this.extractMusicUsage(data),
       raw: data,
+      requestPayload: body,
     };
   }
 

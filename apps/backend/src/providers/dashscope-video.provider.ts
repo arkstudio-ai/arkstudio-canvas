@@ -105,11 +105,13 @@ export class DashScopeVideoProvider implements ProviderClient {
       );
     } catch (e: any) {
       const data = e?.response?.data ?? null;
-      throw this.toHttpException(
+      const err = this.toHttpException(
         data?.message || e?.message || 'DashScope submit failed',
         e?.response?.status ?? 502,
         data ?? { requestBody: body },
       );
+      (err as any).requestPayload = body;
+      throw err;
     }
 
     const data = resp.data ?? {};
@@ -117,7 +119,9 @@ export class DashScopeVideoProvider implements ProviderClient {
     const taskStatus = String(data?.output?.task_status ?? '').toUpperCase();
 
     if (!taskId) {
-      throw this.toHttpException('DashScope submit returned no task_id', 502, data);
+      const err = this.toHttpException('DashScope submit returned no task_id', 502, data);
+      (err as any).requestPayload = body;
+      throw err;
     }
     if (taskStatus === 'FAILED' || taskStatus === 'CANCELED') {
       return {
@@ -125,9 +129,10 @@ export class DashScopeVideoProvider implements ProviderClient {
         taskId,
         errorMessage: data?.output?.message || `DashScope task immediately ${taskStatus}`,
         raw: data,
+        requestPayload: body,
       };
     }
-    return { status: 'pending', taskId, raw: data };
+    return { status: 'pending', taskId, raw: data, requestPayload: body };
   }
 
   async pollStatus(taskId: string): Promise<PollResult> {
