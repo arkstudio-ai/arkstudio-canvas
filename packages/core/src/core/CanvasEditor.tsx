@@ -437,9 +437,10 @@ export const CanvasEditor = React.forwardRef<any, CanvasEditorProps>(({
     const targetId = groupId || contextMenu?.targetId || nodes.find(n => n.selected && n.type === 'group')?.id;
     if (!targetId) return;
 
-    // Prepare absolute positions
-    const { nodes: absNodes } = fromReactFlowNodes(nodes);
-    const absNodeMap = new Map(absNodes.map(n => [n.id, n]));
+    // 统一坐标语义后，fromReactFlowNodes 对 in-group 节点返回的是相对父坐标，
+    // 解组后节点要回归到画布绝对坐标，必须手动 + group.position。
+    const groupNode = nodes.find(n => n.id === targetId);
+    const groupPos = groupNode?.position ?? { x: 0, y: 0 };
 
     // 收集分组内的节点 ID
     const nodesInGroup = nodes.filter(n => n.data?._groupId === targetId || n.parentId === targetId);
@@ -457,17 +458,13 @@ export const CanvasEditor = React.forwardRef<any, CanvasEditorProps>(({
                 if (onNodeDataChange) {
                     onNodeDataChange(n.id, { ...n.data, _groupId: undefined });
                 }
-                
-                // Restore absolute position
-                const absN = absNodeMap.get(n.id);
-                const absX = absN?.position.x ?? n.position.x;
-                const absY = absN?.position.y ?? n.position.y;
 
-                return { 
-                    ...n, 
+                // n.position 此刻还是 RF 内的相对父坐标，转回画布绝对
+                return {
+                    ...n,
                     parentId: undefined,
-                    position: { x: absX, y: absY },
-                    data: { ...n.data, _groupId: undefined } 
+                    position: { x: n.position.x + groupPos.x, y: n.position.y + groupPos.y },
+                    data: { ...n.data, _groupId: undefined }
                 };
             }
             return n;

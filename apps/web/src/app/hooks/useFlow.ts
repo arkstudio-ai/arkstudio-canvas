@@ -1129,40 +1129,46 @@ export function useFlow(
 
   const handleGroupUngroup = useCallback(async (groupId: string, nodeIds: string[]) => {
     if (!flowRef.current) return;
-    
+
     console.log('[解组] 分组ID:', groupId, '节点数:', nodeIds.length);
-    
-    // 1. 获取当前 flow（解组后节点已经是绝对坐标）
+
+    // 1. 此时 currentFlow 还是解组前的快照——getFlow 走 fromReactFlowNodes，
+    //    in-group 节点 position 是相对父坐标（统一坐标语义）。
     const currentFlow = flowRef.current.getFlow();
     if (!currentFlow) return;
-    
-    // 2. 找到解组后的节点（它们的 groupId 应该已经被 Core 清除）
-    const ungroupedNodes = currentFlow.nodes.filter(n => nodeIds.includes(n.id));
-    
+
+    // 2. 拿到 group.position，把每个 child 手动 +offset 转回画布绝对坐标
+    const targetGroup = currentFlow.groups?.find(g => g.id === groupId);
+    const groupPos = targetGroup?.position ?? { x: 0, y: 0 };
+
+    const ungroupedNodes = currentFlow.nodes
+      .filter(n => nodeIds.includes(n.id))
+      .map(n => ({
+        ...n,
+        position: { x: n.position.x + groupPos.x, y: n.position.y + groupPos.y },
+      }));
+
     console.log('[解组] 解组后的节点:', ungroupedNodes.map(n => ({ id: n.id, position: n.position, groupId: n.groupId })));
-    
-    // 3. 后端同步：发送 GROUP_REMOVE 操作（但不级联删除节点）
-    // 同时发送节点的更新操作，移除它们的 groupId 并更新为绝对坐标
+
+    // 3. 后端同步：删除分组 + 更新节点为绝对坐标
     queueOperation(async () => {
       const currentFlowId = await ensureFlowExists();
       if (!currentFlowId) return;
-      
+
       console.log('[解组] 发送到后端（或 Mock），移除分组但保留节点');
-      
-      // 批量操作：删除分组 + 更新节点
+
       const operations = [
-        { op: 'GROUP_UNGROUP', data: { id: groupId } }, // 新操作：解组（不级联删除）
+        { op: 'GROUP_UNGROUP', data: { id: groupId } },
         ...ungroupedNodes.map(node => ({
           op: 'NODE_UPDATE',
           data: {
             id: node.id,
-            position: node.position, // 绝对坐标
-            groupId: undefined,      // 移除 groupId
-            _coordinateType: 'absolute', // ✅ 标记为绝对坐标
+            position: node.position,
+            groupId: undefined,
           }
         }))
       ];
-      
+
       const res = await api.applyOperations(currentFlowId, latestFlowVersion.current, operations);
       handleOperationSuccess(res);
     });

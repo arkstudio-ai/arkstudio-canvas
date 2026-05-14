@@ -9,24 +9,21 @@ export const toReactFlowNodes = (nodes: CanvasFlowNode[], groups: CanvasFlowGrou
   // 1. Create group lookup map
   const groupMap = new Map(groups.map(g => [g.id, g]));
 
-  // 2. Convert nodes with coordinate type awareness
+  // 2. Convert nodes（统一坐标语义：in-group 节点 position 永远是「相对父」）
   const flowNodes = nodes.map((node) => {
     const groupId = node.groupId;
     const group = groupId ? groupMap.get(groupId as string) : undefined;
-    
+
     let position = node.position;
     let parentId = undefined;
 
     if (group) {
       parentId = group.id;
-
-      // RF 父子约定：子节点的 position 一律是「相对父节点」局部坐标。
-      // 持久化层维持双轨：GROUP_ADD 写相对、NODE_MOVE 走 fromReactFlowNodes
-      // 写绝对 + _coordinateType: 'absolute'（后端 applyNodeMove 也补盖
-      // 这个标签）。其他路径（NODE_ADD / 模板 / clone / instantiate 等）
-      // 从不带 _coordinateType，约定这些路径的 position 已经是相对坐标。
-      // 因此只在显式 'absolute' 时减偏移；任何"启发式自愈"都会把这些
-      // 无标签的合法相对坐标误判，连环错位。
+      // 与 React Flow 官方 subflow 约定对齐：child 节点 position 永远是相对父的局部坐标。
+      // DB 持久化也统一为相对坐标——GROUP_ADD / NODE_MOVE / NODE_ADD / 模板 / clone
+      // 全部一致，前端 fromReactFlowNodes 也不再做绝对转换。
+      // 兼容：若历史数据残留 `_coordinateType: 'absolute'`，按一次性迁移减偏移，
+      //   下次 NODE_MOVE 落库时会被覆盖回相对坐标。
       if (node._coordinateType === 'absolute') {
         position = {
           x: node.position.x - group.position.x,
@@ -106,33 +103,22 @@ export const fromReactFlowNodes = (nodes: Node[], existingGroups: CanvasFlowGrou
     }
   });
   
-  // Second pass: process nodes and convert to absolute coordinates
+  // Second pass: process nodes（统一坐标语义：in-group 节点 position 直接保留 RF 相对父坐标）
   nodes.forEach(node => {
     if (node.type === 'group') {
       // Already processed above
       return;
     }
-    
-    // Handle standard nodes
-    let position = node.position;
+
+    // 与 React Flow 官方 subflow 约定一致：child 节点的 position 始终是相对父坐标，
+    // 我们直接透传，不再做绝对转换。`_coordinateType` 字段统一标记为 'relative'，
+    // 既清晰又向后兼容老的消费者（debugTools / coordinateTest）。
     const parentId = node.parentId;
-    
-    // ✅ 如果节点有 parentId（在编组内），转换为绝对坐标
-    // ReactFlow 内部存储的是相对坐标，我们需要转换为绝对坐标供上层使用
-    if (parentId) {
-      const parentGroup = groupMap.get(parentId);
-      if (parentGroup) {
-        position = {
-          x: node.position.x + parentGroup.position.x,
-          y: node.position.y + parentGroup.position.y
-        };
-      }
-    }
-    
+
     canvasNodes.push({
       id: node.id,
       type: node.type || 'default',
-      position: position, // ✅ 绝对坐标（无论是否在编组内）
+      position: node.position,
       // 必须以「显式 width/height」优先：measured 在布局/缩放过程中可能仍为旧尺寸，
       // 若抢先写入结构快照会破坏 ImageNode `_contentSize` 触发的按比例适配。
       width:
@@ -151,8 +137,8 @@ export const fromReactFlowNodes = (nodes: Node[], existingGroups: CanvasFlowGrou
                 node.measured!.height > 0
               ? node.measured.height
               : 250),
-      groupId: parentId, // Map parentId back to groupId
-      _coordinateType: 'absolute', // ✅ 标记为绝对坐标
+      groupId: parentId,
+      _coordinateType: parentId ? 'relative' : 'absolute',
     });
   });
 

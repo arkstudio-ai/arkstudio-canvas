@@ -13,11 +13,12 @@ export interface CanvasFlowNode {
   width?: number;
   /** 节点高度 */
   height?: number;
-  /** 
-   * 坐标类型标记（内部字段，用于坐标转换）
-   * - 'absolute': 绝对坐标（相对于画布原点）
-   * - 'relative': 相对坐标（相对于父编组）
-   * - undefined: 未标记（自动推断：有 groupId 则相对，否则绝对）
+  /**
+   * 坐标类型标记（仅用于调试 / 旧数据兼容）。
+   * 统一坐标语义后，DB 与 RF 内的 in-group 节点 position 永远是「相对父」，
+   * 无 group 节点 position 是「画布绝对」。
+   * 入站 toReactFlowNodes 仅在遇到旧数据 `'absolute'` 时做一次性偏移迁移；
+   * 出站 fromReactFlowNodes 按节点是否在 group 内打 'relative' / 'absolute'。
    */
   _coordinateType?: 'absolute' | 'relative';
 }

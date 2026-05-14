@@ -245,15 +245,11 @@ export class FlowsService {
     const node = structure.nodes.find((n: any) => n.id === id);
     if (node) {
       node.position = position;
-      // Frontend's fromReactFlowNodes always converts in-group children
-      // to absolute coordinates before sending NODE_MOVE. Stamp the
-      // coordinate type so a subsequent reload's toReactFlowNodes knows
-      // to subtract the group offset. Without this, GROUP_ADD's
-      // _coordinateType: 'relative' lingers on the row, the loader
-      // believes the now-absolute position is relative, and children
-      // (and their edges) snap to wrong screen positions.
-      if (node.groupId) {
-        node._coordinateType = 'absolute';
+      // 统一坐标语义后：in-group 节点的 position 永远是相对父坐标
+      // （前端 fromReactFlowNodes 已不做绝对转换）。把残留的旧标签清掉，
+      // 否则 toReactFlowNodes 仍会按 'absolute' 减偏移导致错位。
+      if (node._coordinateType) {
+        delete node._coordinateType;
       }
     }
 
@@ -343,6 +339,12 @@ export class FlowsService {
           node.position = nodeUpdate.position;
           if (nodeUpdate.width) node.width = nodeUpdate.width;
           if (nodeUpdate.height) node.height = nodeUpdate.height;
+          // 统一坐标语义：in-group 节点 position 永远是相对父，
+          // 把节点之前残留的 _coordinateType 标签清掉，
+          // 防止 toReactFlowNodes 把现在的相对坐标误判为绝对再减偏移。
+          if (node._coordinateType) {
+            delete node._coordinateType;
+          }
 
           await tx.flowNode.updateMany({
             where: { flowId, nodeId: nodeUpdate.id },
