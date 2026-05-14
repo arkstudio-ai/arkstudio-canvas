@@ -117,7 +117,7 @@ export const AudioFloatingWindowPanel: React.FC<AudioFloatingWindowPanelProps> =
 
   return (
     <NodeFloatingWindow
-      width={480}
+      width={520}
       promptArea={
         <PromptEditor
           key={nodeId}

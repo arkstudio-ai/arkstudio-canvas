@@ -332,21 +332,24 @@ export function GenerationHistoryPanel({
         </AlertDialog.Content>
       </AlertDialog.Root>
 
-      <IconButton
-        variant="solid"
-        color="gray"
-        size="3"
-        radius="full"
-        onClick={() => setOpen(!open)}
-        title="生成历史"
-        style={{
-          boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-          backgroundColor: open ? '#2a2a2a' : '#1C1C1C',
-          cursor: 'pointer',
-        }}
-      >
-        <History size={20} />
-      </IconButton>
+      <div style={triggerWrapStyle}>
+        <IconButton
+          variant="solid"
+          color="gray"
+          size="3"
+          radius="full"
+          onClick={() => setOpen(!open)}
+          title="生成历史"
+          style={{
+            boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+            backgroundColor: open ? '#2a2a2a' : '#1C1C1C',
+            cursor: 'pointer',
+          }}
+        >
+          <History size={20} />
+        </IconButton>
+        <span style={triggerLabelStyle}>历史</span>
+      </div>
 
       {open && (
         <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1100 }}>
@@ -506,4 +509,16 @@ const cardBodyStyle: React.CSSProperties = {
   flexDirection: 'column',
   gap: 2,
   minWidth: 0,
+};
+const triggerWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: 4,
+};
+const triggerLabelStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: '#bdbdbd',
+  letterSpacing: '0.05em',
+  userSelect: 'none',
 };

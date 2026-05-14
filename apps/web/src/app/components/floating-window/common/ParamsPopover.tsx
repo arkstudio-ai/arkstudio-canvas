@@ -157,6 +157,28 @@ export const ParamsPopoverEmpty: React.FC<{ text?: string }> = ({ text }) => (
   <div style={emptyStyle}>{text ?? '该模型暂无可调参数'}</div>
 );
 
+/**
+ * 单个参数分区：标题 + 内容块（背景灰，圆角）。
+ * 给 audio popover 复用同一套视觉 token，避免 image/video/audio 三套样式。
+ */
+export const ParamsPopoverSection: React.FC<{
+  label: string;
+  children: React.ReactNode;
+  /** 是否套灰底框；默认 true。slider 这种自带留白的可以传 false。 */
+  framed?: boolean;
+}> = ({ label, children, framed = true }) => (
+  <div style={sectionStyle}>
+    <div style={sectionLabelStyle}>{label}</div>
+    {framed ? <div style={sectionFrameStyle}>{children}</div> : children}
+  </div>
+);
+
+const sectionFrameStyle: React.CSSProperties = {
+  background: '#1c1c1c',
+  borderRadius: 10,
+  padding: 10,
+};
+
 /* ---------- styles ---------- */
 
 const containerStyle: React.CSSProperties = {

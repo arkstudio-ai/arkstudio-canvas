@@ -165,6 +165,7 @@ export function CanvasGallery({ open: controlledOpen, onOpenChange, currentFlowI
     return (
       <div
         key={item.id}
+        className="canvas-card"
         style={{
           ...cardStyle,
           // box-shadow 比 outline 更可控：outline 会被父级 overflow:auto 裁掉，
@@ -172,7 +173,6 @@ export function CanvasGallery({ open: controlledOpen, onOpenChange, currentFlowI
           ...(isCurrent
             ? {
                 boxShadow: '0 0 0 2px #4f46e5',
-                position: 'relative',
                 zIndex: 1,
               }
             : {}),
@@ -183,38 +183,44 @@ export function CanvasGallery({ open: controlledOpen, onOpenChange, currentFlowI
           {item.cover ? (
             <img src={item.cover} alt={item.name} style={coverImgStyle} />
           ) : (
-            <div style={placeholderStyle}>
-              <FolderOpen size={24} color="#666" />
-            </div>
+            <Flex align="center" justify="center" style={{ width: '100%', height: '100%', color: '#9CA3AF' }}>
+              <Text>{item.name.slice(0, 2)}</Text>
+            </Flex>
           )}
-          <div style={cardActionsStyle}>
-            <button
-              style={actionBtnStyle}
+
+          <div className="card-actions" style={cardActionsStyle}>
+            <IconButton
+              size="1"
+              variant="solid"
+              color="gray"
               onClick={(e) => {
                 e.stopPropagation();
                 setEditingCanvas(item);
               }}
               title="编辑"
+              style={{ background: 'rgba(0,0,0,0.7)' }}
             >
-              <Pencil size={14} />
-            </button>
-            <button
-              style={actionBtnStyle}
+              <Pencil size={12} />
+            </IconButton>
+            <IconButton
+              size="1"
+              variant="solid"
+              color="red"
               onClick={(e) => {
                 e.stopPropagation();
                 setDeletingCanvas(item);
               }}
               title="删除"
+              style={{ background: 'rgba(220,38,38,0.8)' }}
             >
-              <Trash2 size={14} />
-            </button>
+              <Trash2 size={12} />
+            </IconButton>
           </div>
         </div>
         <div style={cardBodyStyle}>
           <Text
             as="div"
-            size="2"
-            weight="medium"
+            size="1"
             style={{
               color: '#fff',
               lineHeight: 1.3,
@@ -232,12 +238,11 @@ export function CanvasGallery({ open: controlledOpen, onOpenChange, currentFlowI
               size="1"
               color="gray"
               style={{
-                lineHeight: 1.4,
-                opacity: 0.8,
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
+                lineHeight: 1.3,
+                opacity: 0.7,
                 overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
               }}
               title={item.description}
             >
@@ -251,21 +256,30 @@ export function CanvasGallery({ open: controlledOpen, onOpenChange, currentFlowI
 
   return (
     <>
-      <IconButton
-        variant="solid"
-        color="gray"
-        size="3"
-        radius="full"
-        onClick={() => setOpen(!open)}
-        style={{
-          boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-          backgroundColor: open ? '#2a2a2a' : '#1C1C1C',
-          cursor: 'pointer',
-        }}
-        title="我的画布"
-      >
-        <FolderOpen size={20} />
-      </IconButton>
+      <style>{`
+        .canvas-card:hover .card-actions {
+          opacity: 1 !important;
+        }
+      `}</style>
+
+      <div style={triggerWrapStyle}>
+        <IconButton
+          variant="solid"
+          color="gray"
+          size="3"
+          radius="full"
+          onClick={() => setOpen(!open)}
+          style={{
+            boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+            backgroundColor: open ? '#2a2a2a' : '#1C1C1C',
+            cursor: 'pointer',
+          }}
+          title="我的画布"
+        >
+          <FolderOpen size={20} />
+        </IconButton>
+        <span style={triggerLabelStyle}>画布</span>
+      </div>
 
       {open && (
         <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1100 }}>
@@ -427,26 +441,28 @@ const gridStyle: React.CSSProperties = {
   gap: 12,
 };
 const cardStyle: React.CSSProperties = {
-  backgroundColor: 'rgba(255,255,255,0.04)',
-  borderRadius: 10,
-  overflow: 'hidden',
+  borderRadius: 12,
+  background: '#1a1b1f',
+  padding: 8,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+  position: 'relative',
   cursor: 'pointer',
-  transition: 'background-color 0.15s',
 };
 const cardCoverStyle: React.CSSProperties = {
   position: 'relative',
   width: '100%',
-  aspectRatio: '16/10',
-  backgroundColor: '#1a1a1a',
+  aspectRatio: '1 / 1',
+  borderRadius: 8,
+  overflow: 'hidden',
+  background: 'linear-gradient(135deg, #1f2937 0%, #111827 100%)',
 };
-const coverImgStyle: React.CSSProperties = { width: '100%', height: '100%', objectFit: 'cover' };
-const placeholderStyle: React.CSSProperties = {
+const coverImgStyle: React.CSSProperties = {
   width: '100%',
   height: '100%',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  backgroundColor: '#222',
+  objectFit: 'cover',
+  display: 'block',
 };
 const cardActionsStyle: React.CSSProperties = {
   position: 'absolute',
@@ -454,24 +470,24 @@ const cardActionsStyle: React.CSSProperties = {
   right: 6,
   display: 'flex',
   gap: 4,
-  opacity: 0.8,
-};
-const actionBtnStyle: React.CSSProperties = {
-  width: 26,
-  height: 26,
-  borderRadius: 6,
-  backgroundColor: 'rgba(0,0,0,0.6)',
-  border: 'none',
-  color: '#fff',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
+  opacity: 0,
+  transition: 'opacity 0.2s',
 };
 const cardBodyStyle: React.CSSProperties = {
-  padding: '8px 10px',
   display: 'flex',
   flexDirection: 'column',
-  gap: 4,
+  gap: 2,
   minWidth: 0,
+};
+const triggerWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: 4,
+};
+const triggerLabelStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: '#bdbdbd',
+  letterSpacing: '0.05em',
+  userSelect: 'none',
 };

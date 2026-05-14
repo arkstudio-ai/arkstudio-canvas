@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertDialog, Button, Flex, IconButton, Spinner, Text } from '@radix-ui/themes';
+import { AlertDialog, Badge, Button, Flex, IconButton, Spinner, Text } from '@radix-ui/themes';
 import { Cross2Icon } from '@radix-ui/react-icons';
 import { Mic, Play, Pause, Trash2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -109,78 +109,126 @@ export function VoiceGallery({ open: controlledOpen, onOpenChange }: VoiceGaller
 
   const renderCard = (item: VoiceItem) => {
     const isPlaying = playingId === item.id;
+    const playable = !!item.demoAudioUrl;
     return (
-      <div key={item.id} style={cardStyle}>
-        <div style={iconContainerStyle}>
-          <Mic size={20} color="#8b5cf6" />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <Text size="2" weight="bold" style={{ color: '#fff' }}>{item.name}</Text>
-          <div>
-            <Text size="1" style={{ color: '#666' }}>
-              {item.demoAudioUrl ? '可试听' : '无试听样本'}
-            </Text>
-          </div>
-        </div>
-        <Flex gap="2" align="center">
-          {item.demoAudioUrl && (
+      <div
+        key={item.id}
+        className="voice-card"
+        style={{
+          ...cardStyle,
+          cursor: playable ? 'pointer' : 'default',
+        }}
+        onClick={(e) => {
+          if (!playable) return;
+          e.stopPropagation();
+          handlePlay(item);
+        }}
+        title={playable ? (isPlaying ? '点击停止' : '点击试听') : '无试听样本'}
+      >
+        <div style={cardCoverStyle}>
+          <Flex align="center" justify="center" style={{ width: '100%', height: '100%' }}>
+            <Mic size={28} color="#a78bfa" />
+          </Flex>
+
+          {playable && (
+            <div style={playBadgeStyle}>
+              {isPlaying ? <Pause size={14} fill="#fff" color="#fff" /> : <Play size={14} fill="#fff" color="#fff" />}
+            </div>
+          )}
+
+          {!playable && (
+            <Badge color="gray" size="1" style={{ position: 'absolute', left: 6, bottom: 6 }}>
+              无试听
+            </Badge>
+          )}
+
+          <div className="card-actions" style={cardActionsStyle}>
             <IconButton
               size="1"
-              variant="ghost"
-              color="gray"
-              onClick={(e) => { e.stopPropagation(); handlePlay(item); }}
-              title={isPlaying ? '停止' : '试听'}
+              variant="solid"
+              color="red"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeleteTarget(item);
+              }}
+              title="删除"
+              style={{ background: 'rgba(220,38,38,0.8)' }}
             >
-              {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+              <Trash2 size={12} />
             </IconButton>
-          )}
-          <IconButton
+          </div>
+        </div>
+
+        <div style={cardBodyStyle}>
+          <Text
+            as="div"
             size="1"
-            variant="ghost"
-            color="red"
-            onClick={(e) => { e.stopPropagation(); setDeleteTarget(item); }}
-            title="删除"
+            style={{
+              color: '#fff',
+              lineHeight: 1.3,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+            title={item.name}
           >
-            <Trash2 size={14} />
-          </IconButton>
-        </Flex>
+            {item.name}
+          </Text>
+          <Text
+            as="div"
+            size="1"
+            color="gray"
+            style={{
+              lineHeight: 1.3,
+              opacity: 0.7,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {playable ? '可试听' : '无试听样本'}
+          </Text>
+        </div>
       </div>
     );
   };
 
   return (
     <>
-      <IconButton
-        variant="solid"
-        color="gray"
-        size="3"
-        radius="full"
-        onClick={() => setOpen(!open)}
-        style={{
-          boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-          backgroundColor: open ? '#2a2a2a' : '#1C1C1C',
-          cursor: 'pointer',
-        }}
-        title="自定义音色"
-      >
-        <Mic size={20} />
-      </IconButton>
+      <style>{`
+        .voice-card:hover .card-actions {
+          opacity: 1 !important;
+        }
+      `}</style>
+
+      <div style={triggerWrapStyle}>
+        <IconButton
+          variant="solid"
+          color="gray"
+          size="3"
+          radius="full"
+          onClick={() => setOpen(!open)}
+          style={{
+            boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+            backgroundColor: open ? '#2a2a2a' : '#1C1C1C',
+            cursor: 'pointer',
+          }}
+          title="自定义音色"
+        >
+          <Mic size={20} />
+        </IconButton>
+        <span style={triggerLabelStyle}>音色</span>
+      </div>
 
       {open && (
         <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1100 }}>
           <div style={panelStyle}>
             <Flex justify="between" align="center">
-              <Text size="2" weight="bold" style={{ color: '#fff' }}>自定义音色</Text>
+              <Text size="3" weight="bold" style={{ color: '#fff' }}>自定义音色</Text>
               <Flex gap="2" align="center">
-                <IconButton
-                  size="1"
-                  variant="soft"
-                  color="violet"
-                  onClick={() => setShowCreate(true)}
-                  title="创建音色"
-                >
-                  <Plus size={14} />
-                </IconButton>
+                <Button size="1" variant="solid" onClick={() => setShowCreate(true)}>
+                  <Plus size={14} />新建
+                </Button>
                 <IconButton variant="ghost" color="gray" onClick={() => setOpen(false)}>
                   <Cross2Icon />
                 </IconButton>
@@ -205,7 +253,7 @@ export function VoiceGallery({ open: controlledOpen, onOpenChange }: VoiceGaller
                   </Button>
                 </Flex>
               ) : (
-                <Flex direction="column" gap="2">{items.map(renderCard)}</Flex>
+                <div style={gridStyle}>{items.map(renderCard)}</div>
               )}
             </div>
           </div>
@@ -243,8 +291,8 @@ const panelStyle: React.CSSProperties = {
   left: 64,
   top: '50%',
   transform: 'translateY(-50%)',
-  width: 320,
-  maxHeight: '70vh',
+  width: 380,
+  maxHeight: '80vh',
   background: '#0d0f14',
   borderRadius: 16,
   border: '1px solid rgba(255,255,255,0.08)',
@@ -260,24 +308,75 @@ const listContainerStyle: React.CSSProperties = {
   flex: 1,
   overflow: 'auto',
   paddingRight: 4,
-  minHeight: 150,
+  minHeight: 200,
+};
+
+const gridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+  gap: 12,
 };
 
 const cardStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 12,
-  padding: '10px 12px',
-  borderRadius: 10,
+  borderRadius: 12,
   background: '#1a1b1f',
+  padding: 8,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+  position: 'relative',
 };
 
-const iconContainerStyle: React.CSSProperties = {
-  width: 36,
-  height: 36,
+const cardCoverStyle: React.CSSProperties = {
+  position: 'relative',
+  width: '100%',
+  aspectRatio: '1 / 1',
   borderRadius: 8,
-  background: 'rgba(139, 92, 246, 0.15)',
+  overflow: 'hidden',
+  background: 'linear-gradient(135deg, #1f2937 0%, #111827 100%)',
+};
+
+const playBadgeStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: 32,
+  height: 32,
+  borderRadius: '50%',
+  background: 'rgba(0,0,0,0.55)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
+  pointerEvents: 'none',
+};
+
+const cardActionsStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 6,
+  right: 6,
+  display: 'flex',
+  gap: 4,
+  opacity: 0,
+  transition: 'opacity 0.2s',
+};
+
+const cardBodyStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+  minWidth: 0,
+};
+
+const triggerWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: 4,
+};
+const triggerLabelStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: '#bdbdbd',
+  letterSpacing: '0.05em',
+  userSelect: 'none',
 };

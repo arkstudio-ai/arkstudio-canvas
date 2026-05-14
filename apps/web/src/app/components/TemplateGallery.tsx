@@ -173,67 +173,37 @@ export function TemplateGallery({ onSelect, open: controlledOpen, onOpenChange }
         key={item.id}
         className="template-card"
         style={{
-          borderRadius: 12,
-          background: '#1a1b1f',
-          padding: 10,
+          ...cardStyle,
           cursor: isApplying ? 'not-allowed' : 'pointer',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
           opacity: isApplying ? 0.7 : 1,
-          position: 'relative',
         }}
         onClick={() => !isApplying && handleApply(item)}
       >
-        {isApplying && (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'rgba(0,0,0,0.5)',
-              zIndex: 10,
-              borderRadius: 12,
-            }}
-          >
-            <Spinner />
-          </div>
-        )}
-        <div
-          style={{
-            width: '100%',
-            aspectRatio: '1 / 1',
-            borderRadius: 10,
-            overflow: 'hidden',
-            background: item.cover ? '#0f0f0f' : 'linear-gradient(135deg, #1f2937 0%, #111827 100%)',
-            position: 'relative',
-          }}
-        >
+        <div style={cardCoverStyle}>
           {item.cover ? (
-            <img
-              src={item.cover}
-              alt={item.name}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-            />
+            <img src={item.cover} alt={item.name} style={coverMediaStyle} />
           ) : (
             <Flex align="center" justify="center" style={{ width: '100%', height: '100%', color: '#9CA3AF' }}>
               <Text>{item.name.slice(0, 2)}</Text>
             </Flex>
           )}
-          <div
-            className="card-actions"
-            style={{
-              position: 'absolute',
-              top: 6,
-              right: 6,
-              display: 'flex',
-              gap: 4,
-              opacity: 0,
-              transition: 'opacity 0.2s',
-            }}
-          >
+
+          {isApplying && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(0,0,0,0.5)',
+              }}
+            >
+              <Spinner />
+            </div>
+          )}
+
+          <div className="card-actions" style={cardActionsStyle}>
             <IconButton
               size="1"
               variant="solid"
@@ -263,17 +233,40 @@ export function TemplateGallery({ onSelect, open: controlledOpen, onOpenChange }
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <Text weight="bold" size="2" color="gray" style={{ lineHeight: 1.3 }}>
+        <div style={cardBodyStyle}>
+          <Text
+            as="div"
+            size="1"
+            style={{
+              color: '#fff',
+              lineHeight: 1.3,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+            title={item.name}
+          >
             {item.name}
           </Text>
           {item.description && (
-            <Text size="1" color="gray" style={{ lineHeight: 1.4, opacity: 0.8 }}>
+            <Text
+              as="div"
+              size="1"
+              color="gray"
+              style={{
+                lineHeight: 1.3,
+                opacity: 0.7,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+              title={item.description}
+            >
               {item.description}
             </Text>
           )}
           {item.tags.length > 0 && (
-            <Flex gap="2" wrap="wrap">
+            <Flex gap="1" wrap="wrap" mt="1">
               {item.tags.slice(0, 3).map((tag) => (
                 <Badge key={`${item.id}-${tag.category}-${tag.value}`} color="gray" size="1">
                   {tag.value}
@@ -326,21 +319,24 @@ export function TemplateGallery({ onSelect, open: controlledOpen, onOpenChange }
         </AlertDialog.Content>
       </AlertDialog.Root>
 
-      <IconButton
-        variant="solid"
-        color="gray"
-        size="3"
-        radius="full"
-        onClick={() => setOpen(!open)}
-        title="工作流模板"
-        style={{
-          boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-          backgroundColor: open ? '#2a2a2a' : '#1C1C1C',
-          cursor: 'pointer',
-        }}
-      >
-        <PanelLeft size={20} />
-      </IconButton>
+      <div style={triggerWrapStyle}>
+        <IconButton
+          variant="solid"
+          color="gray"
+          size="3"
+          radius="full"
+          onClick={() => setOpen(!open)}
+          title="工作流模板"
+          style={{
+            boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+            backgroundColor: open ? '#2a2a2a' : '#1C1C1C',
+            cursor: 'pointer',
+          }}
+        >
+          <PanelLeft size={20} />
+        </IconButton>
+        <span style={triggerLabelStyle}>模板</span>
+      </div>
 
       {open && (
         <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1100 }}>
@@ -405,15 +401,7 @@ export function TemplateGallery({ onSelect, open: controlledOpen, onOpenChange }
                   <Text color="gray">暂无模板</Text>
                 </Flex>
               ) : (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-                    gap: 12,
-                  }}
-                >
-                  {items.map(renderCard)}
-                </div>
+                <div style={gridStyle}>{items.map(renderCard)}</div>
               )}
 
               {loadingMore && (
@@ -446,4 +434,59 @@ const panelStyle: React.CSSProperties = {
   flexDirection: 'column',
   gap: 12,
   pointerEvents: 'auto',
+};
+const triggerWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: 4,
+};
+const triggerLabelStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: '#bdbdbd',
+  letterSpacing: '0.05em',
+  userSelect: 'none',
+};
+const gridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+  gap: 12,
+};
+const cardStyle: React.CSSProperties = {
+  borderRadius: 12,
+  background: '#1a1b1f',
+  padding: 8,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+  position: 'relative',
+};
+const cardCoverStyle: React.CSSProperties = {
+  position: 'relative',
+  width: '100%',
+  aspectRatio: '1 / 1',
+  borderRadius: 8,
+  overflow: 'hidden',
+  background: 'linear-gradient(135deg, #1f2937 0%, #111827 100%)',
+};
+const coverMediaStyle: React.CSSProperties = {
+  width: '100%',
+  height: '100%',
+  objectFit: 'cover',
+  display: 'block',
+};
+const cardActionsStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 6,
+  right: 6,
+  display: 'flex',
+  gap: 4,
+  opacity: 0,
+  transition: 'opacity 0.2s',
+};
+const cardBodyStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+  minWidth: 0,
 };

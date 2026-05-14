@@ -1,4 +1,14 @@
+/**
+ * FunMusic 参数 popover（背景音乐 / 歌曲生成）。
+ *
+ * 视觉对齐 image / video 的参数 popover：用 ParamsPopoverContainer + ParamsPopoverSection
+ * 提供 460 宽外壳和「label + 框」的分区样式，性别 / 格式用与 SegmentedRow 同款的 segmented control。
+ */
 import React from 'react';
+import {
+  ParamsPopoverContainer,
+  ParamsPopoverSection,
+} from '../common/ParamsPopover';
 
 export interface FunMusicParamsPopoverProps {
   params: Record<string, unknown>;
@@ -30,53 +40,51 @@ export const FunMusicParamsPopover: React.FC<FunMusicParamsPopoverProps> = ({
   const lyrics = get<string>('lyrics', '');
 
   return (
-    <div style={containerStyle}>
-      <div style={fieldStyle}>
-        <div style={labelStyle}>声音性别</div>
-        <div style={chipRowStyle}>
+    <ParamsPopoverContainer>
+      <ParamsPopoverSection label="声音性别">
+        <div style={segmentedRowStyle}>
           {GENDER_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               type="button"
               onClick={() => onPatch({ gender: opt.value })}
-              style={chipStyle(gender === opt.value)}
+              style={segmentedBtnStyle(gender === opt.value)}
             >
               {opt.label}
             </button>
           ))}
         </div>
-      </div>
+      </ParamsPopoverSection>
 
-      <div style={fieldStyle}>
-        <div style={labelStyle}>音频格式</div>
-        <div style={chipRowStyle}>
+      <ParamsPopoverSection label="音频格式">
+        <div style={segmentedRowStyle}>
           {FORMAT_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               type="button"
               onClick={() => onPatch({ format: opt.value })}
-              style={chipStyle(format === opt.value)}
+              style={segmentedBtnStyle(format === opt.value)}
             >
               {opt.label}
             </button>
           ))}
         </div>
-      </div>
+      </ParamsPopoverSection>
 
-      <div style={fieldStyle}>
+      <ParamsPopoverSection label="歌词" framed={false}>
         <label style={toggleRowStyle}>
           <input
             type="checkbox"
             checked={useLyrics}
             onChange={(e) => onPatch({ useLyrics: e.target.checked })}
-            style={{ accentColor: '#3b82f6' }}
+            style={{ accentColor: '#3a3a3a' }}
           />
           <span style={{ fontSize: 13, color: '#ddd' }}>使用自定义歌词</span>
         </label>
         <div style={hintStyle}>
-          {useLyrics ?
-            '已切换为歌词模式：将忽略上方 prompt，直接按下列歌词演唱。'
-          : '默认模式：根据上方 prompt 描述的风格，由模型自动作词。'}
+          {useLyrics
+            ? '已切换为歌词模式：将忽略上方 prompt，直接按下列歌词演唱。'
+            : '默认模式：根据上方 prompt 描述的风格，由模型自动作词。'}
         </div>
         {useLyrics && (
           <textarea
@@ -87,40 +95,27 @@ export const FunMusicParamsPopover: React.FC<FunMusicParamsPopoverProps> = ({
             style={textareaStyle}
           />
         )}
-      </div>
-    </div>
+      </ParamsPopoverSection>
+    </ParamsPopoverContainer>
   );
 };
 
-const containerStyle: React.CSSProperties = {
-  width: 320,
-  padding: 12,
-  color: '#ddd',
+const segmentedRowStyle: React.CSSProperties = {
+  display: 'grid',
+  gridAutoFlow: 'column',
+  gridAutoColumns: '1fr',
+  gap: 4,
 };
 
-const fieldStyle: React.CSSProperties = {
-  marginBottom: 12,
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: '#aaa',
-  marginBottom: 6,
-};
-
-const chipRowStyle: React.CSSProperties = {
-  display: 'flex',
-  gap: 6,
-};
-
-const chipStyle = (active: boolean): React.CSSProperties => ({
-  padding: '6px 14px',
-  fontSize: 12,
-  borderRadius: 999,
-  border: active ? '1px solid #3b82f6' : '1px solid #333',
-  background: active ? 'rgba(59, 130, 246, 0.15)' : '#0a0a0a',
-  color: active ? '#6b9fff' : '#aaa',
+const segmentedBtnStyle = (active: boolean): React.CSSProperties => ({
+  padding: '10px 8px',
+  border: 'none',
+  borderRadius: 7,
+  background: active ? '#3a3a3a' : 'transparent',
+  color: active ? '#fff' : '#9a9a9a',
+  fontSize: 13,
   cursor: 'pointer',
+  transition: 'background 120ms',
 });
 
 const toggleRowStyle: React.CSSProperties = {
@@ -134,15 +129,16 @@ const toggleRowStyle: React.CSSProperties = {
 const hintStyle: React.CSSProperties = {
   fontSize: 11,
   color: '#777',
+  marginTop: 2,
   marginBottom: 8,
   lineHeight: 1.5,
 };
 
 const textareaStyle: React.CSSProperties = {
   width: '100%',
-  background: '#0a0a0a',
-  border: '1px solid #333',
-  borderRadius: 6,
+  background: '#1c1c1c',
+  border: '1px solid #2a2a2a',
+  borderRadius: 8,
   padding: 10,
   color: '#eee',
   fontSize: 13,

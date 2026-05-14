@@ -99,6 +99,34 @@ export class FlowsService {
       }),
     ]);
 
+    // 封面 fallback：cover 字段为空时，取该画布里第一个 image/video 节点的 data.src。
+    // 只查询本页缺封面的 flow，按节点 createdAt 升序选第一条带 src 的，模拟"用户最早加上去的媒体节点"。
+    const flowsNeedingFallback = items.filter((it) => !it.cover).map((it) => it.id);
+    if (flowsNeedingFallback.length > 0) {
+      const mediaNodes = await this.prisma.flowNode.findMany({
+        where: {
+          flowId: { in: flowsNeedingFallback },
+          type: { in: ['image', 'video'] },
+        },
+        select: { flowId: true, data: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      const fallbackByFlow = new Map<string, string>();
+      for (const node of mediaNodes) {
+        if (fallbackByFlow.has(node.flowId)) continue;
+        const data = node.data as { src?: unknown } | null;
+        const src =
+          data && typeof data.src === 'string' && data.src ? data.src : null;
+        if (src) fallbackByFlow.set(node.flowId, src);
+      }
+      for (const item of items) {
+        if (!item.cover) {
+          const fallback = fallbackByFlow.get(item.id);
+          if (fallback) item.cover = fallback;
+        }
+      }
+    }
+
     return {
       items,
       meta: {

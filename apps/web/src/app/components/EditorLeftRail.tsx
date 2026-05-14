@@ -112,5 +112,8 @@ const railContainerStyle: React.CSSProperties = {
   zIndex: 1200,
   display: 'flex',
   flexDirection: 'column',
-  gap: 12,
+  // 居中对齐：extraButtons 现在每个触发器下方都带「画布/模板/历史/音色」二字 label，
+  // 包裹 div 比单纯的 IconButton 更宽，需要让所有子项居中，否则 "+" 会偏左。
+  alignItems: 'center',
+  gap: 16,
 };
