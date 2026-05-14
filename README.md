@@ -51,7 +51,7 @@
 
 - 🎨 **节点画布编辑器** —— 拖拽 / 连线 / 编组 / 框选 / 跨节点 `@图片1` 引用，基于自研 [`@canvas-flow/core`](packages/core)
 - 🛠 **DB 即权威源** —— 节点定义 / 模型清单 / DashScope 凭据 / COS 凭据全部存 MySQL，admin 改完下一次请求就生效，无需改代码或重启
-- 🔌 **Provider 抽象** —— 当前接百炼（DashScope）；`src/providers/` 是 SPI 风格，加 OpenAI 兼容协议 / 自建模型只需新增一个文件
+- 🔌 **Provider 抽象** —— 已接百炼（DashScope）+ OpenAI 兼容协议（chat / image，可指向 OpenRouter / vLLM / DeepSeek / 自建网关）；`src/providers/` 是 SPI 风格，加新源只需新增一个文件
 - 📦 **零配置开箱即用** —— 一份 `DASHSCOPE_API_KEY` 就跑通完整链路；上传无 COS 时自动 fallback 到百炼临时存储
 - 🧹 **生成历史自治理** —— 新生成顺手节流清理，无 cron 依赖；按天数 / 按 kind 数量阈值 admin 可调
 - 🔐 **加密落库** —— `dashscope.apiKey` / `storage.cos.secretKey` 等敏感字段 AES-256-GCM 加密，UI 永不回传明文，编辑只能"重填覆盖"
@@ -86,11 +86,11 @@ docker compose up -d --build
 **第一期（已发布）**
 
 - 画布编辑器 + admin 后台 + DashScope 全模型矩阵 + COS / DashScope 临时双存储 + 历史保留 + 加密凭据
+- **OpenAI 兼容协议 Provider**（chat / image）—— 任意 OpenAI 协议的 baseUrl + apiKey 都可挂入
 - Docker compose 一键部署 + AGPL §13 合规 UI
 
 **后续规划（按优先级）**
 
-- **OpenAI 兼容协议 Provider** —— 接通 OpenRouter / 自建 vLLM / DeepSeek 等
 - **存储抽象** —— local / S3 / OSS（当前只 COS + DashScope 临时）
 - **节点 / 模型配置导入导出** —— JSON 互通 / 跨实例同步
 - **自动化测试覆盖** —— unit + e2e
