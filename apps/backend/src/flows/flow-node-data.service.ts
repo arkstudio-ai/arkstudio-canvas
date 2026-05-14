@@ -182,12 +182,5 @@ export class FlowNodeDataService {
     });
   }
 
-  /**
-   * 保留旧方法名以兼容现有代码
-   * @deprecated 使用 getFlowNodesData 替代
-   */
-  async getFlowNodeData(flowId: string) {
-    return this.getFlowNodesData(flowId);
-  }
 }
 

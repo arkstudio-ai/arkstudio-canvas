@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  Body,
   Controller,
   Post,
   UploadedFile,
@@ -8,7 +7,6 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadService } from './upload.service';
-import { GetUploadSignDto } from './dto/get-upload-sign.dto';
 
 @Controller('upload')
 export class UploadController {
@@ -30,12 +28,9 @@ export class UploadController {
    * Response:
    *   { accessUrl, fileKey?, storage: 'cos' | 'dashscope-temp', expiresAt? }
    *
-   * Why not always use COS pre-signed PUT (the older `/upload/sign`)?
-   * Because a fresh open-source clone has no COS credentials, and
-   * pre-signed URLs require those credentials at sign time. Routing
-   * through the backend lets us auto-fall-back to DashScope's free
-   * temp bucket so the box is usable end-to-end with just a
-   * DASHSCOPE_API_KEY.
+   * 早期版本的 `POST /upload/sign`（COS 预签名 PUT）已删除——开箱即用
+   * 模式下没有 COS 凭据可签，统一走这条多 multipart 代理路径，让 backend
+   * 自动在 COS / DashScope 临时桶之间选目的地。
    */
   @Post('file')
   @UseInterceptors(FileInterceptor('file'))
@@ -48,18 +43,5 @@ export class UploadController {
       contentType: file.mimetype,
       buffer: file.buffer,
     });
-  }
-
-  /**
-   * @deprecated Use POST /upload/file instead. Kept around because some
-   * older clients still cache this endpoint; will be removed in v0.2.
-   *
-   * Returns a COS-signed PUT URL — only works when COS is configured.
-   * If COS is missing, the call fails (intentionally — clients should
-   * have moved to /upload/file by now).
-   */
-  @Post('sign')
-  async getUploadSign(@Body() dto: GetUploadSignDto) {
-    return this.uploadService.getUploadSign(dto);
   }
 }

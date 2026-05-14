@@ -79,9 +79,9 @@ export const api = {
    *     - 仅有 DashScope key  → 上传到 DashScope 临时存储，返回 oss:// URL
    *     - 都没配  → 400，提示去 /admin/system 配置
    *
-   * 早期版本走"先 POST /upload/sign 拿预签名 → 浏览器直传 COS"两步路径。
-   * 性能略好但要求 COS 必须配齐才能跑通；为了"开箱即用零配置"我们改回
-   * 单步代理。10MB 图多 100ms 而已，demo 阶段不感知。
+   * 单步 multipart 代理。性能比"前端直传 COS"略差但不依赖 COS 凭据，
+   * 让"零配置开箱即用"成为可能（仅 DashScope key 即可跑通）。
+   * 10MB 图多 100ms 而已，demo 阶段不感知。
    */
   uploadFile: async (file: File): Promise<string> => {
     const fd = new FormData();

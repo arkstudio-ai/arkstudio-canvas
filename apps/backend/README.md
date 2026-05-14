@@ -38,9 +38,8 @@ src/
 │   └── provider-registry.service.ts    SKU → provider 路由
 │
 ├── upload/                    上传 / 转存（auto-fallback: COS → DashScope 临时）
-│   ├── upload.controller.ts            POST /upload/file (multipart 代理) + 老 /upload/sign
+│   ├── upload.controller.ts            POST /upload/file (multipart 代理)
 │   ├── upload.service.ts               COS 优先 / DashScope 临时 fallback
-│   ├── cos.service.ts                  COS SDK lazy 封装
 │   ├── dashscope-upload.service.ts     ⭐ DashScope 免费临时存储（oss://, 48h TTL）
 │   └── file-transfer.service.ts        executions 异步转存（同样 fallback）
 │
@@ -64,7 +63,6 @@ src/
 | `POST` | `/voices` | 创建复刻音色 |
 | `GET`  | `/generation-history` | 生成历史（按 kind 过滤 / 分页） |
 | `POST` | `/upload/file` | multipart 代理；后端按存储策略路由（COS / DashScope 临时） |
-| `POST` | `/upload/sign` | (deprecated) COS 预签名 PUT URL；仅在 COS 已配置时可用 |
 | `GET`  | `/api/canvas-flow/config` | 节点 / 模型 / 模式定义（前端启动必拉） |
 | `PUT`  | `/api/canvas-flow/config` | admin 保存节点配置 |
 | `GET`/`PUT` | `/api/canvas-flow/provider-settings` | DashScope 设置 |

@@ -1,6 +1,5 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
-import { CosService } from './cos.service';
 import {
   StorageConfigService,
   StorageNotConfiguredError,
@@ -9,15 +8,6 @@ import {
   DashscopeFileTooLargeError,
   DashscopeUploadService,
 } from './dashscope-upload.service';
-import { GetUploadSignDto } from './dto/get-upload-sign.dto';
-
-export interface UploadSignResult {
-  uploadUrl: string;
-  fileKey: string;
-  accessUrl: string;
-  expires: number;
-  method: string;
-}
 
 export interface UploadFileResult {
   accessUrl: string;
@@ -29,18 +19,14 @@ export interface UploadFileResult {
 }
 
 /**
- * Three responsibilities:
+ * Two responsibilities:
  *
- *   1. `getUploadSign` (legacy)  — COS pre-signed PUT URL for direct
- *      browser → COS uploads. Fastest path but requires COS to be
- *      configured. Kept for back-compat; new clients use #2.
- *
- *   2. `uploadFileBuffer` (proxy)  — receive a buffer through the
+ *   1. `uploadFileBuffer` (proxy)  — receive a buffer through the
  *      backend and route it to whichever backend is configured. This
  *      is what makes a fresh open-source clone usable with just a
  *      DASHSCOPE_API_KEY.
  *
- *   3. Size enforcement — pulled from `StorageConfigService` per call
+ *   2. Size enforcement — pulled from `StorageConfigService` per call
  *      so admin tweaks take effect without a restart. DashScope path
  *      additionally enforces the hard 100 MiB DashScope server limit.
  */
@@ -49,37 +35,9 @@ export class UploadService {
   private readonly logger = new Logger(UploadService.name);
 
   constructor(
-    private readonly cosService: CosService,
     private readonly storageConfig: StorageConfigService,
     private readonly dashscopeUpload: DashscopeUploadService,
   ) {}
-
-  async getUploadSign(dto: GetUploadSignDto): Promise<UploadSignResult> {
-    const { fileName, fileType, fileSize } = dto;
-
-    const maxFileSize = await this.storageConfig.getMaxFileSize();
-    if (fileSize > maxFileSize) {
-      throw new BadRequestException(
-        `文件大小超出限制，最大允许 ${Math.floor(maxFileSize / 1024 / 1024)}MB`,
-      );
-    }
-
-    const fileKey = this.generateFileKey(fileName);
-
-    const { signedUrl, expires } = await this.cosService.getUploadSignedUrl(fileKey, fileType);
-
-    const accessUrl = await this.cosService.getPublicUrl(fileKey);
-
-    this.logger.log(`生成上传签名: fileName=${fileName}, fileKey=${fileKey}`);
-
-    return {
-      uploadUrl: signedUrl,
-      fileKey,
-      accessUrl,
-      expires,
-      method: 'PUT',
-    };
-  }
 
   /**
    * COS-first, DashScope-fallback proxy upload.

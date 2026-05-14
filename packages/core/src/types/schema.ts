@@ -28,9 +28,6 @@ export interface NodeDefinition {
   /** 初始数据 */
   defaultData?: Record<string, any>;
 
-  /** [DEPRECATED] 旧字段，新代码请用 defaultParams */
-  params?: Record<string, any>;
-
   /** 节点级默认参数（创建节点时合并到 nodeConfig.params） */
   defaultParams?: Record<string, any>;
   

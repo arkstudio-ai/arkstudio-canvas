@@ -481,7 +481,7 @@ export function useFlow(
     const nodeDefinition = canvasConfig.nodeDefinitions?.find((def: any) => def.type === nodeType) as any;
 
     const defaultParams: Record<string, any> = {
-      ...(nodeDefinition?.defaultParams ?? nodeDefinition?.params ?? {}),
+      ...(nodeDefinition?.defaultParams ?? {}),
     };
 
     const fillFromSchema = (schema: any[] | undefined) => {

@@ -29,9 +29,7 @@ export interface CustomContextMenuItem {
 
 export interface CanvasFlowProps {
   initialFlow?: CanvasFlowValue;
-  /** @deprecated Use config and components instead */
-  nodeTypes?: any; 
-  
+
   // New Props
   config?: CanvasConfig;
   components?: ComponentRegistry;

@@ -326,7 +326,7 @@ export function updateOpenaiSettings(patch: OpenaiSettingsUpdate): Promise<...> 
 
 ## 3. 扩展对象存储
 
-默认实现是 Tencent COS（`apps/backend/src/upload/cos.service.ts` + `file-transfer.service.ts`）。
+默认实现是 Tencent COS（`apps/backend/src/upload/file-transfer.service.ts` + `upload.service.ts`，COS SDK client 由 `StorageConfigService.getCosClient()` 懒创建）。
 要换成 S3 / OSS / 本地磁盘，沿用同一份配置抽象。
 
 ### 3.1 现状回顾
@@ -334,9 +334,8 @@ export function updateOpenaiSettings(patch: OpenaiSettingsUpdate): Promise<...> 
 ```
 StorageConfigService              ← 凭据 + bucket/region 配置 + lazy 创建 COS SDK client
   │
-  ├── CosService                   ← 签名 URL 生成（前端直传用）
-  ├── FileTransferService          ← 第三方 URL → COS 转存（执行结果落库用）
-  └── UploadService                ← 给前端 upload.controller 调
+  ├── UploadService                ← /upload/file multipart 代理（COS 优先 / DashScope 临时 fallback）
+  └── FileTransferService          ← 第三方 URL → COS 转存（执行结果落库用，同样 fallback）
 ```
 
 ### 3.2 加 S3 兼容存储（推荐：先抽接口）
@@ -361,7 +360,7 @@ export interface StorageProvider {
 }
 ```
 
-把现有 `CosService` + `FileTransferService` 大部分逻辑收敛进 `CosStorageProvider implements StorageProvider`。
+把现有 `UploadService` + `FileTransferService` 里跟 COS SDK 直接打交道的部分收敛进 `CosStorageProvider implements StorageProvider`。
 
 #### 步骤 2：加 S3 实现
 
