@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import type { CanvasConfig, ModelEntry } from '@canvas-flow/core';
+import type { CanvasConfig, ModelEntry, ParamFieldSpec } from '@canvas-flow/core';
 import type { NodeConfig } from '../../../store/nodeConfigStore';
 
 import {
@@ -12,14 +12,31 @@ import {
 import { PromptEditor } from '../PromptEditor';
 import type { MentionCandidate } from '../PromptEditor/AtMenu';
 import { UpstreamRefStrip, type RefStripItem } from '../UpstreamRefStrip';
+import { buildParamSummary } from '../video/modeUtils';
 
-/** 全局兜底比例：仅在 model 没声明 paramsSchema.aspectRatio 时使用。 */
-const FALLBACK_IMAGE_ASPECT_RATIOS: Array<{ label: string; value: string }> = [
-  { label: '1:1', value: '1:1' },
-  { label: '16:9', value: '16:9' },
-  { label: '9:16', value: '9:16' },
-  { label: '4:3', value: '4:3' },
-  { label: '3:4', value: '3:4' },
+/**
+ * Image 节点没有 modes 概念（每个 model entry 是独立模型），
+ * 所以这里用一个简化版 paramsSchema → ParamFieldSpec[] 的取值器，
+ * 走 ParamsChip popover 把每个字段都渲染成一行选项。
+ *
+ * 历史包袱：旧版只 hardcode 渲染了 aspectRatio 一个 chip，新增模型
+ * 带的 quality / resolution 等字段在 UI 上完全不可见 —— 直接漏掉。
+ * 现在改成跟 video 节点同模式：popover 内列出全部 paramsSchema 字段。
+ */
+const FALLBACK_IMAGE_PARAMS_SCHEMA: ParamFieldSpec[] = [
+  {
+    key: 'aspectRatio',
+    label: '比例',
+    type: 'select',
+    defaultValue: '1:1',
+    options: [
+      { label: '1:1', value: '1:1' },
+      { label: '16:9', value: '16:9' },
+      { label: '9:16', value: '9:16' },
+      { label: '4:3', value: '4:3' },
+      { label: '3:4', value: '3:4' },
+    ],
+  },
 ];
 
 export interface ImageFloatingWindowPanelProps {
@@ -106,18 +123,18 @@ export const ImageFloatingWindowPanel: React.FC<ImageFloatingWindowPanelProps> =
       params.model
     : (models[0]?.value ?? '');
 
-  const aspectRatios = useMemo(() => {
+  const paramSchema: ParamFieldSpec[] = useMemo(() => {
     const entry = models.find((m) => m.value === currentModel);
-    const schema = entry?.paramsSchema?.find((s: any) => s.key === 'aspectRatio');
-    if (Array.isArray(schema?.options) && schema.options.length > 0) {
-      return schema.options.map((o: any) => ({ label: String(o.label ?? o.value), value: String(o.value) }));
+    if (Array.isArray(entry?.paramsSchema) && entry.paramsSchema.length > 0) {
+      return entry.paramsSchema;
     }
-    return FALLBACK_IMAGE_ASPECT_RATIOS;
+    return FALLBACK_IMAGE_PARAMS_SCHEMA;
   }, [models, currentModel]);
 
-  const aspectValue =
-    typeof params.aspectRatio === 'string' && params.aspectRatio ? params.aspectRatio
-    : (aspectRatios[0]?.value ?? '1:1');
+  const paramSummary = useMemo(
+    () => buildParamSummary(paramSchema, params),
+    [paramSchema, params],
+  );
 
   const upstreamCtx = useMemo(() => buildUpstreamMentionContexts(upstreamNodes), [upstreamNodes]);
 
@@ -204,42 +221,15 @@ export const ImageFloatingWindowPanel: React.FC<ImageFloatingWindowPanelProps> =
                 disabled={models.length === 0}
               />
               <ParamsChip
-                summary={aspectValue}
-                title="比例"
-                renderPopover={({ close }) => (
-                  <div
-                    style={{
-                      padding: 8,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 6,
-                      minWidth: 160,
-                    }}
-                  >
-                    {aspectRatios.map((o) => (
-                      <button
-                        key={o.value}
-                        type="button"
-                        onClick={() => {
-                          updateParams({ aspectRatio: o.value });
-                          close();
-                        }}
-                        style={{
-                          textAlign: 'left',
-                          padding: '8px 10px',
-                          borderRadius: 6,
-                          border: '1px solid #333',
-                          background:
-                            o.value === aspectValue ? 'rgba(59,130,246,0.2)' : '#1a1a1a',
-                          color: '#ddd',
-                          cursor: 'pointer',
-                          fontSize: 13,
-                        }}
-                      >
-                        {o.label}
-                      </button>
-                    ))}
-                  </div>
+                summary={paramSummary}
+                title="参数"
+                disabled={paramSchema.length === 0}
+                renderPopover={() => (
+                  <ImageParamsPopover
+                    schema={paramSchema}
+                    params={params}
+                    onPick={(key, value) => updateParams({ [key]: value })}
+                  />
                 )}
               />
             </>
@@ -249,4 +239,251 @@ export const ImageFloatingWindowPanel: React.FC<ImageFloatingWindowPanelProps> =
       }
     />
   );
+};
+
+/* ============== 参数 popover ==============
+ *
+ * 视觉照搬竞品（百炼图像 popover）：
+ *   - aspectRatio  → 网格 + 形状预览，'auto' 选项 spans 2 行
+ *   - 其它 select  → segmented control（等宽连排）
+ *
+ * Backend 的 OpenAICompatImageProvider 会把 (aspectRatio, resolution)
+ * 反算成 `WxH` size，所以前端只暴露这两个语义维度，不直接给 size。
+ */
+const ImageParamsPopover: React.FC<{
+  schema: ParamFieldSpec[];
+  params: Record<string, unknown>;
+  onPick: (paramKey: string, value: string) => void;
+}> = ({ schema, params, onPick }) => {
+  if (schema.length === 0) {
+    return <div style={emptyStyle}>该模型暂无可调参数</div>;
+  }
+
+  return (
+    <div style={containerStyle}>
+      {schema.map((field) => {
+        const raw = params[field.key];
+        const current =
+          raw === undefined || raw === null ? field.defaultValue : String(raw);
+        if (field.key === 'aspectRatio') {
+          return (
+            <RatioGrid
+              key={field.key}
+              field={field}
+              current={current}
+              onPick={(v) => onPick(field.key, v)}
+            />
+          );
+        }
+        return (
+          <SegmentedRow
+            key={field.key}
+            field={field}
+            current={current}
+            onPick={(v) => onPick(field.key, v)}
+          />
+        );
+      })}
+    </div>
+  );
+};
+
+/* ---------- 比例网格 ---------- */
+
+const RatioGrid: React.FC<{
+  field: ParamFieldSpec;
+  current: string | undefined;
+  onPick: (value: string) => void;
+}> = ({ field, current, onPick }) => {
+  const auto = field.options.find((o) => o.value === 'auto');
+  const others = field.options.filter((o) => o.value !== 'auto');
+
+  return (
+    <div style={sectionStyle}>
+      <div style={sectionLabelStyle}>{field.label}</div>
+      <div style={ratioFrameStyle}>
+        <div style={ratioGridStyle}>
+          {auto && (
+            <RatioCell
+              option={auto}
+              active={current === auto.value}
+              onClick={() => onPick(auto.value)}
+              span2
+            />
+          )}
+          {others.map((o) => (
+            <RatioCell
+              key={o.value}
+              option={o}
+              active={current === o.value}
+              onClick={() => onPick(o.value)}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const RatioCell: React.FC<{
+  option: { value: string; label: string };
+  active: boolean;
+  onClick: () => void;
+  span2?: boolean;
+}> = ({ option, active, onClick, span2 }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    style={ratioCellStyle(active, span2)}
+    title={option.label}
+  >
+    <RatioIcon value={option.value} large={span2} active={active} />
+    <div style={ratioCellLabelStyle(active)}>{option.label}</div>
+  </button>
+);
+
+const RatioIcon: React.FC<{ value: string; large?: boolean; active: boolean }> = ({
+  value,
+  large,
+  active,
+}) => {
+  const stroke = active ? '#fff' : '#9b9b9b';
+  if (value === 'auto') {
+    // 'auto' 是逻辑选项而非具体比例，画一个偏长方形示意"任意比例"。
+    return (
+      <div
+        style={{
+          width: 22,
+          height: 60,
+          border: `1.5px solid ${stroke}`,
+          borderRadius: 3,
+        }}
+      />
+    );
+  }
+  const m = value.match(/^(\d+):(\d+)$/);
+  if (!m) return null;
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  const maxEdge = large ? 30 : 22;
+  const scale = maxEdge / Math.max(a, b);
+  return (
+    <div
+      style={{
+        width: a * scale,
+        height: b * scale,
+        border: `1.5px solid ${stroke}`,
+        borderRadius: 2,
+      }}
+    />
+  );
+};
+
+/* ---------- segmented control（质量、分辨率） ---------- */
+
+const SegmentedRow: React.FC<{
+  field: ParamFieldSpec;
+  current: string | undefined;
+  onPick: (value: string) => void;
+}> = ({ field, current, onPick }) => (
+  <div style={sectionStyle}>
+    <div style={sectionLabelStyle}>{field.label}</div>
+    <div style={segmentedFrameStyle}>
+      {field.options.map((o) => {
+        const active = current === o.value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onPick(o.value)}
+            style={segmentedBtnStyle(active)}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+);
+
+/* ---------- styles ---------- */
+
+const containerStyle: React.CSSProperties = {
+  padding: 14,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 14,
+  width: 460,
+};
+
+const sectionStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+};
+
+const sectionLabelStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: '#9a9a9a',
+};
+
+const ratioFrameStyle: React.CSSProperties = {
+  background: '#1c1c1c',
+  borderRadius: 10,
+  padding: 10,
+};
+
+const ratioGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(5, 1fr)',
+  gridAutoRows: 60,
+  gap: 6,
+};
+
+const ratioCellStyle = (active: boolean, span2?: boolean): React.CSSProperties => ({
+  gridRow: span2 ? 'span 2' : undefined,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
+  padding: 6,
+  borderRadius: 8,
+  border: 'none',
+  background: active ? '#3a3a3a' : 'transparent',
+  color: '#ddd',
+  cursor: 'pointer',
+  transition: 'background 120ms',
+});
+
+const ratioCellLabelStyle = (active: boolean): React.CSSProperties => ({
+  fontSize: 12,
+  color: active ? '#fff' : '#9a9a9a',
+});
+
+const segmentedFrameStyle: React.CSSProperties = {
+  background: '#1c1c1c',
+  borderRadius: 10,
+  padding: 4,
+  display: 'grid',
+  gridAutoFlow: 'column',
+  gridAutoColumns: '1fr',
+  gap: 4,
+};
+
+const segmentedBtnStyle = (active: boolean): React.CSSProperties => ({
+  padding: '10px 8px',
+  border: 'none',
+  borderRadius: 7,
+  background: active ? '#3a3a3a' : 'transparent',
+  color: active ? '#fff' : '#9a9a9a',
+  fontSize: 13,
+  cursor: 'pointer',
+  transition: 'background 120ms',
+});
+
+const emptyStyle: React.CSSProperties = {
+  padding: '8px 12px',
+  fontSize: 12,
+  color: '#777',
 };

@@ -254,12 +254,20 @@ export class OpenAICompatImageProvider implements ProviderClient {
   }
 
   /**
+   * Edge alignment for gpt-image-* flexible sizes. OpenAI's hard
+   * constraint is "W and H must be multiples of 16" — anything else
+   * 400s. We use 16 (not 32 / 64) to keep the resolved WxH as close
+   * to the requested aspect ratio as possible.
+   */
+  private static readonly EDGE_ALIGN = 16;
+
+  /**
    * Map (`'a:b'`, `'1k'|'2k'|'4k'`) → `'WxH'` for gpt-image-* flexible
    * sizing. Algorithm:
    *   1. start from the resolution's pixel budget
    *   2. solve W,H so W*H = budget AND W/H = a/b
-   *   3. round each edge to the nearest multiple of 32 (image models
-   *      are fastest on aligned edges; OpenAI tolerates +/-)
+   *   3. round each edge to the nearest multiple of EDGE_ALIGN (16) —
+   *      OpenAI rejects anything else with a 400
    *   4. clamp by the family's hard pixel cap — '4k' on gpt-image-1.5
    *      e.g. would otherwise blow past its 1.5M ceiling
    *
@@ -286,20 +294,20 @@ export class OpenAICompatImageProvider implements ProviderClient {
         ? OpenAICompatImageProvider.FAMILY_MAX_PIXELS['gpt-image-2']
         : OpenAICompatImageProvider.FAMILY_MAX_PIXELS['gpt-image-1'];
     const budget = Math.min(target, familyCap);
+    const align = OpenAICompatImageProvider.EDGE_ALIGN;
 
     // W*H = budget AND W/H = a/b ⟹ W = sqrt(budget * a / b)
     let w = Math.sqrt((budget * a) / b);
     let h = (w * b) / a;
-    w = Math.max(32, Math.round(w / 32) * 32);
-    h = Math.max(32, Math.round(h / 32) * 32);
+    w = Math.max(align, Math.round(w / align) * align);
+    h = Math.max(align, Math.round(h / align) * align);
 
-    // After 32-rounding the area can creep past the cap (e.g. 16:9 + 2k
-    // would round 2752×1552 → 2752×1568, going slightly over). Scale
-    // down proportionally if so, floor-rounding to stay safely under.
+    // After rounding the area can creep past the cap; scale down
+    // proportionally and floor-align so we stay safely under.
     if (w * h > familyCap) {
       const scale = Math.sqrt(familyCap / (w * h));
-      w = Math.max(32, Math.floor((w * scale) / 32) * 32);
-      h = Math.max(32, Math.floor((h * scale) / 32) * 32);
+      w = Math.max(align, Math.floor((w * scale) / align) * align);
+      h = Math.max(align, Math.floor((h * scale) / align) * align);
     }
     return `${w}x${h}`;
   }
