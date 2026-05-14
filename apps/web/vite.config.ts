@@ -51,6 +51,13 @@ const serverConfig = {
       target: 'http://localhost:3000',
       changeOrigin: true,
     },
+    // 本地存储 — 让 <img src="/static/uploads/..."> 在 dev 模式下
+    // 同源访问到 backend (18500)。生产模式由 nginx 反代同样路径，
+    // 所以前端代码无需做 dev/prod 分叉。
+    '/static/uploads': {
+      target: 'http://localhost:18500',
+      changeOrigin: true,
+    },
   },
 };
 

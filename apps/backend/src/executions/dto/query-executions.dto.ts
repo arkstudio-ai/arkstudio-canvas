@@ -1,14 +1,34 @@
-import { IsString, IsOptional, IsDateString, IsInt, Min, Matches } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsDateString,
+  IsInt,
+  Min,
+  Matches,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
-export const EXECUTION_STATUSES = ['PENDING', 'RUNNING', 'COMPLETED', 'FAILED'] as const;
+export const EXECUTION_STATUSES = [
+  'PENDING',
+  'RUNNING',
+  'COMPLETED',
+  'FAILED',
+] as const;
 export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];
 
-export const EXECUTION_PHASES = ['submitting', 'submitted', 'polling', 'completed', 'failed'] as const;
+export const EXECUTION_PHASES = [
+  'submitting',
+  'submitted',
+  'polling',
+  'completed',
+  'failed',
+] as const;
 export type ExecutionPhase = (typeof EXECUTION_PHASES)[number];
 
-const STATUS_LIST_PATTERN = /^(PENDING|RUNNING|COMPLETED|FAILED)(,(PENDING|RUNNING|COMPLETED|FAILED))*$/;
-const PHASE_LIST_PATTERN = /^(submitting|submitted|polling|completed|failed)(,(submitting|submitted|polling|completed|failed))*$/;
+const STATUS_LIST_PATTERN =
+  /^(PENDING|RUNNING|COMPLETED|FAILED)(,(PENDING|RUNNING|COMPLETED|FAILED))*$/;
+const PHASE_LIST_PATTERN =
+  /^(submitting|submitted|polling|completed|failed)(,(submitting|submitted|polling|completed|failed))*$/;
 
 export class QueryExecutionsDto {
   @IsOptional()
@@ -30,7 +50,8 @@ export class QueryExecutionsDto {
   @IsOptional()
   @IsString()
   @Matches(STATUS_LIST_PATTERN, {
-    message: 'status must be one or more of PENDING,RUNNING,COMPLETED,FAILED (comma-separated)',
+    message:
+      'status must be one or more of PENDING,RUNNING,COMPLETED,FAILED (comma-separated)',
   })
   status?: string;
 
@@ -64,7 +85,8 @@ export class QueryExecutionsDto {
   @IsOptional()
   @IsString()
   @Matches(PHASE_LIST_PATTERN, {
-    message: 'phase must be one or more of submitting,submitted,polling,completed,failed',
+    message:
+      'phase must be one or more of submitting,submitted,polling,completed,failed',
   })
   phase?: string;
 

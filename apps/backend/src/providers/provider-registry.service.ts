@@ -60,7 +60,9 @@ export class ProviderRegistry {
         return p;
       }
     }
-    this.logger.warn(`unsupported sku=${sku || '<none>'}; no provider claims this SKU prefix`);
+    this.logger.warn(
+      `unsupported sku=${sku || '<none>'}; no provider claims this SKU prefix`,
+    );
     throw new HttpException(
       `Unsupported model SKU "${sku}". Routable namespaces: ` +
         `wan2.7-image* (DashScope 万相图像) · wan2.7-* / wan2.6-* / happyhorse* (DashScope 视频) · ` +

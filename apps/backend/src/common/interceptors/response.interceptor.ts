@@ -24,14 +24,20 @@ export interface ApiResponse<T> {
  * Wrapping each event would corrupt the `data: ...` SSE frames.
  */
 @Injectable()
-export class ResponseInterceptor<T> implements NestInterceptor<T, ApiResponse<T> | T> {
+export class ResponseInterceptor<T> implements NestInterceptor<
+  T,
+  ApiResponse<T> | T
+> {
   constructor(private readonly reflector: Reflector) {}
 
   intercept(
     context: ExecutionContext,
     next: CallHandler,
   ): Observable<ApiResponse<T> | T> {
-    const isSse = this.reflector.get<boolean>(SSE_METADATA, context.getHandler());
+    const isSse = this.reflector.get<boolean>(
+      SSE_METADATA,
+      context.getHandler(),
+    );
     if (isSse) {
       return next.handle();
     }

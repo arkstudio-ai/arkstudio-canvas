@@ -3,7 +3,7 @@ import { CanvasConfigService } from './canvas-config.service';
 import { DashscopeConfigService } from './dashscope-config.service';
 import { HistoryRetentionService } from './history-retention.service';
 import { OpenaiCompatConfigService } from './openai-compat-config.service';
-import { StorageConfigService } from './storage-config.service';
+import { LocalStorageService } from '../storage/local-storage.service';
 import { SaveConfigDto } from './dto/save-config.dto';
 import { UpdateProviderSettingsDto } from './dto/provider-settings.dto';
 import { UpdateOpenaiSettingsDto } from './dto/openai-settings.dto';
@@ -17,7 +17,7 @@ export class CanvasConfigController {
     private dashscopeConfig: DashscopeConfigService,
     private historyRetention: HistoryRetentionService,
     private openaiConfig: OpenaiCompatConfigService,
-    private storageConfig: StorageConfigService,
+    private localStorage: LocalStorageService,
   ) {}
 
   /**
@@ -148,50 +148,24 @@ export class CanvasConfigController {
 
   /**
    * GET /api/canvas-flow/storage-settings
-   * View-only payload for the admin 对象存储 panel. SecretId / SecretKey
-   * are masked (e.g. AKID12...x9aB); plaintext is never returned.
+   * View-only payload for the admin 本地存储 panel. Returns effective
+   * data dir (DB → env → default precedence), current bytes / file count,
+   * and the max-file-size knob.
    */
   @Get('storage-settings')
   async getStorageSettings() {
-    return this.composeStorageView();
+    return this.localStorage.getViewPayload();
   }
 
   /**
    * PUT /api/canvas-flow/storage-settings
-   * Admin patch. See UpdateStorageSettingsDto for the empty-string /
-   * negative-number "clear" semantics. Cache (and the cached COS SDK
-   * client) are invalidated immediately so the next upload picks up
-   * the new credentials without a backend restart.
+   * Admin patch. See UpdateStorageSettingsDto for empty-string / negative
+   * "clear" semantics. Cache invalidates immediately so the next upload
+   * picks up the new value without a backend restart.
    */
   @Put('storage-settings')
   async updateStorageSettings(@Body() dto: UpdateStorageSettingsDto) {
-    await this.storageConfig.updateSettings(dto);
-    return this.composeStorageView();
-  }
-
-  /**
-   * Bake the effective strategy into the storage view so /admin/system
-   * can show "currently writing to COS / DashScope temp / nothing" in
-   * a single GET.
-   *
-   *   COS configured        → 'cos'             (long-lived URLs)
-   *   else DashScope key    → 'dashscope-temp'  (oss://, 48h TTL)
-   *   else                  → 'none'            (uploads will 400)
-   */
-  private async composeStorageView() {
-    const view = await this.storageConfig.getViewPayload();
-    let dashscopeKeyOk = false;
-    try {
-      await this.dashscopeConfig.getApiKey();
-      dashscopeKeyOk = true;
-    } catch {
-      dashscopeKeyOk = false;
-    }
-    const strategy: 'cos' | 'dashscope-temp' | 'none' = view.configured
-      ? 'cos'
-      : dashscopeKeyOk
-        ? 'dashscope-temp'
-        : 'none';
-    return { ...view, strategy, dashscopeKeyOk };
+    await this.localStorage.updateSettings(dto);
+    return this.localStorage.getViewPayload();
   }
 }

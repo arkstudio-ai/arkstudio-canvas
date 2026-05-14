@@ -2,32 +2,39 @@ import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import { DashscopeConfigService } from '../canvas-config/dashscope-config.service';
+import { LocalStorageService } from '../storage/local-storage.service';
+import type { ProviderInput } from '../providers/provider.types';
 
 /**
- * DashScope-managed temporary file storage.
+ * DashScope free temporary file bucket bridge.
  *
- * For users without a Tencent COS bucket we lean on Bailian's
- * "free temporary URL" feature (`/api/v1/uploads`):
- *   1. GET  …/api/v1/uploads?action=getPolicy&model=<sku>
- *      → returns a short-lived OSS POST policy
+ * Used for one specific job: re-shipping a locally stored reference
+ * asset (i2i input image, i2v first-frame, etc.) to a URL the cloud
+ * model can actually fetch. Open-source build keeps all permanent
+ * storage on local disk via `LocalStorageService`; this service only
+ * knows about the temp-bridge protocol.
+ *
+ * Wire protocol (per Bailian docs `/api/v1/uploads`):
+ *   1. GET  ...?action=getPolicy&model=<sku>
+ *      -> short-lived OSS POST policy
  *   2. POST {upload_host}  (multipart/form-data)
- *      → file is parked in DashScope's instant bucket
- *   3. The function returns an `oss://dashscope-instant/.../{key}` URL
- *      that callers pass straight back to the model. The HTTP request
- *      to the model MUST add `X-DashScope-OssResourceResolve: enable`
- *      so DashScope resolves the oss:// reference.
+ *      -> file lands in DashScope's instant bucket
+ *   3. Returned `oss://dashscope-instant/.../{key}` URL is passed back
+ *      to the model call, which MUST set
+ *      `X-DashScope-OssResourceResolve: enable` so DashScope resolves
+ *      the oss:// reference.
  *
- * Hard constraints from DashScope (do NOT remove from log lines or
- * error messages — operators need to see them):
+ * Hard constraints from DashScope (do NOT strip from log/error text --
+ * operators need to see them when debugging upload failures):
  *   - 48-hour TTL on the uploaded file
  *   - 100 MB per file
  *   - 100 QPS per (account, model)
- *   - Beijing region only (cn-beijing); intl accounts cannot use it
- *   - Upload key + model-call key must belong to the same Aliyun account
+ *   - cn-beijing region only; intl accounts can't use it
+ *   - Upload key + model-call key must be the same Aliyun account
  *
- * Cache: the policy itself only lives ~5 min server-side. We cache it
- * per-model with a 60s safety margin so back-to-back uploads share the
- * same getPolicy round trip without ever surfacing an expired cred.
+ * Policy cache: server-side policies only live ~5 min. We cache per
+ * model with a 60s safety margin so back-to-back uploads share a
+ * single getPolicy round trip without ever surfacing an expired cred.
  */
 @Injectable()
 export class DashscopeUploadService {
@@ -37,17 +44,10 @@ export class DashscopeUploadService {
     { policy: UploadPolicy; expiresAt: number }
   >();
 
-  constructor(private readonly dashscopeConfig: DashscopeConfigService) {}
-
-  /** True when DashScope api key is set; cheap probe used by FileTransferService. */
-  async isAvailable(): Promise<boolean> {
-    try {
-      await this.dashscopeConfig.getApiKey();
-      return true;
-    } catch {
-      return false;
-    }
-  }
+  constructor(
+    private readonly dashscopeConfig: DashscopeConfigService,
+    private readonly localStorage: LocalStorageService,
+  ) {}
 
   /**
    * Upload a buffer and return the resulting `oss://...` URL.
@@ -90,7 +90,9 @@ export class DashscopeUploadService {
     fd.append('key', key);
     fd.append(
       'file',
-      new Blob([new Uint8Array(buffer)], { type: contentType || 'application/octet-stream' }),
+      new Blob([new Uint8Array(buffer)], {
+        type: contentType || 'application/octet-stream',
+      }),
       this.sanitizeName(fileName),
     );
 
@@ -120,8 +122,8 @@ export class DashscopeUploadService {
       };
     } catch (e) {
       const elapsed = Date.now() - startTime;
-      const status = (e as any)?.response?.status;
-      const body = (e as any)?.response?.data?.toString?.()?.slice?.(0, 400);
+      const status = e?.response?.status;
+      const body = e?.response?.data?.toString?.()?.slice?.(0, 400);
       this.logger.error(
         `[dashscope-upload] ❌ failed (${elapsed}ms, status=${status}): ${(e as Error).message} ${body ?? ''}`,
       );
@@ -129,7 +131,78 @@ export class DashscopeUploadService {
     }
   }
 
+  /**
+   * "Stage" — make every input URL something a DashScope cloud model can
+   * actually fetch.
+   *
+   * Background: D2 collapsed all permanent storage onto local disk, so a
+   * node's `data.src` is now typically `/static/uploads/...` — a relative
+   * URL that only resolves against our own backend. DashScope servers in
+   * cn-beijing obviously can't reach an operator's intranet, so any
+   * such URL has to be re-shipped to DashScope's free 48h temp bucket
+   * before the model call.
+   *
+   * Inputs already on `oss://` or a public `https://` host are passed
+   * straight through. A local URL whose object can't be read (deleted /
+   * never existed) is also passed through unchanged so the upstream
+   * model returns its own clear error rather than us swallowing it.
+   *
+   * Throws only when DashScope itself rejects the upload, mirroring the
+   * existing `uploadBuffer` contract — provider callers already catch
+   * these as 502s.
+   */
+  async stageLocalUrlsToTemp(
+    inputs: ProviderInput[],
+    modelSku: string,
+  ): Promise<ProviderInput[]> {
+    if (!inputs?.length) return inputs ?? [];
+    const out: ProviderInput[] = [];
+    for (const input of inputs) {
+      if (!this.localStorage.isLocalUrl(input.url)) {
+        out.push(input);
+        continue;
+      }
+      const local = await this.localStorage.readObjectByLocalUrl(input.url);
+      if (!local) {
+        this.logger.warn(
+          `[stage] local object missing, passing original URL through: ${input.url}`,
+        );
+        out.push(input);
+        continue;
+      }
+      const fileName = `${input.type}-${uuidv4().slice(0, 8)}.${this.extFromContentType(local.contentType, input.type)}`;
+      const result = await this.uploadBuffer({
+        model: modelSku,
+        fileName,
+        buffer: local.buffer,
+        contentType: local.contentType,
+      });
+      this.logger.log(
+        `[stage] ${input.url} → ${result.ossUrl} (${local.bytes}B for sku=${modelSku})`,
+      );
+      out.push({ type: input.type, url: result.ossUrl });
+    }
+    return out;
+  }
+
   // ---- internals ----------------------------------------------------------
+
+  private extFromContentType(contentType: string, fallback: string): string {
+    const m: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
+      'video/mp4': 'mp4',
+      'video/webm': 'webm',
+      'video/quicktime': 'mov',
+      'audio/mpeg': 'mp3',
+      'audio/wav': 'wav',
+      'audio/mp4': 'm4a',
+    };
+    return m[contentType.toLowerCase()] ?? fallback;
+  }
 
   private async fetchPolicy(model: string): Promise<UploadPolicy> {
     const cached = this.policyCache.get(model);
@@ -149,8 +222,8 @@ export class DashscopeUploadService {
         timeout: 15_000,
       });
     } catch (e) {
-      const status = (e as any)?.response?.status;
-      const body = JSON.stringify((e as any)?.response?.data ?? null).slice(0, 400);
+      const status = e?.response?.status;
+      const body = JSON.stringify(e?.response?.data ?? null).slice(0, 400);
       throw new DashscopeUploadFailedError(
         `getPolicy failed (model=${model}): ${(e as Error).message}`,
         status,
@@ -223,7 +296,9 @@ export class DashscopeUploadFailedError extends Error {
 
 export class DashscopeFileTooLargeError extends Error {
   constructor(public readonly bytes: number) {
-    super(`File ${bytes} bytes exceeds DashScope upload limit of ${MAX_FILE_BYTES} bytes (100 MiB)`);
+    super(
+      `File ${bytes} bytes exceeds DashScope upload limit of ${MAX_FILE_BYTES} bytes (100 MiB)`,
+    );
     this.name = 'DashscopeFileTooLargeError';
   }
 }

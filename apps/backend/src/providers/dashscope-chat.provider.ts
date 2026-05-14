@@ -62,13 +62,18 @@ export class DashScopeChatProvider implements ProviderClient {
     const baseUrl = await this.dashscopeConfig.getBaseUrl();
     const timeout = await this.dashscopeConfig.getTimeoutMs('chat');
     if (!req.prompt) {
-      throw this.toHttpException(`${req.modelSku} requires a prompt`, 400, null);
+      throw this.toHttpException(
+        `${req.modelSku} requires a prompt`,
+        400,
+        null,
+      );
     }
 
     // OpenAI-compatible: optional system, then one user turn.
     const messages: Array<{ role: string; content: string }> = [];
     const system = (req.extraParams as any)?.system;
-    if (typeof system === 'string' && system) messages.push({ role: 'system', content: system });
+    if (typeof system === 'string' && system)
+      messages.push({ role: 'system', content: system });
     messages.push({ role: 'user', content: req.prompt });
 
     const body: Record<string, any> = {
@@ -108,7 +113,10 @@ export class DashScopeChatProvider implements ProviderClient {
     } catch (e: any) {
       const data = e?.response?.data ?? null;
       const err = this.toHttpException(
-        data?.error?.message || data?.message || e?.message || 'DashScope chat failed',
+        data?.error?.message ||
+          data?.message ||
+          e?.message ||
+          'DashScope chat failed',
         e?.response?.status ?? 502,
         data ?? { requestBody: body },
       );
@@ -120,7 +128,11 @@ export class DashScopeChatProvider implements ProviderClient {
     const choice = data?.choices?.[0];
     const text: string | undefined = choice?.message?.content;
     if (typeof text !== 'string') {
-      const err = this.toHttpException('DashScope chat returned no message content', 502, data);
+      const err = this.toHttpException(
+        'DashScope chat returned no message content',
+        502,
+        data,
+      );
       (err as any).requestPayload = body;
       throw err;
     }
@@ -137,12 +149,18 @@ export class DashScopeChatProvider implements ProviderClient {
   async pollStatus(_taskId: string): Promise<PollResult> {
     // Chat is synchronous; reaching this branch means the orchestrator
     // misrouted a result. Surface it loudly so the bug is visible.
-    throw new HttpException('dashscope-chat is synchronous and has no taskId to poll', 500);
+    throw new HttpException(
+      'dashscope-chat is synchronous and has no taskId to poll',
+      500,
+    );
   }
 
   // ---- helpers ---------------------------------------------------------
 
-  private numericParam(extra: Record<string, any> | undefined, key: string): number | undefined {
+  private numericParam(
+    extra: Record<string, any> | undefined,
+    key: string,
+  ): number | undefined {
     const v = extra?.[key];
     if (v === undefined || v === null || v === '') return undefined;
     const n = Number(v);
@@ -167,8 +185,15 @@ export class DashScopeChatProvider implements ProviderClient {
     return { inputTokens, outputTokens, raw: usage };
   }
 
-  private toHttpException(message: string, status: number, payload: unknown): HttpException {
-    const err = new HttpException({ errorMessage: message, raw: payload ?? null }, status);
+  private toHttpException(
+    message: string,
+    status: number,
+    payload: unknown,
+  ): HttpException {
+    const err = new HttpException(
+      { errorMessage: message, raw: payload ?? null },
+      status,
+    );
     (err as any).payloadSnippet = payload ?? message;
     return err;
   }

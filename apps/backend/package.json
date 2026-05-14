@@ -33,7 +33,8 @@
     "db:check:script": "npx prisma migrate diff --from-url \"$DATABASE_URL\" --to-schema-datamodel prisma/schema.prisma --script",
     "db:generate": "npx prisma generate",
     "seed:canvas-config": "ts-node prisma/seed-canvas-config.ts",
-    "db:patch-models": "ts-node prisma/patches/sync-default-models.ts"
+    "db:patch-models": "ts-node prisma/patches/sync-default-models.ts",
+    "db:patch-cleanup-cos": "ts-node prisma/patches/cleanup-storage-cos-keys.ts"
   },
   "dependencies": {
     "@nestjs/axios": "^4.0.1",
@@ -46,7 +47,6 @@
     "axios": "^1.13.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
-    "cos-nodejs-sdk-v5": "^2.15.4",
     "mysql2": "^3.16.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",

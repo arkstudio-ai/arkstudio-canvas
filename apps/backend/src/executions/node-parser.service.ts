@@ -41,12 +41,12 @@ export class NodeParserService {
     if (onlyDirectParents) {
       // 获取直接上游的节点 ID
       const sources = incomingMap.get(targetNodeId) || [];
-      
+
       // 直接获取节点对象，保持原始顺序
       const parents = sources
         .map((id) => nodeMap.get(id))
         .filter((n): n is FlowNode => n !== undefined);
-      
+
       // 构造链：[父节点1, 父节点2, ..., 目标节点]
       // 注意：这里简单地将所有父节点放在前面。如果父节点之间有顺序要求，
       // 或者需要更复杂的 prompt 拼接逻辑，这里可能需要调整。
@@ -107,14 +107,24 @@ export class NodeParserService {
         } else if (node.data.output) {
           // 检查 output 是否是 URL。如果是 URL，则不拼接到 prompt 中（除非特定需求，否则图片 URL 不应作为 prompt 文本）
           const output = node.data.output;
-          if (output && !output.startsWith('http://') && !output.startsWith('https://') && !output.startsWith('data:')) {
+          if (
+            output &&
+            !output.startsWith('http://') &&
+            !output.startsWith('https://') &&
+            !output.startsWith('data:')
+          ) {
             parts.push(output);
           }
         }
 
         // 如果上游节点输出了图片/视频 URL，则清空之前积累的 prompt context
         // 因为这意味着“意图”已经转化为“媒体”，下游节点应该主要基于这个媒体（作为 init_image/video）以及它自己的 prompt
-        if (node.data.output && (node.data.output.startsWith('http://') || node.data.output.startsWith('https://') || node.data.output.startsWith('data:'))) {
+        if (
+          node.data.output &&
+          (node.data.output.startsWith('http://') ||
+            node.data.output.startsWith('https://') ||
+            node.data.output.startsWith('data:'))
+        ) {
           // this.logger.debug(`Node ${node.id} output is media URL. Clearing accumulated text prompt context.`);
           parts.length = 0;
         }
@@ -167,19 +177,19 @@ export class NodeParserService {
    * @returns 排序后的节点列表
    */
   sortNodesTopologically(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
-    const nodeMap = new Map(nodes.map(n => [n.id, n]));
-    const nodeIds = new Set(nodes.map(n => n.id));
-    
+    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+    const nodeIds = new Set(nodes.map((n) => n.id));
+
     // Build adjacency list for nodes within the group
     const incoming = new Map<string, number>();
     const outgoing = new Map<string, string[]>();
-    
-    nodes.forEach(n => {
+
+    nodes.forEach((n) => {
       incoming.set(n.id, 0);
       outgoing.set(n.id, []);
     });
 
-    edges.forEach(edge => {
+    edges.forEach((edge) => {
       if (nodeIds.has(edge.source) && nodeIds.has(edge.target)) {
         outgoing.get(edge.source)?.push(edge.target);
         incoming.set(edge.target, (incoming.get(edge.target) || 0) + 1);
@@ -199,22 +209,21 @@ export class NodeParserService {
       if (node) sorted.push(node);
 
       const neighbors = outgoing.get(id) || [];
-      neighbors.forEach(target => {
-        incoming.set(target, (incoming.get(target)! - 1));
+      neighbors.forEach((target) => {
+        incoming.set(target, incoming.get(target)! - 1);
         if (incoming.get(target) === 0) {
           queue.push(target);
         }
       });
     }
-    
+
     // Handle remaining nodes (e.g. in case of cycles or logic errors)
     if (sorted.length < nodes.length) {
-        const sortedIds = new Set(sorted.map(n => n.id));
-        const remaining = nodes.filter(n => !sortedIds.has(n.id));
-        sorted.push(...remaining);
+      const sortedIds = new Set(sorted.map((n) => n.id));
+      const remaining = nodes.filter((n) => !sortedIds.has(n.id));
+      sorted.push(...remaining);
     }
 
     return sorted;
   }
 }
-

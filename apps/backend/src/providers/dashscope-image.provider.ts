@@ -1,6 +1,7 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { DashscopeConfigService } from '../canvas-config/dashscope-config.service';
+import { DashscopeUploadService } from '../upload/dashscope-upload.service';
 import { summarizeBody } from './log-utils';
 import { firstValueFrom } from 'rxjs';
 import type {
@@ -59,7 +60,8 @@ export class DashScopeImageProvider implements ProviderClient {
   readonly name = 'dashscope-image';
   private readonly logger = new Logger(DashScopeImageProvider.name);
 
-  private readonly SUBMIT_PATH = '/api/v1/services/aigc/multimodal-generation/generation';
+  private readonly SUBMIT_PATH =
+    '/api/v1/services/aigc/multimodal-generation/generation';
 
   /**
    * Map (aspectRatio, resolution) → "WIDTH*HEIGHT" string.
@@ -109,6 +111,7 @@ export class DashScopeImageProvider implements ProviderClient {
   constructor(
     private readonly httpService: HttpService,
     private readonly dashscopeConfig: DashscopeConfigService,
+    private readonly dashscopeUpload: DashscopeUploadService,
   ) {}
 
   /** Only Wan 2.7 image SKUs route here. Other DashScope SKUs (chat/video/audio) belong to their own providers. */
@@ -130,12 +133,19 @@ export class DashScopeImageProvider implements ProviderClient {
       );
     }
 
+    // Reference images stored locally must be staged to dashscope-temp first;
+    // cloud model can't fetch from our intranet. No-op for public https / oss URLs.
+    const stagedInputs = await this.dashscopeUpload.stageLocalUrlsToTemp(
+      req.inputs ?? [],
+      req.modelSku,
+    );
+
     // Wan 2.7 wants a single-turn message whose content array interleaves
     // text and image elements. Order matters per docs: image elements
     // define their visual sequence in the order they appear.
     const content: Array<Record<string, string>> = [];
     if (req.prompt) content.push({ text: req.prompt });
-    const images = (req.inputs ?? []).filter((i) => i.type === 'image');
+    const images = stagedInputs.filter((i) => i.type === 'image');
     if (images.length > 9) {
       // Wan 2.7 accepts at most 9 images; fail-fast with a clear hint
       // rather than a generic 400 from upstream.
@@ -152,7 +162,7 @@ export class DashScopeImageProvider implements ProviderClient {
       input: {
         messages: [{ role: 'user', content }],
       },
-      ...(this.buildParameters(req, images.length > 0)),
+      ...this.buildParameters(req, images.length > 0),
     };
 
     const url = `${baseUrl}${this.SUBMIT_PATH}`;
@@ -178,7 +188,10 @@ export class DashScopeImageProvider implements ProviderClient {
     } catch (e: any) {
       const data = e?.response?.data ?? null;
       const err = this.toHttpException(
-        data?.message || data?.error?.message || e?.message || 'DashScope wan2.7 image failed',
+        data?.message ||
+          data?.error?.message ||
+          e?.message ||
+          'DashScope wan2.7 image failed',
         e?.response?.status ?? 502,
         data ?? { requestBody: body },
       );
@@ -229,9 +242,19 @@ export class DashScopeImageProvider implements ProviderClient {
    * keys are passed through verbatim so we don't have to redeploy when a
    * new optional knob ships upstream.
    */
-  private buildParameters(req: SubmitRequest, hasImageInputs: boolean): { parameters?: Record<string, any> } {
+  private buildParameters(
+    req: SubmitRequest,
+    hasImageInputs: boolean,
+  ): { parameters?: Record<string, any> } {
     const extra = req.extraParams ?? {};
-    const drop = new Set(['model', 'mode', 'prompt', 'action', 'aspectRatio', 'resolution']);
+    const drop = new Set([
+      'model',
+      'mode',
+      'prompt',
+      'action',
+      'aspectRatio',
+      'resolution',
+    ]);
     const out: Record<string, any> = {};
 
     for (const [k, v] of Object.entries(extra)) {
@@ -250,16 +273,23 @@ export class DashScopeImageProvider implements ProviderClient {
       // (doc: pro 文生图 1K/2K/4K, 其他场景 1K/2K). Falling back to 2K is
       // safer than letting upstream return a 400 — user picks a tier the
       // model can't honour, we silently soften to the nearest allowed.
-      const tier = this.normaliseResolutionTier(req.modelSku, resolution, hasImageInputs);
+      const tier = this.normaliseResolutionTier(
+        req.modelSku,
+        resolution,
+        hasImageInputs,
+      );
       const size = DashScopeImageProvider.SIZE_TABLE[tier]?.[aspect];
       if (size) out.size = size;
       else if (tier === '1K' || tier === '2K' || tier === '4K') out.size = tier;
     }
 
     if (out.n !== undefined) out.n = Number(out.n);
-    if (typeof out.watermark === 'string') out.watermark = out.watermark === 'true';
-    if (typeof out.prompt_extend === 'string') out.prompt_extend = out.prompt_extend === 'true';
-    if (typeof out.thinking_mode === 'string') out.thinking_mode = out.thinking_mode === 'true';
+    if (typeof out.watermark === 'string')
+      out.watermark = out.watermark === 'true';
+    if (typeof out.prompt_extend === 'string')
+      out.prompt_extend = out.prompt_extend === 'true';
+    if (typeof out.thinking_mode === 'string')
+      out.thinking_mode = out.thinking_mode === 'true';
 
     return Object.keys(out).length > 0 ? { parameters: out } : {};
   }
@@ -269,7 +299,11 @@ export class DashScopeImageProvider implements ProviderClient {
    * wan2.7-image (standard) only ever supports 1K/2K. Soften an otherwise
    * invalid combo to the nearest allowed tier so the UI stays forgiving.
    */
-  private normaliseResolutionTier(sku: string, requested: string, hasImageInputs: boolean): string {
+  private normaliseResolutionTier(
+    sku: string,
+    requested: string,
+    hasImageInputs: boolean,
+  ): string {
     const isPro = sku.toLowerCase().includes('-pro');
     if (requested === '4K') {
       if (isPro && !hasImageInputs) return '4K';
@@ -300,13 +334,17 @@ export class DashScopeImageProvider implements ProviderClient {
     }
     if (list.length === 0 && Array.isArray(data?.output?.results)) {
       for (const r of data.output.results) {
-        if (typeof r?.url === 'string') list.push({ type: 'image', url: r.url });
+        if (typeof r?.url === 'string')
+          list.push({ type: 'image', url: r.url });
       }
     }
     return list;
   }
 
-  private extractUsage(usage: unknown, generatedCount: number): ProviderUsage | undefined {
+  private extractUsage(
+    usage: unknown,
+    generatedCount: number,
+  ): ProviderUsage | undefined {
     if (!usage || typeof usage !== 'object') {
       return generatedCount > 0 ? { imageCount: generatedCount } : undefined;
     }
@@ -318,8 +356,15 @@ export class DashScopeImageProvider implements ProviderClient {
     return out;
   }
 
-  private toHttpException(message: string, status: number, payload: unknown): HttpException {
-    const err = new HttpException({ errorMessage: message, raw: payload ?? null }, status);
+  private toHttpException(
+    message: string,
+    status: number,
+    payload: unknown,
+  ): HttpException {
+    const err = new HttpException(
+      { errorMessage: message, raw: payload ?? null },
+      status,
+    );
     (err as any).payloadSnippet = payload ?? message;
     return err;
   }

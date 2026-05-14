@@ -1,7 +1,12 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { assertEncryptionKey, decrypt, encrypt, maskSecret } from '../common/crypto.util';
+import {
+  assertEncryptionKey,
+  decrypt,
+  encrypt,
+  maskSecret,
+} from '../common/crypto.util';
 
 const KEY_BASE_URL = 'openai.baseUrl';
 const KEY_API_KEY = 'openai.apiKey';
@@ -68,7 +73,10 @@ export class OpenaiCompatConfigService implements OnModuleInit {
   private readonly logger = new Logger(OpenaiCompatConfigService.name);
   private baseUrlCache: CachedValue<string | null> | null = null;
   private apiKeyCache: CachedValue<string | null> | null = null;
-  private timeoutCache: Record<OpenaiCompatKind, CachedValue<number | null> | null> = {
+  private timeoutCache: Record<
+    OpenaiCompatKind,
+    CachedValue<number | null> | null
+  > = {
     chat: null,
     image: null,
     video: null,
@@ -98,7 +106,9 @@ export class OpenaiCompatConfigService implements OnModuleInit {
     const cached = this.readCached(this.baseUrlCache);
     if (cached !== undefined) return cached ?? DEFAULT_BASE_URL;
 
-    const row = await this.prisma.globalConfig.findUnique({ where: { key: KEY_BASE_URL } });
+    const row = await this.prisma.globalConfig.findUnique({
+      where: { key: KEY_BASE_URL },
+    });
     const url = this.unwrapStringValue(row?.value);
     this.baseUrlCache = { value: url, expiresAt: Date.now() + CACHE_TTL_MS };
     return url ?? DEFAULT_BASE_URL;
@@ -107,23 +117,30 @@ export class OpenaiCompatConfigService implements OnModuleInit {
   async getApiKey(): Promise<string> {
     const cached = this.readCached(this.apiKeyCache);
     if (cached !== undefined) {
-      if (!cached) throw new Error('OpenAI apiKey 未配置；请在 /admin/system 填写');
+      if (!cached)
+        throw new Error('OpenAI apiKey 未配置；请在 /admin/system 填写');
       return cached;
     }
 
-    const row = await this.prisma.globalConfig.findUnique({ where: { key: KEY_API_KEY } });
+    const row = await this.prisma.globalConfig.findUnique({
+      where: { key: KEY_API_KEY },
+    });
     const stored = this.unwrapStringValue(row?.value);
     let plain: string | null = null;
     if (stored) {
       try {
         plain = decrypt(stored);
       } catch (e) {
-        this.logger.error('[openai-config] apiKey decrypt failed; treating as missing', e as Error);
+        this.logger.error(
+          '[openai-config] apiKey decrypt failed; treating as missing',
+          e as Error,
+        );
         plain = null;
       }
     }
     this.apiKeyCache = { value: plain, expiresAt: Date.now() + CACHE_TTL_MS };
-    if (!plain) throw new Error('OpenAI apiKey 未配置；请在 /admin/system 填写');
+    if (!plain)
+      throw new Error('OpenAI apiKey 未配置；请在 /admin/system 填写');
     return plain;
   }
 
@@ -147,7 +164,9 @@ export class OpenaiCompatConfigService implements OnModuleInit {
     if (cached !== undefined) {
       return (cached ?? DEFAULT_OPENAI_TIMEOUT_SEC[kind]) * 1000;
     }
-    const row = await this.prisma.globalConfig.findUnique({ where: { key: TIMEOUT_KEY[kind] } });
+    const row = await this.prisma.globalConfig.findUnique({
+      where: { key: TIMEOUT_KEY[kind] },
+    });
     const value = this.unwrapNumberValue(row?.value);
     this.timeoutCache[kind] = { value, expiresAt: Date.now() + CACHE_TTL_MS };
     return (value ?? DEFAULT_OPENAI_TIMEOUT_SEC[kind]) * 1000;
@@ -160,11 +179,18 @@ export class OpenaiCompatConfigService implements OnModuleInit {
     baseUrlConfigured: boolean;
     apiKeyMask: string | null;
     apiKeyConfigured: boolean;
-    timeouts: Record<OpenaiCompatKind, { value: number; default: number; configured: boolean }>;
+    timeouts: Record<
+      OpenaiCompatKind,
+      { value: number; default: number; configured: boolean }
+    >;
   }> {
-    const baseUrlRow = await this.prisma.globalConfig.findUnique({ where: { key: KEY_BASE_URL } });
+    const baseUrlRow = await this.prisma.globalConfig.findUnique({
+      where: { key: KEY_BASE_URL },
+    });
     const baseUrlValue = this.unwrapStringValue(baseUrlRow?.value);
-    const apiKeyRow = await this.prisma.globalConfig.findUnique({ where: { key: KEY_API_KEY } });
+    const apiKeyRow = await this.prisma.globalConfig.findUnique({
+      where: { key: KEY_API_KEY },
+    });
     const apiKeyStored = this.unwrapStringValue(apiKeyRow?.value);
     let apiKeyPlain: string | null = null;
     if (apiKeyStored) {
@@ -175,9 +201,14 @@ export class OpenaiCompatConfigService implements OnModuleInit {
       }
     }
 
-    const timeouts = {} as Record<OpenaiCompatKind, { value: number; default: number; configured: boolean }>;
+    const timeouts = {} as Record<
+      OpenaiCompatKind,
+      { value: number; default: number; configured: boolean }
+    >;
     for (const kind of Object.keys(TIMEOUT_KEY) as OpenaiCompatKind[]) {
-      const row = await this.prisma.globalConfig.findUnique({ where: { key: TIMEOUT_KEY[kind] } });
+      const row = await this.prisma.globalConfig.findUnique({
+        where: { key: TIMEOUT_KEY[kind] },
+      });
       const stored = this.unwrapNumberValue(row?.value);
       timeouts[kind] = {
         value: stored ?? DEFAULT_OPENAI_TIMEOUT_SEC[kind],
@@ -208,11 +239,17 @@ export class OpenaiCompatConfigService implements OnModuleInit {
     if (input.baseUrl !== undefined) {
       const trimmed = input.baseUrl.trim().replace(/\/$/, '');
       if (trimmed === '') {
-        await this.prisma.globalConfig.deleteMany({ where: { key: KEY_BASE_URL } });
+        await this.prisma.globalConfig.deleteMany({
+          where: { key: KEY_BASE_URL },
+        });
       } else {
         await this.prisma.globalConfig.upsert({
           where: { key: KEY_BASE_URL },
-          create: { key: KEY_BASE_URL, value: trimmed, description: 'OpenAI-compat base URL (admin-set)' },
+          create: {
+            key: KEY_BASE_URL,
+            value: trimmed,
+            description: 'OpenAI-compat base URL (admin-set)',
+          },
           update: { value: trimmed },
         });
       }
@@ -222,12 +259,18 @@ export class OpenaiCompatConfigService implements OnModuleInit {
     if (input.apiKey !== undefined) {
       const trimmed = input.apiKey.trim();
       if (trimmed === '') {
-        await this.prisma.globalConfig.deleteMany({ where: { key: KEY_API_KEY } });
+        await this.prisma.globalConfig.deleteMany({
+          where: { key: KEY_API_KEY },
+        });
       } else {
         const ciphertext = encrypt(trimmed);
         await this.prisma.globalConfig.upsert({
           where: { key: KEY_API_KEY },
-          create: { key: KEY_API_KEY, value: ciphertext, description: 'OpenAI-compat API key (encrypted)' },
+          create: {
+            key: KEY_API_KEY,
+            value: ciphertext,
+            description: 'OpenAI-compat API key (encrypted)',
+          },
           update: { value: ciphertext },
         });
       }
@@ -235,7 +278,10 @@ export class OpenaiCompatConfigService implements OnModuleInit {
     }
 
     if (input.timeouts) {
-      for (const [k, raw] of Object.entries(input.timeouts) as [OpenaiCompatKind, number | undefined][]) {
+      for (const [k, raw] of Object.entries(input.timeouts) as [
+        OpenaiCompatKind,
+        number | undefined,
+      ][]) {
         if (raw === undefined) continue;
         const key = TIMEOUT_KEY[k];
         if (!key) continue;
@@ -261,7 +307,9 @@ export class OpenaiCompatConfigService implements OnModuleInit {
   // ---- internals -----------------------------------------------------------
 
   private async migrateFromEnv(): Promise<void> {
-    const baseUrlExists = await this.prisma.globalConfig.findUnique({ where: { key: KEY_BASE_URL } });
+    const baseUrlExists = await this.prisma.globalConfig.findUnique({
+      where: { key: KEY_BASE_URL },
+    });
     if (!baseUrlExists) {
       const envBaseUrl = this.nestConfig.get<string>('OPENAI_BASE_URL');
       if (envBaseUrl) {
@@ -276,7 +324,9 @@ export class OpenaiCompatConfigService implements OnModuleInit {
       }
     }
 
-    const apiKeyExists = await this.prisma.globalConfig.findUnique({ where: { key: KEY_API_KEY } });
+    const apiKeyExists = await this.prisma.globalConfig.findUnique({
+      where: { key: KEY_API_KEY },
+    });
     if (!apiKeyExists) {
       const envApiKey = this.nestConfig.get<string>('OPENAI_API_KEY');
       if (envApiKey) {
@@ -286,12 +336,18 @@ export class OpenaiCompatConfigService implements OnModuleInit {
             data: {
               key: KEY_API_KEY,
               value: ciphertext,
-              description: 'OpenAI-compat API key (encrypted, migrated from env)',
+              description:
+                'OpenAI-compat API key (encrypted, migrated from env)',
             },
           });
-          this.logger.log(`[openai-config] migrated OPENAI_API_KEY env → DB (encrypted)`);
+          this.logger.log(
+            `[openai-config] migrated OPENAI_API_KEY env → DB (encrypted)`,
+          );
         } catch (e) {
-          this.logger.error('[openai-config] env → DB migration of apiKey failed', e as Error);
+          this.logger.error(
+            '[openai-config] env → DB migration of apiKey failed',
+            e as Error,
+          );
         }
       }
     }
@@ -306,7 +362,11 @@ export class OpenaiCompatConfigService implements OnModuleInit {
   private unwrapStringValue(value: unknown): string | null {
     if (value === null || value === undefined) return null;
     if (typeof value === 'string') return value;
-    if (typeof value === 'object' && value !== null && 'value' in (value as any)) {
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      'value' in (value as any)
+    ) {
       const inner = (value as any).value;
       return typeof inner === 'string' ? inner : null;
     }
@@ -320,7 +380,11 @@ export class OpenaiCompatConfigService implements OnModuleInit {
       const n = Number(value);
       return Number.isFinite(n) ? n : null;
     }
-    if (typeof value === 'object' && value !== null && 'value' in (value as any)) {
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      'value' in (value as any)
+    ) {
       return this.unwrapNumberValue((value as any).value);
     }
     return null;

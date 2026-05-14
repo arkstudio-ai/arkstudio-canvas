@@ -125,7 +125,11 @@ export class OpenAICompatImageProvider implements ProviderClient {
 
   async submit(req: SubmitRequest): Promise<SubmitResult> {
     if (!req.prompt) {
-      throw this.toHttpException(`${req.modelSku} requires a prompt`, 400, null);
+      throw this.toHttpException(
+        `${req.modelSku} requires a prompt`,
+        400,
+        null,
+      );
     }
     // Image-to-image lives on a different endpoint (`/images/edits`,
     // multipart). We don't implement it yet, but hard-rejecting was
@@ -134,7 +138,9 @@ export class OpenAICompatImageProvider implements ProviderClient {
     // even though the user clearly wanted text-to-image. Drop the
     // image inputs with a warn instead — the prompt still goes
     // through and the user gets a result.
-    const imageInputCount = (req.inputs ?? []).filter((i) => i.type === 'image').length;
+    const imageInputCount = (req.inputs ?? []).filter(
+      (i) => i.type === 'image',
+    ).length;
     if (imageInputCount > 0) {
       this.logger.warn(
         `[openai-compat-image:submit] sku=${req.modelSku} requestId=${req.requestId} ` +
@@ -188,7 +194,10 @@ export class OpenAICompatImageProvider implements ProviderClient {
     } catch (e: any) {
       const data = e?.response?.data ?? null;
       const err = this.toHttpException(
-        data?.error?.message || data?.message || e?.message || 'OpenAI-compat image failed',
+        data?.error?.message ||
+          data?.message ||
+          e?.message ||
+          'OpenAI-compat image failed',
         e?.response?.status ?? 502,
         data ?? { requestBody: body },
       );
@@ -199,7 +208,11 @@ export class OpenAICompatImageProvider implements ProviderClient {
     const data = resp.data ?? {};
     const resources = this.extractResources(data);
     if (resources.length === 0) {
-      const err = this.toHttpException('OpenAI-compat image returned no usable url', 502, data);
+      const err = this.toHttpException(
+        'OpenAI-compat image returned no usable url',
+        502,
+        data,
+      );
       (err as any).requestPayload = body;
       throw err;
     }
@@ -214,7 +227,10 @@ export class OpenAICompatImageProvider implements ProviderClient {
   }
 
   async pollStatus(_taskId: string): Promise<PollResult> {
-    throw new HttpException('openai-compat-image is synchronous and has no taskId to poll', 500);
+    throw new HttpException(
+      'openai-compat-image is synchronous and has no taskId to poll',
+      500,
+    );
   }
 
   // ---- helpers ---------------------------------------------------------
@@ -230,7 +246,9 @@ export class OpenAICompatImageProvider implements ProviderClient {
    * "unsupported size" than to silently send a 4K request to a model
    * that caps at 1024.
    */
-  private resolveFamily(realSku: string): 'dalle' | 'gpt-image-2' | 'gpt-image-1' {
+  private resolveFamily(
+    realSku: string,
+  ): 'dalle' | 'gpt-image-2' | 'gpt-image-1' {
     const sku = realSku.toLowerCase();
     if (sku.startsWith('gpt-image-2')) return 'gpt-image-2';
     if (sku.startsWith('gpt-image-1')) return 'gpt-image-1'; // includes gpt-image-1.5
@@ -261,7 +279,8 @@ export class OpenAICompatImageProvider implements ProviderClient {
     }
 
     // gpt-image-* flexible sizing: ratio + resolution → WxH within cap.
-    const resolution = typeof extra?.resolution === 'string' ? extra.resolution : '2k';
+    const resolution =
+      typeof extra?.resolution === 'string' ? extra.resolution : '2k';
     return this.computeFlexibleSize(ratio, resolution, family);
   }
 
@@ -296,7 +315,8 @@ export class OpenAICompatImageProvider implements ProviderClient {
     if (!m) return undefined;
     const a = Number(m[1]);
     const b = Number(m[2]);
-    if (!Number.isFinite(a) || !Number.isFinite(b) || a <= 0 || b <= 0) return undefined;
+    if (!Number.isFinite(a) || !Number.isFinite(b) || a <= 0 || b <= 0)
+      return undefined;
 
     const target =
       OpenAICompatImageProvider.TARGET_PIXELS_BY_RES[resolution] ??
@@ -334,7 +354,10 @@ export class OpenAICompatImageProvider implements ProviderClient {
     return Math.min(Math.floor(n), 10);
   }
 
-  private numericParam(extra: Record<string, any> | undefined, key: string): number | undefined {
+  private numericParam(
+    extra: Record<string, any> | undefined,
+    key: string,
+  ): number | undefined {
     const v = extra?.[key];
     if (v === undefined || v === null || v === '') return undefined;
     const n = Number(v);
@@ -358,7 +381,10 @@ export class OpenAICompatImageProvider implements ProviderClient {
     return list;
   }
 
-  private extractUsage(usage: unknown, count: number): ProviderUsage | undefined {
+  private extractUsage(
+    usage: unknown,
+    count: number,
+  ): ProviderUsage | undefined {
     if (usage && typeof usage === 'object') {
       // GPT-image-1 returns usage tokens; DALL-E 2/3 do not. Surface
       // the count plus raw upstream usage when present.
@@ -367,8 +393,15 @@ export class OpenAICompatImageProvider implements ProviderClient {
     return { imageCount: count };
   }
 
-  private toHttpException(message: string, status: number, payload: unknown): HttpException {
-    const err = new HttpException({ errorMessage: message, raw: payload ?? null }, status);
+  private toHttpException(
+    message: string,
+    status: number,
+    payload: unknown,
+  ): HttpException {
+    const err = new HttpException(
+      { errorMessage: message, raw: payload ?? null },
+      status,
+    );
     (err as any).payloadSnippet = payload ?? message;
     return err;
   }

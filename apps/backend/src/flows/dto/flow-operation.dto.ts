@@ -1,4 +1,12 @@
-import { IsString, IsOptional, IsObject, IsNotEmpty, IsArray, ValidateNested, IsNumber } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsObject,
+  IsNotEmpty,
+  IsArray,
+  ValidateNested,
+  IsNumber,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class FlowOperationDto {
@@ -20,39 +28,3 @@ export class BatchOperationDto {
   @Type(() => FlowOperationDto)
   operations: FlowOperationDto[];
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

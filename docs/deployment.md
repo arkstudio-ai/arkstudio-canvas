@@ -32,32 +32,32 @@ docker compose up -d --build
 |---|---|---|
 | `ENCRYPTION_KEY` | **必填** | `.env`（容器启动前） |
 | **DashScope API Key** | **强烈建议** | 启动后到 `/admin/system` 填；或者 `.env` 里 `DASHSCOPE_API_KEY=sk-...` 让首次启动自动迁库 |
-| 腾讯云 COS 凭据 | 可选 | 同上 |
+| OpenAI API Key | 可选 | 同上 |
 
 > 不配 DashScope key：text 节点能跑，但 chat / 图片 / 视频 / 语音节点都会失败。
-> 不配 COS：上传 / 转存自动 fallback 到 DashScope 临时存储（48h 失效），见下方"对象存储策略"。
+> 不配 OpenAI key：`openai-chat/*` `openai-image/*` SKU 不可用，DashScope 路径不受影响。
 
-## 对象存储策略（auto-fallback）
+## 存储策略（local-only）
 
-为了"零配置开箱即用"，上传 / 转存有三档：
+开源版只有一种存储：**写到 backend 服务器的本地磁盘**（参考 ComfyUI 思路）。
 
-| 配置情况 | 上传去哪 | URL 形态 | TTL | 适合 |
-|---|---|---|---|---|
-| COS 凭据齐全 | 你的腾讯云桶 | `https://...` | 长寿命 | 生产部署 |
-| 仅有 DashScope key | 百炼临时存储 | `oss://dashscope-instant/...` | **48 小时** | Demo / 试用 |
-| 都没有 | — | — | — | 上传接口 400 |
+| 数据 | 路径 | 持久化 |
+|---|---|---|
+| 上传 / 模型生成结果 | `${STORAGE_LOCAL_DATA_DIR}/<key>`（默认 `/data/uploads`） | docker named volume `canvas_flow_uploads` |
+| 对外访问 URL | `/static/uploads/<key>`（同 origin，无 CORS） | — |
 
-`/admin/system` 顶部 banner 会显示当前生效的策略，绿 / 黄 / 红一目了然。
+`/admin/system → 本地存储` 卡片可看占用空间 / 文件数，并随时改 `dataDir` 与 `最大文件大小`。
 
-### DashScope 临时存储的硬约束
+### i2i / i2v 怎么让阿里云模型读到本地图片？
+
+submit 之前，dashscope provider 自动把对应本地文件**临时**上传到百炼免费临时桶（`oss://`，48h 自动删），然后把 oss URL 喂给模型。最终结果仍由 backend 转存到本地，所以最终作品的 URL 是长寿命的本地 URL，不会过期。
+
+百炼临时桶的硬约束（仅在 i2i / i2v 链路用到）：
 
 - 仅 **北京 region**（intl 账号用不了）
-- 文件 **48h** 自动删
+- 临时文件 **48h** 自动删（不影响最终结果，最终结果在本地存储）
 - 单文件 **≤ 100 MB**
 - 100 QPS / account / model
-- 上传 + 调用 key 必须同账号（我们只用一个 key，天然满足）
-
-商业部署 / 想长期保留作品 → 务必配 COS。
 
 ## 配置分层：什么放 env，什么放 admin
 
@@ -65,7 +65,8 @@ docker compose up -d --build
 |---|---|---|
 | 基础设施 | `DATABASE_URL` / `PORT` / `ENCRYPTION_KEY` | — |
 | DashScope | bootstrap：`DASHSCOPE_API_KEY` / `_BASE_URL` | `dashscope.{baseUrl,apiKey,timeoutSec.*}` |
-| 对象存储（COS, **可选**） | bootstrap：`COS_*` 全套 | `storage.cos.{secretId,secretKey,bucket,region,customDomain,signExpires,maxFileSize}` |
+| OpenAI 兼容（可选） | bootstrap：`OPENAI_API_KEY` / `_BASE_URL` | `openai.{baseUrl,apiKey,timeoutSec.*}` |
+| 本地存储 | 可选 `STORAGE_LOCAL_DATA_DIR`（默认 `/data/uploads`） | `storage.local.{dataDir,maxFileSize}` |
 | 历史保留 | — | `history.{maxAgeDays,maxPerKind}` |
 
 > **bootstrap** = 首次启动后自动迁到 DB，之后忽略 env。所有日常配置改动都从 `/admin/system` 走，不需要重启容器。
@@ -87,8 +88,8 @@ docker compose up -d --build
 | 数据 | 落在哪 | `down` 后还在吗 |
 |---|---|---|
 | MySQL（节点配置 / 凭据 / 执行历史 / 生成历史） | named volume `canvas_flow_mysql_data` | ✅ 在 |
-| 用户上传到 COS 的文件 | 你自己的腾讯云桶 | ✅ 在（不归 compose 管） |
-| DashScope 临时存储的文件 | 百炼那边 | ⚠️ 48h 自动删 |
+| 上传文件 + 模型生成结果（本地存储） | named volume `canvas_flow_uploads` | ✅ 在 |
+| i2i / i2v 临时上传到百炼的文件 | 百炼临时桶（按需上传） | ⚠️ 48h 自动删（仅作模型读取用，不影响最终结果） |
 
 清空所有数据（重新走 demo 流程）：
 
@@ -108,6 +109,19 @@ docker compose up -d --build
 `prisma db push` 在 entrypoint 里会把 schema 调齐；node_definitions 表只在初次 seed，所以 admin 改过的配置不会被覆盖。
 
 > 想保留 admin 改过的配置但**重灌默认节点**：登录 `/admin/canvas-config` 手动重置，或者临时 `docker compose exec backend node dist/seed-canvas-config.js`（这一步是破坏性的，会清空 `node_definitions` 全表）。
+
+### 从 pre-D2（含 COS 支持的旧版）升级
+
+D2 之后的开源版只支持本地磁盘存储，移除了 COS 相关的所有代码。如果你之前在 admin 配过 Tencent COS 凭据，DB `global_configs` 里会有 7 行已无人读取的 `storage.cos.*` 行。可以一次性清理掉：
+
+```bash
+# dry-run 预览
+docker compose exec backend node dist/patches/cleanup-storage-cos-keys.js
+# 确认无误后实际删除
+docker compose exec backend node dist/patches/cleanup-storage-cos-keys.js --apply
+```
+
+> 这一步**只是清残留**，不影响任何运行时逻辑。代码里已经没人读这 7 行了。
 
 ## 备份
 
@@ -138,9 +152,9 @@ docker compose exec -T mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < backup-2026
 |---|---|
 | `docker compose up` 报 `ENCRYPTION_KEY is required` | `.env` 没填或拼错；按 5 分钟开箱步骤 2 重新生成 |
 | 启动后 backend 一直 restart | `docker compose logs backend` 看 `[entrypoint]`；80% 是 MySQL 没起来或 `DATABASE_URL` 错 |
-| `/admin/system` 显示"红色 banner: 存储未配置" | 至少补一份 DashScope API Key（可启用 fallback），或者补齐 COS 凭据 |
-| 上传图片报 `400 文件大小超出限制` | DashScope 临时存储硬限 100 MB；要么压图，要么配 COS（`storage.cos.maxFileSize` 可调到 200MB+） |
-| 视频生成 `oss:// resolve failed` | 通常意味着 fallback 模式下用了非北京 region 的 DashScope key；切回北京 region 的 key |
+| 上传图片报 `400 文件大小超出限制` | `/admin/system → 本地存储 → 最大文件大小` 调高；i2i 走百炼临时桶时还会受百炼自身 100 MB 上限制约 |
+| i2i / i2v 报 `oss:// resolve failed` | 通常意味着用了非北京 region 的 DashScope key（百炼临时存储仅北京）；切回北京 region 的 key |
+| `/static/uploads/<key>` 返回 404 | dataDir 改过但旧文件没迁；或 docker volume 没挂；查 `/admin/system → 本地存储` 的"占用空间"是否归零 |
 | 改完 admin 不生效 | 后端有 30s 内存缓存；等一下或重启 backend container 即可 |
 
 更多 backend 内部细节见 [`apps/backend/README.md`](../apps/backend/README.md)；想接新模型 / 新存储抽象看 [模型接入指南](../MODEL_INTEGRATION.md)。

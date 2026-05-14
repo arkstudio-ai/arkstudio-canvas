@@ -7,6 +7,7 @@ import { ExecutionsModule } from './executions/executions.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { TemplatesModule } from './templates/templates.module';
 import { CanvasConfigModule } from './canvas-config/canvas-config.module';
+import { StorageModule } from './storage/storage.module';
 import { UploadModule } from './upload/upload.module';
 import { AdminModule } from './admin/admin.module';
 import { VoicesModule } from './voices/voices.module';
@@ -24,6 +25,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     ExecutionsModule,
     TemplatesModule,
     CanvasConfigModule,
+    StorageModule,
     UploadModule,
     AdminModule,
     VoicesModule,

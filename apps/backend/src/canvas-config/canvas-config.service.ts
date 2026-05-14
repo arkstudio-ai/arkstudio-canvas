@@ -23,10 +23,13 @@ export class CanvasConfigService {
 
   async getConfig() {
     const globalConfigs = await this.prisma.globalConfig.findMany();
-    const configMap = globalConfigs.reduce((acc, config) => {
-      acc[config.key] = config.value;
-      return acc;
-    }, {} as Record<string, any>);
+    const configMap = globalConfigs.reduce(
+      (acc, config) => {
+        acc[config.key] = config.value;
+        return acc;
+      },
+      {} as Record<string, any>,
+    );
 
     const nodeDefinitions = await this.prisma.nodeDefinition.findMany({
       orderBy: { sortOrder: 'asc' },
@@ -120,7 +123,9 @@ export class CanvasConfigService {
         const existingTypes = new Set(existingNodes.map((n) => n.type));
         const newTypes = new Set(config.nodeDefinitions.map((n) => n.type));
 
-        const typesToDelete = [...existingTypes].filter((t) => !newTypes.has(t));
+        const typesToDelete = [...existingTypes].filter(
+          (t) => !newTypes.has(t),
+        );
         if (typesToDelete.length > 0) {
           await tx.nodeDefinition.deleteMany({
             where: { type: { in: typesToDelete } },

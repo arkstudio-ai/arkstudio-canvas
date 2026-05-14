@@ -1,6 +1,7 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { DashscopeConfigService } from '../canvas-config/dashscope-config.service';
+import { DashscopeUploadService } from '../upload/dashscope-upload.service';
 import { summarizeBody } from './log-utils';
 import { firstValueFrom } from 'rxjs';
 import type {
@@ -36,7 +37,8 @@ export class DashScopeVideoProvider implements ProviderClient {
   readonly name = 'dashscope-video';
   private readonly logger = new Logger(DashScopeVideoProvider.name);
 
-  private readonly SUBMIT_PATH = '/api/v1/services/aigc/video-generation/video-synthesis';
+  private readonly SUBMIT_PATH =
+    '/api/v1/services/aigc/video-generation/video-synthesis';
   private readonly TASK_PATH = '/api/v1/tasks';
   // Polling 是轻 GET，不暴露给 admin；submit 走 dashscopeConfig.getTimeoutMs.
   private readonly POLL_TIMEOUT_MS = 10_000;
@@ -44,6 +46,7 @@ export class DashScopeVideoProvider implements ProviderClient {
   constructor(
     private readonly httpService: HttpService,
     private readonly dashscopeConfig: DashscopeConfigService,
+    private readonly dashscopeUpload: DashscopeUploadService,
   ) {}
 
   /**
@@ -57,7 +60,8 @@ export class DashScopeVideoProvider implements ProviderClient {
     // (wan2.7-image{,-pro}) SKUs. Image goes through DashScopeImageProvider
     // (sync multimodal-generation), so explicitly exclude the -image
     // suffix here — the registry's priority order is no longer load-bearing.
-    if (sku.startsWith('wan2.7-image') || sku.startsWith('wan2.6-image')) return false;
+    if (sku.startsWith('wan2.7-image') || sku.startsWith('wan2.6-image'))
+      return false;
     return (
       sku.startsWith('wan2.7') ||
       sku.startsWith('wan2.6') ||
@@ -74,7 +78,13 @@ export class DashScopeVideoProvider implements ProviderClient {
     const input: Record<string, any> = {};
     if (req.prompt) input.prompt = req.prompt;
 
-    const media = this.buildMedia(req.inputs ?? [], mode);
+    // Reference media stored locally must first be staged to dashscope-temp
+    // (cloud model has no route to our intranet). No-op for public URLs.
+    const stagedInputs = await this.dashscopeUpload.stageLocalUrlsToTemp(
+      req.inputs ?? [],
+      req.modelSku,
+    );
+    const media = this.buildMedia(stagedInputs, mode);
     if (media.length > 0) input.media = media;
 
     // Mode-specific preflight checks fail fast with a useful message
@@ -84,7 +94,9 @@ export class DashScopeVideoProvider implements ProviderClient {
     const body = {
       model: req.modelSku,
       input,
-      ...(this.hasParameters(req.extraParams) ? { parameters: this.cleanParameters(req.extraParams) } : {}),
+      ...(this.hasParameters(req.extraParams)
+        ? { parameters: this.cleanParameters(req.extraParams) }
+        : {}),
     };
 
     const url = `${baseUrl}${this.SUBMIT_PATH}`;
@@ -124,7 +136,11 @@ export class DashScopeVideoProvider implements ProviderClient {
     const taskStatus = String(data?.output?.task_status ?? '').toUpperCase();
 
     if (!taskId) {
-      const err = this.toHttpException('DashScope submit returned no task_id', 502, data);
+      const err = this.toHttpException(
+        'DashScope submit returned no task_id',
+        502,
+        data,
+      );
       (err as any).requestPayload = body;
       throw err;
     }
@@ -132,7 +148,8 @@ export class DashScopeVideoProvider implements ProviderClient {
       return {
         status: 'failed',
         taskId,
-        errorMessage: data?.output?.message || `DashScope task immediately ${taskStatus}`,
+        errorMessage:
+          data?.output?.message || `DashScope task immediately ${taskStatus}`,
         raw: data,
         requestPayload: body,
       };
@@ -174,10 +191,15 @@ export class DashScopeVideoProvider implements ProviderClient {
         raw: data,
       };
     }
-    if (taskStatus === 'FAILED' || taskStatus === 'CANCELED' || taskStatus === 'UNKNOWN') {
+    if (
+      taskStatus === 'FAILED' ||
+      taskStatus === 'CANCELED' ||
+      taskStatus === 'UNKNOWN'
+    ) {
       return {
         status: 'failed',
-        errorMessage: out?.message || out?.code || `DashScope task ${taskStatus}`,
+        errorMessage:
+          out?.message || out?.code || `DashScope task ${taskStatus}`,
         raw: data,
       };
     }
@@ -195,7 +217,10 @@ export class DashScopeVideoProvider implements ProviderClient {
    * - r2v        : image=reference_image, video=reference_video
    * - video-edit : video=video, image=reference_image
    */
-  private buildMedia(inputs: ProviderInput[], mode: VideoMode): Array<{ type: string; url: string }> {
+  private buildMedia(
+    inputs: ProviderInput[],
+    mode: VideoMode,
+  ): Array<{ type: string; url: string }> {
     if (mode === 't2v') return [];
 
     const images = inputs.filter((i) => i.type === 'image');
@@ -205,7 +230,10 @@ export class DashScopeVideoProvider implements ProviderClient {
 
     if (mode === 'i2v') {
       images.forEach((img, idx) => {
-        media.push({ type: idx === 0 ? 'first_frame' : 'last_frame', url: img.url });
+        media.push({
+          type: idx === 0 ? 'first_frame' : 'last_frame',
+          url: img.url,
+        });
       });
       videos.forEach((v) => media.push({ type: 'first_clip', url: v.url }));
       audios.forEach((a) => media.push({ type: 'driving_audio', url: a.url }));
@@ -213,19 +241,27 @@ export class DashScopeVideoProvider implements ProviderClient {
     }
 
     if (mode === 'r2v') {
-      images.forEach((img) => media.push({ type: 'reference_image', url: img.url }));
-      videos.forEach((v) => media.push({ type: 'reference_video', url: v.url }));
+      images.forEach((img) =>
+        media.push({ type: 'reference_image', url: img.url }),
+      );
+      videos.forEach((v) =>
+        media.push({ type: 'reference_video', url: v.url }),
+      );
       return media;
     }
 
     if (mode === 'video-edit') {
       videos.forEach((v) => media.push({ type: 'video', url: v.url }));
-      images.forEach((img) => media.push({ type: 'reference_image', url: img.url }));
+      images.forEach((img) =>
+        media.push({ type: 'reference_image', url: img.url }),
+      );
       return media;
     }
 
     // Unknown mode: pass everything through as reference_image / reference_video
-    images.forEach((img) => media.push({ type: 'reference_image', url: img.url }));
+    images.forEach((img) =>
+      media.push({ type: 'reference_image', url: img.url }),
+    );
     videos.forEach((v) => media.push({ type: 'reference_video', url: v.url }));
     return media;
   }
@@ -235,7 +271,8 @@ export class DashScopeVideoProvider implements ProviderClient {
     if (lower.endsWith('-t2v')) return 't2v';
     if (lower.endsWith('-i2v')) return 'i2v';
     if (lower.endsWith('-r2v')) return 'r2v';
-    if (lower.endsWith('-video-edit') || lower.endsWith('-videoedit')) return 'video-edit';
+    if (lower.endsWith('-video-edit') || lower.endsWith('-videoedit'))
+      return 'video-edit';
     return 'unknown';
   }
 
@@ -249,13 +286,25 @@ export class DashScopeVideoProvider implements ProviderClient {
       throw this.toHttpException(`${sku} requires a prompt`, 400, null);
     }
     if (mode === 'i2v' && media.length === 0) {
-      throw this.toHttpException(`${sku} requires at least one image (first_frame)`, 400, null);
+      throw this.toHttpException(
+        `${sku} requires at least one image (first_frame)`,
+        400,
+        null,
+      );
     }
     if (mode === 'r2v' && media.length === 0) {
-      throw this.toHttpException(`${sku} requires at least one reference image/video`, 400, null);
+      throw this.toHttpException(
+        `${sku} requires at least one reference image/video`,
+        400,
+        null,
+      );
     }
     if (mode === 'video-edit' && !media.some((m) => m.type === 'video')) {
-      throw this.toHttpException(`${sku} requires exactly one video input`, 400, null);
+      throw this.toHttpException(
+        `${sku} requires exactly one video input`,
+        400,
+        null,
+      );
     }
   }
 
@@ -273,7 +322,9 @@ export class DashScopeVideoProvider implements ProviderClient {
    * Common keys that DO pass through: resolution, ratio, duration, seed,
    * watermark, prompt_extend, negative_prompt, audio_setting.
    */
-  private cleanParameters(extraParams?: Record<string, any>): Record<string, any> {
+  private cleanParameters(
+    extraParams?: Record<string, any>,
+  ): Record<string, any> {
     if (!extraParams) return {};
     const drop = new Set(['model', 'mode', 'prompt', 'action', 'aspectRatio']);
     const out: Record<string, any> = {};
@@ -316,14 +367,22 @@ export class DashScopeVideoProvider implements ProviderClient {
     }
     if (Array.isArray(output?.results)) {
       for (const r of output.results) {
-        if (typeof r?.url === 'string') list.push({ type: r.type ?? 'video', url: r.url });
+        if (typeof r?.url === 'string')
+          list.push({ type: r.type ?? 'video', url: r.url });
       }
     }
     return list;
   }
 
-  private toHttpException(message: string, status: number, payload: unknown): HttpException {
-    const err = new HttpException({ errorMessage: message, raw: payload ?? null }, status);
+  private toHttpException(
+    message: string,
+    status: number,
+    payload: unknown,
+  ): HttpException {
+    const err = new HttpException(
+      { errorMessage: message, raw: payload ?? null },
+      status,
+    );
     (err as any).payloadSnippet = payload ?? message;
     return err;
   }

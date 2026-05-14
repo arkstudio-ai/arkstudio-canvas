@@ -49,10 +49,14 @@ function truncateInPlace(node: unknown): void {
     for (const item of node) truncateInPlace(item);
     return;
   }
-  for (const key of Object.keys(node as Record<string, unknown>)) {
+  for (const key of Object.keys(node)) {
     const obj = node as Record<string, unknown>;
     const v = obj[key];
-    if (typeof v === 'string' && TRUNCATABLE_KEYS.has(key) && v.length > MAX_TEXT_LEN) {
+    if (
+      typeof v === 'string' &&
+      TRUNCATABLE_KEYS.has(key) &&
+      v.length > MAX_TEXT_LEN
+    ) {
       obj[key] = `${v.slice(0, MAX_TEXT_LEN)}…(+${v.length - MAX_TEXT_LEN})`;
     } else if (v && typeof v === 'object') {
       truncateInPlace(v);

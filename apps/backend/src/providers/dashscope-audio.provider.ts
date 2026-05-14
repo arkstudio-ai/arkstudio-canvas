@@ -45,7 +45,8 @@ export class DashScopeAudioProvider implements ProviderClient {
   private readonly logger = new Logger(DashScopeAudioProvider.name);
 
   // 这两个 path 是 DashScope 固定 endpoint，不暴露给 admin（升级再改代码）。
-  private readonly TTS_PATH = '/api/v1/services/aigc/multimodal-generation/generation';
+  private readonly TTS_PATH =
+    '/api/v1/services/aigc/multimodal-generation/generation';
   private readonly MUSIC_PATH = '/api/v1/services/audio/music/generation';
   // MiniMax 在百炼上的 model 命名空间。提取成常量方便以后官方改名。
   private static readonly MINIMAX_NAMESPACE = 'MiniMax/';
@@ -93,9 +94,18 @@ export class DashScopeAudioProvider implements ProviderClient {
 
   // ---- TTS (MiniMax) ---------------------------------------------------
 
-  private async submitTts(req: SubmitRequest, apiKey: string, baseUrl: string, timeout: number): Promise<SubmitResult> {
+  private async submitTts(
+    req: SubmitRequest,
+    apiKey: string,
+    baseUrl: string,
+    timeout: number,
+  ): Promise<SubmitResult> {
     if (!req.prompt) {
-      throw this.toHttpException(`${req.modelSku} requires prompt text`, 400, null);
+      throw this.toHttpException(
+        `${req.modelSku} requires prompt text`,
+        400,
+        null,
+      );
     }
 
     const url = `${baseUrl}${this.TTS_PATH}`;
@@ -192,9 +202,12 @@ export class DashScopeAudioProvider implements ProviderClient {
     // voice_setting 是平级的另一个对象。前端字段名跟 API 字段名不一致是历史
     // 残留 (`pitchFine` vs `pitch`)，在这里映射回去比改前端便宜。
     const voiceModify: Record<string, any> = {};
-    if (typeof extra.pitchFine === 'number' && extra.pitchFine !== 0) voiceModify.pitch = extra.pitchFine;
-    if (typeof extra.intensity === 'number' && extra.intensity !== 0) voiceModify.intensity = extra.intensity;
-    if (typeof extra.timbre === 'number' && extra.timbre !== 0) voiceModify.timbre = extra.timbre;
+    if (typeof extra.pitchFine === 'number' && extra.pitchFine !== 0)
+      voiceModify.pitch = extra.pitchFine;
+    if (typeof extra.intensity === 'number' && extra.intensity !== 0)
+      voiceModify.intensity = extra.intensity;
+    if (typeof extra.timbre === 'number' && extra.timbre !== 0)
+      voiceModify.timbre = extra.timbre;
 
     const input: Record<string, any> = {
       text: req.prompt,
@@ -203,7 +216,8 @@ export class DashScopeAudioProvider implements ProviderClient {
     };
     // voice_setting 必填且必须包含 voice_id；前端没选音色时 MiniMax 会报错
     // 1004/2013，那个错误信息直接透出给用户已经够清楚了，这里不做静默兜底。
-    if (Object.keys(voiceSetting).length > 0) input.voice_setting = voiceSetting;
+    if (Object.keys(voiceSetting).length > 0)
+      input.voice_setting = voiceSetting;
     if (Object.keys(voiceModify).length > 0) input.voice_modify = voiceModify;
 
     return {
@@ -233,11 +247,17 @@ export class DashScopeAudioProvider implements ProviderClient {
 
   // ---- Music (FunMusic) ------------------------------------------------
 
-  private async submitMusic(req: SubmitRequest, apiKey: string, baseUrl: string, timeout: number): Promise<SubmitResult> {
+  private async submitMusic(
+    req: SubmitRequest,
+    apiKey: string,
+    baseUrl: string,
+    timeout: number,
+  ): Promise<SubmitResult> {
     const extra = req.extraParams ?? {};
-    const lyrics = typeof extra.lyrics === 'string' && extra.lyrics.trim().length > 0
-      ? extra.lyrics
-      : undefined;
+    const lyrics =
+      typeof extra.lyrics === 'string' && extra.lyrics.trim().length > 0
+        ? extra.lyrics
+        : undefined;
     // FunMusic 要求 prompt 和 lyrics 二选一；前端"使用歌词"开关关闭时 lyrics
     // 为空 → 走 prompt；开启时 lyrics 非空 → 走 lyrics（按文档行为，二者同传
     // 时 lyrics 优先）。这里只校验"两者至少一个非空"。
@@ -314,7 +334,10 @@ export class DashScopeAudioProvider implements ProviderClient {
     };
   }
 
-  private buildMusicBody(req: SubmitRequest, lyrics: string | undefined): Record<string, any> {
+  private buildMusicBody(
+    req: SubmitRequest,
+    lyrics: string | undefined,
+  ): Record<string, any> {
     const extra = req.extraParams ?? {};
     const input: Record<string, any> = {};
     if (lyrics) {
@@ -322,8 +345,10 @@ export class DashScopeAudioProvider implements ProviderClient {
     } else {
       input.prompt = req.prompt;
     }
-    if (extra.gender === 'male' || extra.gender === 'female') input.gender = extra.gender;
-    if (extra.format === 'mp3' || extra.format === 'wav') input.format = extra.format;
+    if (extra.gender === 'male' || extra.gender === 'female')
+      input.gender = extra.gender;
+    if (extra.format === 'mp3' || extra.format === 'wav')
+      input.format = extra.format;
     return {
       model: req.modelSku,
       input,
@@ -346,8 +371,15 @@ export class DashScopeAudioProvider implements ProviderClient {
     return sku.toLowerCase().startsWith('fun-music') ? 'music' : 'tts';
   }
 
-  private toHttpException(message: string, status: number, payload: unknown): HttpException {
-    const err = new HttpException({ errorMessage: message, raw: payload ?? null }, status);
+  private toHttpException(
+    message: string,
+    status: number,
+    payload: unknown,
+  ): HttpException {
+    const err = new HttpException(
+      { errorMessage: message, raw: payload ?? null },
+      status,
+    );
     (err as any).payloadSnippet = payload ?? message;
     return err;
   }

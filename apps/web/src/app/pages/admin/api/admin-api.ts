@@ -161,7 +161,7 @@ export function pruneHistory(): Promise<PruneResponse> {
   });
 }
 
-// ---- Storage (COS) settings -----------------------------------------------
+// ---- Storage (local disk) -------------------------------------------------
 
 export function getStorageSettings(): Promise<StorageSettingsView> {
   return adminFetch<StorageSettingsView>('/api/canvas-flow/storage-settings');

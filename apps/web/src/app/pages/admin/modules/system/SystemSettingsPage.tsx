@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Cloud,
   Database,
   Eye,
   EyeOff,
   ExternalLink,
+  Folder,
   Github,
+  HardDrive,
   History,
   KeyRound,
   Link2,
@@ -57,7 +58,7 @@ import {
  *      tabbed; future ByteDance / Google add a tab without changing
  *      the layout)
  *   3. 生成历史保留策略 (max age / max per kind / 立即清理)
- *   4. 对象存储 (Tencent COS) 凭据 + bucket / region / 自定义域名 / TTL / 大小上限
+ *   4. 本地存储 (data dir / 最大文件大小 / 占用统计)
  *
  * The page itself is just a router — every section owns its own
  * load/save state so a backend hiccup on one endpoint never blocks
@@ -84,7 +85,7 @@ export const SystemSettingsPage: React.FC = () => (
     {/* Generation history retention */}
     <HistoryRetentionSection />
 
-    {/* Object Storage (Tencent COS) */}
+    {/* Local storage */}
     <StorageSection />
   </div>
 );
@@ -94,7 +95,7 @@ const Header: React.FC = () => (
     <div>
       <h1 style={titleStyle}>系统设置</h1>
       <div style={subTitleStyle}>
-        开源信息 · 模型 Provider · 生成历史保留 · 对象存储
+        开源信息 · 模型 Provider · 生成历史保留 · 本地存储
       </div>
     </div>
   </header>
@@ -397,101 +398,31 @@ const HistoryRetentionSection: React.FC = () => {
 };
 
 /**
- * Storage (Tencent COS) settings card.
+ * Local storage settings card.
  *
- * Self-contained -- mirrors HistoryRetentionSection so a backend hiccup
- * on /storage-settings doesn't block the rest of the page.
+ * Open-source build is local-disk-only (D2 collapsed the COS / cloud
+ * abstraction). Two knobs total:
  *
- * Field semantics match the backend DTO:
- *   - text fields (secretId/secretKey/bucket/region/customDomain):
- *       empty input + 保存 → clear (region: revert to default; rest: null)
- *   - secrets are write-only (mask only; replace by typing a new value)
- *   - signExpires / maxFileSize: 0 is a valid "explicit value" upsert;
- *     "重置默认" sends a sentinel `-1` so the backend deletes the row.
+ *   - dataDir       : where bytes live on disk. Source precedence is
+ *                     DB → env(`STORAGE_LOCAL_DATA_DIR`) → built-in
+ *                     default `/data/uploads`. The view banner shows
+ *                     which source is currently winning.
+ *   - maxFileSize   : per-file upload cap in bytes (UI shows MB).
  *
- * `maxFileSize` is stored in bytes server-side but exposed in MB here
- * for usability — operators think in MB, not bytes.
+ * Stats (`bytes`, `fileCount`) are recomputed on every GET via a
+ * `walk(dataDir)` on the backend; cheap enough for ~100k files.
+ *
+ * For i2i / i2v workflows that need a public URL, the dashscope
+ * provider re-stages the local file to dashscope-temp at submit
+ * time — see `DashscopeUploadService.stageLocalUrlsToTemp`. No
+ * configuration needed here.
  */
-/**
- * Single-line banner that explains the auto-fallback storage strategy
- * the backend just resolved.
- *
- *   cos              → green "走 COS（生产模式）"
- *   dashscope-temp   → amber "未配 COS，走 DashScope 临时存储 · 48h 失效"
- *   none             → red   "未配置 — 上传/转存功能未启用"
- *
- * Why a separate component? StorageSection is already 250+ lines and
- * the banner needs different colours per state, which is awkward to
- * inline. Keep it small + close so the rationale stays obvious.
- */
-const StorageStrategyBanner: React.FC<{ view: StorageSettingsView }> = ({ view }) => {
-  let bg = '';
-  let border = '';
-  let icon: React.ReactNode = null;
-  let title = '';
-  let detail = '';
-  switch (view.strategy) {
-    case 'cos':
-      bg = 'rgba(155,227,154,0.08)';
-      border = 'rgba(155,227,154,0.4)';
-      icon = <Cloud size={14} style={{ color: tokens.ok }} />;
-      title = '当前走 COS · 生产模式';
-      detail = '上传 / 转存到你自己的腾讯云桶；URL 长寿命。';
-      break;
-    case 'dashscope-temp':
-      bg = 'rgba(230,200,147,0.08)';
-      border = 'rgba(230,200,147,0.4)';
-      icon = <Timer size={14} style={{ color: tokens.warn }} />;
-      title = '当前走 DashScope 临时存储 · 开箱即用模式';
-      detail =
-        '未配置 COS，自动 fallback 到 DashScope 免费临时存储（oss:// URL，48h 自动失效，单文件 ≤ 100MB，仅北京 region）。生产部署建议补全下方 COS 凭据。';
-      break;
-    case 'none':
-    default:
-      bg = 'rgba(255,180,171,0.10)';
-      border = 'rgba(255,180,171,0.5)';
-      icon = <KeyRound size={14} style={{ color: tokens.err }} />;
-      title = '存储未配置';
-      detail = view.dashscopeKeyOk
-        ? '理论上 DashScope key 已配，但 strategy 仍解析为 none — 这通常是后端 cache 还没刷新；几秒后刷新本页。'
-        : '请至少在上方"DashScope · API Key"填一份 key（开启临时存储 fallback），或者在下方填齐 COS 凭据（生产）。';
-      break;
-  }
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 10,
-        padding: '10px 12px',
-        background: bg,
-        border: `1px solid ${border}`,
-        borderRadius: 10,
-        marginBottom: 4,
-      }}
-    >
-      <span style={{ display: 'inline-flex', marginTop: 2 }}>{icon}</span>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-        <span style={{ fontSize: 12, color: tokens.textPrimary, fontWeight: 600 }}>{title}</span>
-        <span style={{ fontSize: 11, color: tokens.textMuted, lineHeight: 1.5 }}>{detail}</span>
-      </div>
-    </div>
-  );
-};
-
 const StorageSection: React.FC = () => {
   const [view, setView] = useState<StorageSettingsView | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [showSecretId, setShowSecretId] = useState(false);
-  const [showSecretKey, setShowSecretKey] = useState(false);
   const [drafts, setDrafts] = useState({
-    secretId: '',
-    secretKey: '',
-    bucket: '',
-    region: '',
-    customDomain: '',
-    signExpires: '',
+    dataDir: '',
     maxFileSizeMb: '',
   });
 
@@ -501,12 +432,7 @@ const StorageSection: React.FC = () => {
       const v = await getStorageSettings();
       setView(v);
       setDrafts({
-        secretId: '',
-        secretKey: '',
-        bucket: v.bucket ?? '',
-        region: v.regionConfigured ? v.region : '',
-        customDomain: v.customDomain ?? '',
-        signExpires: v.signExpiresConfigured ? String(v.signExpires) : '',
+        dataDir: v.dataDirSource === 'db' ? v.dataDir : '',
         maxFileSizeMb: v.maxFileSizeConfigured
           ? String(Math.floor(v.maxFileSize / 1024 / 1024))
           : '',
@@ -522,38 +448,19 @@ const StorageSection: React.FC = () => {
     void load();
   }, []);
 
-  const apply = async (
-    patch: {
-      secretId?: string;
-      secretKey?: string;
-      bucket?: string;
-      region?: string;
-      customDomain?: string;
-      signExpires?: number;
-      maxFileSize?: number;
-    },
-    onDone?: () => void,
-  ) => {
+  const apply = async (patch: { dataDir?: string; maxFileSize?: number }) => {
     setSaving(true);
     try {
       const v = await updateStorageSettings(patch);
       setView(v);
-      // Re-sync drafts that the server just confirmed; keep secret-input
-      // boxes empty so the masked placeholder reads "已配置 · 输入新值覆盖".
       setDrafts((s) => ({
         ...s,
-        secretId: patch.secretId !== undefined ? '' : s.secretId,
-        secretKey: patch.secretKey !== undefined ? '' : s.secretKey,
-        bucket: patch.bucket !== undefined ? v.bucket ?? '' : s.bucket,
-        region: patch.region !== undefined ? (v.regionConfigured ? v.region : '') : s.region,
-        customDomain:
-          patch.customDomain !== undefined ? v.customDomain ?? '' : s.customDomain,
-        signExpires:
-          patch.signExpires !== undefined
-            ? v.signExpiresConfigured
-              ? String(v.signExpires)
+        dataDir:
+          patch.dataDir !== undefined
+            ? v.dataDirSource === 'db'
+              ? v.dataDir
               : ''
-            : s.signExpires,
+            : s.dataDir,
         maxFileSizeMb:
           patch.maxFileSize !== undefined
             ? v.maxFileSizeConfigured
@@ -561,9 +468,6 @@ const StorageSection: React.FC = () => {
               : ''
             : s.maxFileSizeMb,
       }));
-      if (patch.secretId !== undefined) setShowSecretId(false);
-      if (patch.secretKey !== undefined) setShowSecretKey(false);
-      onDone?.();
       toast.success('已保存');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '保存失败');
@@ -576,8 +480,8 @@ const StorageSection: React.FC = () => {
     return (
       <section style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <Cloud size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-          对象存储 (COS)
+          <HardDrive size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+          本地存储
         </h3>
         <div style={sectionBodyStyle}>
           <div style={emptyStyle}>{loading ? '加载中…' : '加载失败'}</div>
@@ -586,16 +490,8 @@ const StorageSection: React.FC = () => {
     );
   }
 
-  // ---- dirty checks --------------------------------------------------------
-  const bucketDirty = drafts.bucket.trim() !== (view.bucket ?? '');
-  const regionDirty =
-    drafts.region.trim() !== (view.regionConfigured ? view.region : '');
-  const customDomainDirty =
-    drafts.customDomain.trim() !== (view.customDomain ?? '');
-  const signExpiresNum = Number(drafts.signExpires);
-  const signExpiresDirty =
-    drafts.signExpires !== (view.signExpiresConfigured ? String(view.signExpires) : '') &&
-    (drafts.signExpires === '' || (Number.isFinite(signExpiresNum) && signExpiresNum >= 0));
+  const dataDirDirty =
+    drafts.dataDir.trim() !== (view.dataDirSource === 'db' ? view.dataDir : '');
   const maxMbNum = Number(drafts.maxFileSizeMb);
   const currentMaxMb = view.maxFileSizeConfigured
     ? String(Math.floor(view.maxFileSize / 1024 / 1024))
@@ -603,258 +499,89 @@ const StorageSection: React.FC = () => {
   const maxFileSizeDirty =
     drafts.maxFileSizeMb !== currentMaxMb &&
     (drafts.maxFileSizeMb === '' || (Number.isFinite(maxMbNum) && maxMbNum >= 0));
-  const secretIdDirty = drafts.secretId.trim().length > 0;
-  const secretKeyDirty = drafts.secretKey.trim().length > 0;
+
+  // dataDir 来源标签 + 提示
+  const sourceLabel: Record<StorageSettingsView['dataDirSource'], string> = {
+    db: 'DB 覆盖',
+    env: 'STORAGE_LOCAL_DATA_DIR',
+    default: '内置默认',
+  };
 
   return (
     <section style={sectionStyle}>
       <h3 style={sectionTitleStyle}>
-        <Cloud size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-        对象存储 (COS)
+        <HardDrive size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+        本地存储
       </h3>
       <div style={sectionBodyStyle}>
         <p style={hintStyle}>
-          上传 / 转存默认走腾讯云 COS（长寿命 URL，适合生产）。<strong>开源版可选</strong>：
-          未配置时自动 fallback 到 DashScope 临时存储（<code>oss://</code> URL，48h 自动失效，
-          单文件 100MB 上限，仅北京 region），适合 demo / 试用。SecretId / SecretKey 落库前用
-          <code> ENCRYPTION_KEY </code>做 aes-256-gcm 加密，页面只显示掩码，永不回传明文。
+          所有上传文件、模型生成结果都直接写入下方 <code>data dir</code>，由 backend 的{' '}
+          <code>/static/uploads/&lt;key&gt;</code> 路由对外提供。生产部署请把这个路径放到一个
+          独立挂载卷（<code>docker-compose.yml</code> 已经默认这么做），<code>docker compose down</code> 不会丢数据。
+          <br />
+          需要让阿里云模型读取本地图片做 i2i / i2v？后端会在 submit 之前自动把对应文件再上传到
+          DashScope 临时桶（<code>oss://</code>，48h 失效），这里无需任何额外配置。
         </p>
-
-        {/* 当前生效的存储策略 — auto-fallback 决定，最重要的一眼信息 */}
-        <StorageStrategyBanner view={view} />
 
         {/* Status overview */}
         <div style={statusGridStyle}>
           <StatusCard
-            icon={<Database size={14} />}
-            label="Bucket"
-            value={view.bucket ?? '未配置'}
-            source={view.configured ? `${view.region}` : '⚠ 未配置'}
-            ok={!!view.bucket}
+            icon={<Folder size={14} />}
+            label="Data dir"
+            value={view.dataDir}
+            source={`${sourceLabel[view.dataDirSource]} · 默认 ${view.dataDirDefault}`}
+            ok
           />
           <StatusCard
-            icon={<KeyRound size={14} />}
-            label="SecretKey"
-            value={view.secretKeyMask ?? '未配置'}
-            source={view.configured ? 'DB · 加密存储' : '⚠ 未配置'}
-            ok={view.configured}
+            icon={<Database size={14} />}
+            label="占用空间"
+            value={formatBytes(view.stats.bytes)}
+            source={`${view.stats.fileCount.toLocaleString()} 个文件`}
+            ok
+          />
+          <StatusCard
+            icon={<Link2 size={14} />}
+            label="对外路径"
+            value={`${view.publicBaseUrl}/<key>`}
+            source="同源静态文件 · 1y immutable cache"
+            ok
           />
         </div>
 
-        {/* Bucket */}
+        {/* Data dir */}
         <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>Bucket</span>
+          <span style={fieldLabelStyle}>Data dir</span>
           <input
-            value={drafts.bucket}
-            onChange={(e) => setDrafts((s) => ({ ...s, bucket: e.target.value }))}
-            placeholder="例: canvas-1314182386"
-            style={inputMonoStyle}
-            disabled={saving}
-          />
-          <button
-            type="button"
-            onClick={() => apply({ bucket: drafts.bucket.trim() })}
-            style={bucketDirty ? buttonAccentStyle : buttonStyle}
-            disabled={!bucketDirty || saving}
-          >
-            保存
-          </button>
-        </div>
-
-        {/* Region */}
-        <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>Region</span>
-          <input
-            value={drafts.region}
-            onChange={(e) => setDrafts((s) => ({ ...s, region: e.target.value }))}
-            placeholder={`默认 ${view.regionDefault}`}
-            style={inputMonoStyle}
-            disabled={saving}
-          />
-          <button
-            type="button"
-            onClick={() => apply({ region: drafts.region.trim() })}
-            style={regionDirty ? buttonAccentStyle : buttonStyle}
-            disabled={!regionDirty || saving}
-          >
-            保存
-          </button>
-          {view.regionConfigured && (
-            <button
-              type="button"
-              onClick={() => apply({ region: '' })}
-              style={buttonGhostStyle}
-              disabled={saving}
-              title={`清除 DB 配置，回退到内置默认 ${view.regionDefault}`}
-            >
-              重置默认
-            </button>
-          )}
-        </div>
-
-        {/* Custom Domain */}
-        <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>自定义域名</span>
-          <input
-            value={drafts.customDomain}
-            onChange={(e) => setDrafts((s) => ({ ...s, customDomain: e.target.value }))}
-            placeholder="可选 · 例: cdn.example.com (含全球加速域名)"
-            style={inputMonoStyle}
-            disabled={saving}
-          />
-          <button
-            type="button"
-            onClick={() => apply({ customDomain: drafts.customDomain.trim() })}
-            style={customDomainDirty ? buttonAccentStyle : buttonStyle}
-            disabled={!customDomainDirty || saving}
-          >
-            保存
-          </button>
-          {view.customDomain && (
-            <button
-              type="button"
-              onClick={() => apply({ customDomain: '' })}
-              style={buttonGhostStyle}
-              disabled={saving}
-              title="从 DB 删除该字段，回退到默认 .cos.<region>.myqcloud.com 域名"
-            >
-              清除
-            </button>
-          )}
-        </div>
-
-        {/* Secret ID */}
-        <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>SecretId</span>
-          <div style={apiKeyInputWrapStyle}>
-            <input
-              value={drafts.secretId}
-              onChange={(e) => setDrafts((s) => ({ ...s, secretId: e.target.value }))}
-              placeholder={
-                view.secretIdMask
-                  ? `当前: ${view.secretIdMask} · 输入新值覆盖`
-                  : '尚未配置 · 输入 AKID... 并保存'
-              }
-              type={showSecretId ? 'text' : 'password'}
-              style={{ ...inputMonoStyle, paddingRight: 36 }}
-              disabled={saving}
-              autoComplete="off"
-            />
-            <button
-              type="button"
-              onClick={() => setShowSecretId((s) => !s)}
-              style={eyeBtnStyle}
-              title={showSecretId ? '隐藏' : '显示'}
-              tabIndex={-1}
-            >
-              {showSecretId ? <EyeOff size={13} /> : <Eye size={13} />}
-            </button>
-          </div>
-          <button
-            type="button"
-            onClick={() => apply({ secretId: drafts.secretId.trim() })}
-            style={secretIdDirty ? buttonAccentStyle : buttonStyle}
-            disabled={!secretIdDirty || saving}
-          >
-            保存
-          </button>
-          {view.secretIdMask && (
-            <button
-              type="button"
-              onClick={() => {
-                if (!confirm('确认清除 SecretId? 与 SecretKey 任一缺失，COS 上传/转存都会失败。')) return;
-                void apply({ secretId: '' });
-              }}
-              style={buttonGhostStyle}
-              disabled={saving}
-            >
-              清除
-            </button>
-          )}
-        </div>
-
-        {/* Secret Key */}
-        <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>SecretKey</span>
-          <div style={apiKeyInputWrapStyle}>
-            <input
-              value={drafts.secretKey}
-              onChange={(e) => setDrafts((s) => ({ ...s, secretKey: e.target.value }))}
-              placeholder={
-                view.secretKeyMask
-                  ? `当前: ${view.secretKeyMask} · 输入新值覆盖`
-                  : '尚未配置 · 输入 SecretKey 并保存'
-              }
-              type={showSecretKey ? 'text' : 'password'}
-              style={{ ...inputMonoStyle, paddingRight: 36 }}
-              disabled={saving}
-              autoComplete="off"
-            />
-            <button
-              type="button"
-              onClick={() => setShowSecretKey((s) => !s)}
-              style={eyeBtnStyle}
-              title={showSecretKey ? '隐藏' : '显示'}
-              tabIndex={-1}
-            >
-              {showSecretKey ? <EyeOff size={13} /> : <Eye size={13} />}
-            </button>
-          </div>
-          <button
-            type="button"
-            onClick={() => apply({ secretKey: drafts.secretKey.trim() })}
-            style={secretKeyDirty ? buttonAccentStyle : buttonStyle}
-            disabled={!secretKeyDirty || saving}
-          >
-            保存
-          </button>
-          {view.secretKeyMask && (
-            <button
-              type="button"
-              onClick={() => {
-                if (!confirm('确认清除 SecretKey? 清除后所有上传/转存都会失败，直到重新配置。')) return;
-                void apply({ secretKey: '' });
-              }}
-              style={buttonGhostStyle}
-              disabled={saving}
-            >
-              清除
-            </button>
-          )}
-        </div>
-
-        {/* Sign URL TTL */}
-        <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>签名 URL 有效期</span>
-          <input
-            value={drafts.signExpires}
-            onChange={(e) => setDrafts((s) => ({ ...s, signExpires: e.target.value }))}
-            placeholder={`当前 ${view.signExpires}s · 默认 ${view.signExpiresDefault}s${view.signExpiresConfigured ? '' : ' (未配置)'}`}
-            style={{ ...inputStyle, width: 240, flex: 'none' }}
-            type="number"
-            min="0"
-            disabled={saving}
-          />
-          <button
-            type="button"
-            onClick={() =>
-              apply({
-                signExpires:
-                  drafts.signExpires === '' ? -1 : Math.floor(Number(drafts.signExpires)),
-              })
+            value={drafts.dataDir}
+            onChange={(e) => setDrafts((s) => ({ ...s, dataDir: e.target.value }))}
+            placeholder={
+              view.dataDirSource === 'db'
+                ? '已用 DB 配置 · 输入新路径覆盖'
+                : view.dataDirSource === 'env'
+                  ? `当前来自环境变量: ${view.dataDir}`
+                  : `内置默认: ${view.dataDirDefault}`
             }
-            style={signExpiresDirty ? buttonAccentStyle : buttonStyle}
-            disabled={!signExpiresDirty || saving}
+            style={inputMonoStyle}
+            disabled={saving}
+          />
+          <button
+            type="button"
+            onClick={() => apply({ dataDir: drafts.dataDir.trim() })}
+            style={dataDirDirty ? buttonAccentStyle : buttonStyle}
+            disabled={!dataDirDirty || saving}
           >
             保存
           </button>
-          {view.signExpiresConfigured && (
+          {view.dataDirSource === 'db' && (
             <button
               type="button"
-              onClick={() => apply({ signExpires: -1 })}
+              onClick={() => {
+                if (!confirm('确认清除 DB 配置? 清除后回退到环境变量 / 内置默认。已写入旧路径的文件不会自动迁移。')) return;
+                void apply({ dataDir: '' });
+              }}
               style={buttonGhostStyle}
               disabled={saving}
-              title={`清除 DB 配置，回退到内置默认 ${view.signExpiresDefault} 秒`}
+              title="从 DB 删除该字段；回退到 STORAGE_LOCAL_DATA_DIR 或内置默认"
             >
               重置默认
             </button>
@@ -904,6 +631,15 @@ const StorageSection: React.FC = () => {
     </section>
   );
 };
+
+/** 1234567 → "1.18 MB". Used by StorageSection · stats. */
+function formatBytes(bytes: number): string {
+  if (!bytes) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  const v = bytes / Math.pow(1024, i);
+  return `${v.toFixed(v >= 100 || i === 0 ? 0 : 2)} ${units[i]}`;
+}
 
 const CountChip: React.FC<{ label: string; value: number; primary?: boolean }> = ({
   label,

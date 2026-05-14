@@ -50,11 +50,12 @@
 ## 关键特性
 
 - 🎨 **节点画布编辑器** —— 拖拽 / 连线 / 编组 / 框选 / 跨节点 `@图片1` 引用，基于自研 [`@canvas-flow/core`](packages/core)
-- 🛠 **DB 即权威源** —— 节点定义 / 模型清单 / DashScope 凭据 / COS 凭据全部存 MySQL，admin 改完下一次请求就生效，无需改代码或重启
+- 🛠 **DB 即权威源** —— 节点定义 / 模型清单 / Provider 凭据 / 存储设置全部存 MySQL，admin 改完下一次请求就生效，无需改代码或重启
 - 🔌 **Provider 抽象** —— 已接百炼（DashScope）+ OpenAI 兼容协议（chat / image，可指向 OpenRouter / vLLM / DeepSeek / 自建网关）；`src/providers/` 是 SPI 风格，加新源只需新增一个文件
-- 📦 **零配置开箱即用** —— 一份 `DASHSCOPE_API_KEY` 就跑通完整链路；上传无 COS 时自动 fallback 到百炼临时存储
+- 💾 **本地存储 · ComfyUI 思路** —— 上传 / 模型生成结果直接落服务端磁盘，零云端凭据；i2i / i2v 工作流需要公网 URL 时由 dashscope provider 自动经百炼临时桶中转
+- 📦 **零配置开箱即用** —— 一份 `DASHSCOPE_API_KEY` 就跑通完整链路
 - 🧹 **生成历史自治理** —— 新生成顺手节流清理，无 cron 依赖；按天数 / 按 kind 数量阈值 admin 可调
-- 🔐 **加密落库** —— `dashscope.apiKey` / `storage.cos.secretKey` 等敏感字段 AES-256-GCM 加密，UI 永不回传明文，编辑只能"重填覆盖"
+- 🔐 **加密落库** —— `dashscope.apiKey` / `openai.apiKey` 等敏感字段 AES-256-GCM 加密，UI 永不回传明文，编辑只能"重填覆盖"
 - 🇨🇳 **中文优先** —— UI / 错误提示 / 文档 / 节点默认参数都按中文场景调过；不是英文项目机翻
 - ⚖️ **AGPL §13 内置** —— `/admin/system` 顶部"Source · License"卡片永远露出仓库地址 + License + 当前版本号
 
@@ -85,14 +86,14 @@ docker compose up -d --build
 
 **第一期（已发布）**
 
-- 画布编辑器 + admin 后台 + DashScope 全模型矩阵 + COS / DashScope 临时双存储 + 历史保留 + 加密凭据
+- 画布编辑器 + admin 后台 + DashScope 全模型矩阵 + 本地磁盘存储 + 历史保留 + 加密凭据
 - **OpenAI 兼容协议 Provider**（chat / image）—— 任意 OpenAI 协议的 baseUrl + apiKey 都可挂入
 - Docker compose 一键部署 + AGPL §13 合规 UI
 
 **后续规划（按优先级）**
 
-- **存储抽象** —— local / S3 / OSS（当前只 COS + DashScope 临时）
 - **节点 / 模型配置导入导出** —— JSON 互通 / 跨实例同步
+- **可选的远程存储后端** —— S3 / OSS / R2 抽象（生产 multi-instance 部署用）
 - **自动化测试覆盖** —— unit + e2e
 - **画布 JSON 分享** —— 右上角分享按钮变成"导出可复制的画布 JSON"
 

@@ -27,21 +27,27 @@ src/
 ├── canvas-config/             ⭐ 配置权威源
 │   ├── canvas-config.service.ts        节点定义 + 模型清单 (node_definitions)
 │   ├── dashscope-config.service.ts     DashScope baseUrl/apiKey/timeouts
-│   ├── storage-config.service.ts       Tencent COS 全套凭据
+│   ├── openai-compat-config.service.ts OpenAI-compat baseUrl/apiKey/timeouts
 │   └── history-retention.service.ts    生成历史保留策略 + lazy prune
 │
-├── providers/                 ⭐ 模型适配层（只对接百炼）
+├── storage/                   ⭐ 本地磁盘存储
+│   ├── local-storage.service.ts        putObject / readObject / dataDir 配置
+│   └── static-uploads.controller.ts    GET /static/uploads/<key> 文件分发
+│
+├── providers/                 ⭐ 模型适配层
 │   ├── dashscope-chat.provider.ts      qwen-* / deepseek-* / glm-*
 │   ├── dashscope-image.provider.ts     wan2.7-image* （同步 multimodal-generation）
 │   ├── dashscope-video.provider.ts     wan2.6-* / wan2.7-* (video) / happyhorse-*
 │   ├── dashscope-audio.provider.ts     MiniMax-tts / FunMusic（百炼托管）
+│   ├── openai-compat-chat.provider.ts  openai-chat/* （OpenRouter / vLLM / DeepSeek 等）
+│   ├── openai-compat-image.provider.ts openai-image/* （DALL-E / gpt-image-*）
 │   └── provider-registry.service.ts    SKU → provider 路由
 │
-├── upload/                    上传 / 转存（auto-fallback: COS → DashScope 临时）
-│   ├── upload.controller.ts            POST /upload/file (multipart 代理)
-│   ├── upload.service.ts               COS 优先 / DashScope 临时 fallback
-│   ├── dashscope-upload.service.ts     ⭐ DashScope 免费临时存储（oss://, 48h TTL）
-│   └── file-transfer.service.ts        executions 异步转存（同样 fallback）
+├── upload/                    上传 / 转存
+│   ├── upload.controller.ts            POST /upload/file (multipart 代理 → local)
+│   ├── upload.service.ts               薄包装，调 LocalStorageService
+│   ├── file-transfer.service.ts        executions 异步转存到 local
+│   └── dashscope-upload.service.ts     ⭐ stage local URL → dashscope-temp（i2i/i2v 必需）
 │
 └── admin/                     /admin/* 接口（执行日志 / 用量概览）
     └── executions/
@@ -68,7 +74,8 @@ src/
 | `GET`/`PUT` | `/api/canvas-flow/provider-settings` | DashScope 设置 |
 | `GET`/`PUT` | `/api/canvas-flow/history-settings` | 历史保留策略 |
 | `POST` | `/api/canvas-flow/history-settings/prune` | 立即清理 |
-| `GET`/`PUT` | `/api/canvas-flow/storage-settings` | COS 凭据 + 配置 |
+| `GET`/`PUT` | `/api/canvas-flow/storage-settings` | 本地存储 dataDir / maxFileSize |
+| `GET`  | `/static/uploads/<key>` | 本地文件分发（同源，1y immutable cache） |
 | `GET`  | `/admin/executions` / `:id` / `usage` | admin 后台数据 |
 
 > 全部响应都被 `ResponseInterceptor` 包成 `{ success, code, data, message? }`；
@@ -84,6 +91,12 @@ src/
 | `PORT` | HTTP 监听端口（默认 18500） |
 | `ENCRYPTION_KEY` | aes-256-gcm 根钥匙，加密 DB 中的 secrets。≥ 32 字符；**不要**轮换 |
 
+还有一个可选 env 用来覆盖本地存储路径：
+
+| Env | 用途 |
+|---|---|
+| `STORAGE_LOCAL_DATA_DIR` | 文件落盘根目录。默认 `/data/uploads`（容器场景），dev 可改成 repo 内任意可写路径 |
+
 其他都进 DB（`global_configs` 表），admin 改完即时生效，无需重启：
 
 | DB key | 含义 | 加密？ |
@@ -91,29 +104,32 @@ src/
 | `dashscope.baseUrl` | 网关 URL（默认 `https://dashscope.aliyuncs.com`） | 否 |
 | `dashscope.apiKey` | API Key | **是** |
 | `dashscope.timeoutSec.{chat,image,video,audio}` | 各 kind submit 超时（秒） | 否 |
-| `storage.cos.{secretId,secretKey}` | 凭据 | **是** |
-| `storage.cos.{bucket,region,customDomain,signExpires,maxFileSize}` | 桶配置 | 否 |
+| `openai.baseUrl` / `openai.apiKey` | OpenAI 兼容协议网关 | apiKey 加密 |
+| `openai.timeoutSec.{chat,image,video,audio}` | 各 kind submit 超时（秒） | 否 |
+| `storage.local.dataDir` | 数据目录（admin 改可覆盖 env） | 否 |
+| `storage.local.maxFileSize` | 单文件上传上限（字节） | 否 |
 | `history.{maxAgeDays,maxPerKind}` | 生成历史保留策略 | 否 |
 
-旧版 env (`DASHSCOPE_API_KEY` / `COS_*`) 仍可在 `.env` 设置 —— backend 启动时一次性迁到 DB，之后忽略。详见 `.env.example` 顶部注释。
+旧版 env (`DASHSCOPE_API_KEY` / `OPENAI_API_KEY`) 仍可在 `.env` 设置 —— backend 启动时一次性迁到 DB，之后忽略。详见 `.env.example` 顶部注释。
 
-### 存储策略 (auto-fallback)
+### 存储模型（local-only · ComfyUI 思路）
 
-为了"零配置开箱即用"，上传 / 转存有三档：
+为了"开箱即用 + 桌面化友好"，开源版只保留本地磁盘存储，**不再支持云对象存储凭据**：
 
 ```
-COS 凭据齐全          → 写入你的腾讯云桶；URL 长寿命；适合生产
-仅有 DashScope key   → DashScope 临时存储 (oss://, 48h TTL, 100MB cap, 北京 region)
-都没有                → 上传 endpoint 返回 400
+上传 (POST /upload/file)        → LocalStorageService.putObject → /static/uploads/<key>
+模型结果转存 (FileTransferService) → 同上
+i2i / i2v 把本地 URL 喂给模型     → DashscopeUploadService.stageLocalUrlsToTemp 自动中转 oss://
 ```
 
 实现入口：
 
-- `apps/backend/src/upload/dashscope-upload.service.ts` —— `getPolicy` + multipart POST
-- `file-transfer.service.ts` / `upload.service.ts` —— 都走同一份 fallback 逻辑
-- 4 个 DashScope provider 永远附带 `X-DashScope-OssResourceResolve: enable`，使 `oss://` URL 自动被模型解析
+- `apps/backend/src/storage/local-storage.service.ts` —— `putObject / readObject / 配置` 一站式
+- `apps/backend/src/storage/static-uploads.controller.ts` —— `GET /static/uploads/*key`
+- `apps/backend/src/upload/dashscope-upload.service.ts` —— 仅当模型需要公网 URL 时才把本地文件再传一份到百炼临时桶（`oss://`，48h TTL，100MB cap，北京 region）
+- 全部 DashScope provider 永远附带 `X-DashScope-OssResourceResolve: enable`，使 `oss://` URL 自动被模型解析
 
-`/api/canvas-flow/storage-settings` 响应里附带 `strategy` 字段（`'cos' | 'dashscope-temp' | 'none'`），admin UI 顶部 banner 据此显示当前生效策略。
+容器场景下，`docker-compose.yml` 已经把 `/data/uploads` 挂到 named volume `canvas_flow_uploads`，`docker compose down` 不丢数据。想接 S3 / OSS / R2 等远端存储是后续路线（见根 README 的 roadmap）。
 
 ## 常用 Prisma 命令
 

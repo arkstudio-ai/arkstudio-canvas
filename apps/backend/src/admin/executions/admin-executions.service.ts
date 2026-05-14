@@ -1,8 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { EXECUTION_STATUSES, type ExecutionStatus } from '../../executions/dto/query-executions.dto';
-import { MODEL_KINDS, inferModelKind, type ModelKind } from '../../executions/model-kind';
+import {
+  EXECUTION_STATUSES,
+  type ExecutionStatus,
+} from '../../executions/dto/query-executions.dto';
+import {
+  MODEL_KINDS,
+  inferModelKind,
+  type ModelKind,
+} from '../../executions/model-kind';
 
 export type UsageRange = 'today' | 'week' | 'month';
 
@@ -59,7 +66,9 @@ export class AdminExecutionsService {
    * the detail drawer.
    */
   async findOneWithEvents(id: string) {
-    const execution = await this.prisma.flowExecution.findUnique({ where: { id } });
+    const execution = await this.prisma.flowExecution.findUnique({
+      where: { id },
+    });
     if (!execution) return null;
     const events = await this.prisma.flowExecutionEvent.findMany({
       where: { executionId: id },
@@ -213,7 +222,10 @@ export class AdminExecutionsService {
       const name = row.modelName ?? 'unknown';
       const cur =
         map.get(name) ??
-        this.emptyModelRow(name, (row.kind as ModelKind | null) ?? inferModelKind(row.modelSku));
+        this.emptyModelRow(
+          name,
+          (row.kind as ModelKind | null) ?? inferModelKind(row.modelSku),
+        );
       cur.count += row._count._all;
       if (row.status === 'COMPLETED') cur.completed += row._count._all;
       if (row.status === 'FAILED') cur.failed += row._count._all;
@@ -240,7 +252,10 @@ export class AdminExecutionsService {
     };
   }
 
-  private resolveRange(range: UsageRange): { rangeStart: Date; rangeEnd: Date } {
+  private resolveRange(range: UsageRange): {
+    rangeStart: Date;
+    rangeEnd: Date;
+  } {
     const now = new Date();
     const rangeEnd = new Date(now);
     const rangeStart = new Date(now);

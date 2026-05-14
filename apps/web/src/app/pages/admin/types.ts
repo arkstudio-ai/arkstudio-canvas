@@ -293,63 +293,47 @@ export interface PruneResponse {
   view: HistorySettingsView;
 }
 
-// ---- Storage (COS) settings ------------------------------------------------
+// ---- Storage (local disk) -------------------------------------------------
 //
-// Mirrors apps/backend/src/canvas-config/storage-config.service.ts. Secrets
-// are never returned in plaintext -- only `secretIdMask` / `secretKeyMask`
-// (e.g. `AKID12...x9aB`); editing requires the operator to retype.
+// Mirrors apps/backend/src/storage/local-storage.service.ts. Open-source
+// build is local-disk-only; the legacy COS / DashScope-temp storage strategy
+// was removed in D2. Bytes live under `dataDir`, served by
+// `StaticUploadsController` on `/static/uploads/<key>`.
 
-/**
- * Effective upload destination resolved by the backend.
- *
- *   'cos'              → COS credentials are configured; uploads land
- *                        in the operator's own bucket (long-lived URLs)
- *   'dashscope-temp'   → no COS, but DashScope key is set; uploads go
- *                        to DashScope's free temporary store as
- *                        `oss://...` URLs (48h TTL, 100MB cap)
- *   'none'             → neither configured; the upload endpoint will
- *                        400, the UI shows a "至少配置一个" warning
- */
-export type StorageStrategy = 'cos' | 'dashscope-temp' | 'none';
+export interface LocalStorageStats {
+  /** Effective dataDir at the moment stats were computed. */
+  dataDir: string;
+  /** Total bytes across all files under dataDir. */
+  bytes: number;
+  /** Total file count across all files under dataDir. */
+  fileCount: number;
+}
 
 export interface StorageSettingsView {
-  /** True when secretId + secretKey + bucket are all set in DB. */
-  configured: boolean;
-  secretIdMask: string | null;
-  secretKeyMask: string | null;
-  bucket: string | null;
-  /** Effective region (DB override OR built-in default 'ap-hongkong'). */
-  region: string;
-  regionDefault: string;
-  regionConfigured: boolean;
-  customDomain: string | null;
-  /** Sign URL TTL in seconds. */
-  signExpires: number;
-  signExpiresDefault: number;
-  signExpiresConfigured: boolean;
+  /** Effective dataDir (DB override OR env OR built-in default). */
+  dataDir: string;
+  /** Built-in fallback path when no DB / env override exists. */
+  dataDirDefault: string;
+  /** Where the effective value came from. */
+  dataDirSource: 'db' | 'env' | 'default';
+  /** Live filesystem stats; recomputed on every GET. */
+  stats: LocalStorageStats;
   /** Bytes. UI converts to MB for display. */
   maxFileSize: number;
   maxFileSizeDefault: number;
   maxFileSizeConfigured: boolean;
-  /** Effective strategy currently applied to uploads. Backend-computed. */
-  strategy: StorageStrategy;
-  /** True when DashScope api key is set; surfaced so the UI can explain why fallback is/isn't available. */
-  dashscopeKeyOk: boolean;
+  /** Relative URL prefix that resolves to dataDir; const today (`/static/uploads`). */
+  publicBaseUrl: string;
 }
 
 /**
  * PUT body. Same untouched/clear/set semantics as Provider settings:
  *   - undefined          → field untouched
- *   - empty string ''    → clear the field (region: revert to default; rest: null)
- *   - non-empty string   → upsert (secrets get encrypted server-side)
- *   - signExpires/maxFileSize: undefined = untouched, negative = clear, 0+ = upsert
+ *   - empty string ''    → clear the field (revert to env / default)
+ *   - non-empty string   → upsert
+ *   - maxFileSize: undefined = untouched, negative = clear, 0+ = upsert
  */
 export interface StorageSettingsUpdate {
-  secretId?: string;
-  secretKey?: string;
-  bucket?: string;
-  region?: string;
-  customDomain?: string;
-  signExpires?: number;
+  dataDir?: string;
   maxFileSize?: number;
 }

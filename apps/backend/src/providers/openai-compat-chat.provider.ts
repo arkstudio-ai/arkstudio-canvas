@@ -77,7 +77,11 @@ export class OpenAICompatChatProvider implements ProviderClient {
 
   async submit(req: SubmitRequest): Promise<SubmitResult> {
     if (!req.prompt) {
-      throw this.toHttpException(`${req.modelSku} requires a prompt`, 400, null);
+      throw this.toHttpException(
+        `${req.modelSku} requires a prompt`,
+        400,
+        null,
+      );
     }
 
     this.assertNoOssInputs(req.inputs);
@@ -95,7 +99,10 @@ export class OpenAICompatChatProvider implements ProviderClient {
     const userContent =
       imageInputs.length > 0
         ? [
-            ...imageInputs.map((i) => ({ type: 'image_url', image_url: { url: i.url } })),
+            ...imageInputs.map((i) => ({
+              type: 'image_url',
+              image_url: { url: i.url },
+            })),
             { type: 'text', text: req.prompt },
           ]
         : req.prompt;
@@ -139,7 +146,10 @@ export class OpenAICompatChatProvider implements ProviderClient {
     } catch (e: any) {
       const data = e?.response?.data ?? null;
       const err = this.toHttpException(
-        data?.error?.message || data?.message || e?.message || 'OpenAI-compat chat failed',
+        data?.error?.message ||
+          data?.message ||
+          e?.message ||
+          'OpenAI-compat chat failed',
         e?.response?.status ?? 502,
         data ?? { requestBody: body },
       );
@@ -151,7 +161,11 @@ export class OpenAICompatChatProvider implements ProviderClient {
     const choice = data?.choices?.[0];
     const text: string | undefined = choice?.message?.content;
     if (typeof text !== 'string') {
-      const err = this.toHttpException('OpenAI-compat chat returned no message content', 502, data);
+      const err = this.toHttpException(
+        'OpenAI-compat chat returned no message content',
+        502,
+        data,
+      );
       (err as any).requestPayload = body;
       throw err;
     }
@@ -166,7 +180,10 @@ export class OpenAICompatChatProvider implements ProviderClient {
   }
 
   async pollStatus(_taskId: string): Promise<PollResult> {
-    throw new HttpException('openai-compat-chat is synchronous and has no taskId to poll', 500);
+    throw new HttpException(
+      'openai-compat-chat is synchronous and has no taskId to poll',
+      500,
+    );
   }
 
   // ---- helpers ---------------------------------------------------------
@@ -201,7 +218,10 @@ export class OpenAICompatChatProvider implements ProviderClient {
     return modelSku.replace(/^openai-chat\//i, '');
   }
 
-  private numericParam(extra: Record<string, any> | undefined, key: string): number | undefined {
+  private numericParam(
+    extra: Record<string, any> | undefined,
+    key: string,
+  ): number | undefined {
     const v = extra?.[key];
     if (v === undefined || v === null || v === '') return undefined;
     const n = Number(v);
@@ -226,8 +246,15 @@ export class OpenAICompatChatProvider implements ProviderClient {
     return { inputTokens, outputTokens, raw: usage };
   }
 
-  private toHttpException(message: string, status: number, payload: unknown): HttpException {
-    const err = new HttpException({ errorMessage: message, raw: payload ?? null }, status);
+  private toHttpException(
+    message: string,
+    status: number,
+    payload: unknown,
+  ): HttpException {
+    const err = new HttpException(
+      { errorMessage: message, raw: payload ?? null },
+      status,
+    );
     (err as any).payloadSnippet = payload ?? message;
     return err;
   }

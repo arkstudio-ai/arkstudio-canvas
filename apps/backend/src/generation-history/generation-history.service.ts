@@ -73,11 +73,15 @@ export class GenerationHistoryService {
   }
 
   async instantiate(id: string) {
-    const row = await this.prisma.generationHistory.findUnique({ where: { id } });
+    const row = await this.prisma.generationHistory.findUnique({
+      where: { id },
+    });
     if (!row) throw new NotFoundException(`History ${id} not found`);
 
     const newNodeId = uuidv4();
-    const defaultDimensions = this.defaultDimensions(row.nodeType as HistoryNodeType);
+    const defaultDimensions = this.defaultDimensions(
+      row.nodeType as HistoryNodeType,
+    );
     const width = row.width || defaultDimensions.width;
     const height = row.height || defaultDimensions.height;
 
@@ -97,7 +101,9 @@ export class GenerationHistoryService {
   }
 
   async remove(id: string) {
-    const row = await this.prisma.generationHistory.findUnique({ where: { id } });
+    const row = await this.prisma.generationHistory.findUnique({
+      where: { id },
+    });
     if (!row) throw new NotFoundException(`History ${id} not found`);
     await this.prisma.generationHistory.delete({ where: { id } });
   }
@@ -122,7 +128,8 @@ export class GenerationHistoryService {
           width: dto.width ?? 0,
           height: dto.height ?? 0,
           src: dto.src ?? null,
-          outputData: (dto.outputData as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+          outputData:
+            (dto.outputData as Prisma.InputJsonValue) ?? Prisma.JsonNull,
           params: (dto.params as Prisma.InputJsonValue) ?? Prisma.JsonNull,
           executionId: dto.executionId ?? null,
         },
@@ -134,12 +141,18 @@ export class GenerationHistoryService {
       return row.id;
     } catch (err) {
       // Recording failures must never break the calling generation flow.
-      this.logger.error('[GenerationHistory.record] persist failed', err as Error);
+      this.logger.error(
+        '[GenerationHistory.record] persist failed',
+        err as Error,
+      );
       return null;
     }
   }
 
-  private defaultDimensions(type: HistoryNodeType): { width: number; height: number } {
+  private defaultDimensions(type: HistoryNodeType): {
+    width: number;
+    height: number;
+  } {
     switch (type) {
       case 'video':
       case 'image':

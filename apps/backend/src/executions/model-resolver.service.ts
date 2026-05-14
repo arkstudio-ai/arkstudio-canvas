@@ -29,7 +29,10 @@ export class ModelResolverService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async resolve(nodeType: string, params: Record<string, any>): Promise<ResolvedModel> {
+  async resolve(
+    nodeType: string,
+    params: Record<string, any>,
+  ): Promise<ResolvedModel> {
     const modelName: string | null =
       typeof params.model === 'string' && params.model ? params.model : null;
 
@@ -43,17 +46,25 @@ export class ModelResolverService {
       return { modelName, modelSku: null, modeId: null };
     }
 
-    const family = modelName ? models.find((m) => m?.value === modelName) : null;
+    const family = modelName
+      ? models.find((m) => m?.value === modelName)
+      : null;
     if (!family) {
       // 未声明的 model 直接返回 family 标识；上游模型如纯 SKU 直接命中
       return { modelName, modelSku: modelName, modeId: null };
     }
 
-    const modes: Array<Record<string, any>> = Array.isArray(family.modes) ? family.modes : [];
+    const modes: Array<Record<string, any>> = Array.isArray(family.modes)
+      ? family.modes
+      : [];
 
     // 单模式模型：SKU 就是 family.value
     if (modes.length === 0) {
-      return { modelName, modelSku: typeof family.value === 'string' ? family.value : null, modeId: null };
+      return {
+        modelName,
+        modelSku: typeof family.value === 'string' ? family.value : null,
+        modeId: null,
+      };
     }
 
     const requestedModeId =
@@ -61,11 +72,14 @@ export class ModelResolverService {
 
     const mode =
       (requestedModeId && modes.find((m) => m?.id === requestedModeId)) ||
-      (typeof family.defaultModeId === 'string' && modes.find((m) => m?.id === family.defaultModeId)) ||
+      (typeof family.defaultModeId === 'string' &&
+        modes.find((m) => m?.id === family.defaultModeId)) ||
       modes[0];
 
     if (!mode) {
-      this.logger.warn(`无法解析 mode: nodeType=${nodeType} model=${modelName} mode=${requestedModeId}`);
+      this.logger.warn(
+        `无法解析 mode: nodeType=${nodeType} model=${modelName} mode=${requestedModeId}`,
+      );
       return { modelName, modelSku: null, modeId: requestedModeId };
     }
 

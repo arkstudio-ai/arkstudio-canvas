@@ -71,7 +71,9 @@ export class ExecutionsController {
    * without summing rows on the client.
    */
   @Get('batch/:batchId/progress')
-  async getBatchProgress(@Param('batchId') batchId: string): Promise<BatchProgressDto> {
+  async getBatchProgress(
+    @Param('batchId') batchId: string,
+  ): Promise<BatchProgressDto> {
     return this.executionsService.getBatchProgress(batchId);
   }
 

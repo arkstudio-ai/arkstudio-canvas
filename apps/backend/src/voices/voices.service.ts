@@ -34,7 +34,8 @@ export class VoicesService {
   // 音色复刻接口地址。文档：help.aliyun.com/zh/model-studio/mini-clone-api
   // 跟 dashscope-audio.provider 的 TTS_PATH 同一个 endpoint，区别只在
   // input.action：TTS = 不传，复刻 = "voice_clone"。
-  private readonly CLONE_PATH = '/api/v1/services/aigc/multimodal-generation/generation';
+  private readonly CLONE_PATH =
+    '/api/v1/services/aigc/multimodal-generation/generation';
   // 上游 delete 是轻调用；与 image/video poll 一致保持本地硬编码 10s。
   private readonly DELETE_TIMEOUT_MS = 10_000;
   // 默认用 turbo 模型做复刻 + 试听，价格更低（2元/次 vs hd 的 3.5元/次）。
@@ -43,7 +44,8 @@ export class VoicesService {
 
   // demoText 不传时的兜底文本。MiniMax 要求复刻请求必须带试听文本，否则
   // 直接 4xx；这段中文比英文兜底更能让用户听出"音色像不像"。
-  private static readonly FALLBACK_DEMO_TEXT = '你好，这是用我的声音生成的一段试听音频。';
+  private static readonly FALLBACK_DEMO_TEXT =
+    '你好，这是用我的声音生成的一段试听音频。';
 
   constructor(
     private readonly prisma: PrismaService,
@@ -302,5 +304,4 @@ export class VoicesService {
     const rand = Math.random().toString(36).slice(2, 8).padEnd(6, '0');
     return `cf-${ts}-${rand}`;
   }
-
 }

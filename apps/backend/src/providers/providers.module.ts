@@ -9,6 +9,7 @@ import { OpenAICompatChatProvider } from './openai-compat-chat.provider';
 import { OpenAICompatImageProvider } from './openai-compat-image.provider';
 import { ProviderRegistry } from './provider-registry.service';
 import { CanvasConfigModule } from '../canvas-config/canvas-config.module';
+import { UploadModule } from '../upload/upload.module';
 
 /**
  * Provider layer.
@@ -30,7 +31,7 @@ import { CanvasConfigModule } from '../canvas-config/canvas-config.module';
  * without restarting backend.
  */
 @Module({
-  imports: [HttpModule, ConfigModule, CanvasConfigModule],
+  imports: [HttpModule, ConfigModule, CanvasConfigModule, UploadModule],
   providers: [
     DashScopeVideoProvider,
     DashScopeImageProvider,

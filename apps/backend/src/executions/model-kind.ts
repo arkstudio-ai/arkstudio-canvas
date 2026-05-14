@@ -47,7 +47,12 @@ export function inferModelKind(modelSku?: string | null): ModelKind | null {
   if (sku.startsWith('speech-') || sku.startsWith('fun-music')) return 'audio';
 
   // Chat: text-completion families.
-  if (sku.startsWith('qwen-') || sku.startsWith('deepseek-') || sku.startsWith('glm-')) return 'chat';
+  if (
+    sku.startsWith('qwen-') ||
+    sku.startsWith('deepseek-') ||
+    sku.startsWith('glm-')
+  )
+    return 'chat';
 
   return null;
 }

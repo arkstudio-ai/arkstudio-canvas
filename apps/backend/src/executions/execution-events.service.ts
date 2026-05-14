@@ -64,12 +64,16 @@ export class ExecutionEventsService {
   subscribe(filterArgs: SubscriptionFilter): Observable<MessageEvent> {
     return this.events$.pipe(
       filter((e) => this.matches(e, filterArgs)),
-      map((e) => ({ data: e }) as MessageEvent),
+      map((e) => ({ data: e })),
     );
   }
 
-  private matches(event: ExecutionStatusEvent, args: SubscriptionFilter): boolean {
-    if (args.executionId && event.executionId !== args.executionId) return false;
+  private matches(
+    event: ExecutionStatusEvent,
+    args: SubscriptionFilter,
+  ): boolean {
+    if (args.executionId && event.executionId !== args.executionId)
+      return false;
     if (args.batchId && event.batchId !== args.batchId) return false;
     if (args.flowId && event.flowId !== args.flowId) return false;
     return true;

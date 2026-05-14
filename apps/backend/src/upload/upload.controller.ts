@@ -19,18 +19,16 @@ export class UploadController {
    *   Content-Type: multipart/form-data
    *   field: `file` (binary)
    *
-   * The backend internally picks a destination based on what's
-   * configured in /admin/system:
-   *   - COS configured       → `putObject` to our bucket; long-lived URL
-   *   - else DashScope key   → DashScope free temporary store (oss://, 48h)
-   *   - else                 → 400 BAD_REQUEST asking for storage
+   * Bytes are written to local disk via `LocalStorageService`. The
+   * returned `accessUrl` is a relative path served by
+   * `StaticUploadsController` (`/static/uploads/...`).
    *
    * Response:
-   *   { accessUrl, fileKey?, storage: 'cos' | 'dashscope-temp', expiresAt? }
+   *   { accessUrl, fileKey, storage: 'local', bytes }
    *
-   * 早期版本的 `POST /upload/sign`（COS 预签名 PUT）已删除——开箱即用
-   * 模式下没有 COS 凭据可签，统一走这条多 multipart 代理路径，让 backend
-   * 自动在 COS / DashScope 临时桶之间选目的地。
+   * For i2i / i2v reference images, the same `accessUrl` is later
+   * re-staged to the dashscope-temp bucket inside the dashscope
+   * provider — see `DashscopeUploadService.stageLocalUrlsToTemp`.
    */
   @Post('file')
   @UseInterceptors(FileInterceptor('file'))

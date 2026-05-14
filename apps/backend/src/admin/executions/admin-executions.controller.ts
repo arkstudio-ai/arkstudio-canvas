@@ -1,9 +1,22 @@
-import { Controller, Get, NotFoundException, Param, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Query,
+} from '@nestjs/common';
 import { ExecutionsService } from '../../executions/executions.service';
 import { QueryExecutionsDto } from '../../executions/dto/query-executions.dto';
-import { AdminExecutionsService, type UsageRange } from './admin-executions.service';
+import {
+  AdminExecutionsService,
+  type UsageRange,
+} from './admin-executions.service';
 
-const VALID_RANGES: ReadonlySet<UsageRange> = new Set(['today', 'week', 'month']);
+const VALID_RANGES: ReadonlySet<UsageRange> = new Set([
+  'today',
+  'week',
+  'month',
+]);
 
 /**
  * Admin-side read API for `flow_executions`.
@@ -32,9 +45,9 @@ export class AdminExecutionsController {
   @Get('usage')
   async getUsage(@Query('range') rangeParam?: string) {
     const range: UsageRange =
-      rangeParam && VALID_RANGES.has(rangeParam as UsageRange) ?
-        (rangeParam as UsageRange)
-      : 'today';
+      rangeParam && VALID_RANGES.has(rangeParam as UsageRange)
+        ? (rangeParam as UsageRange)
+        : 'today';
     return this.admin.getUsageOverview(range);
   }
 

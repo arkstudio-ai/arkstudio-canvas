@@ -19,7 +19,7 @@ const LAZY_PRUNE_MIN_INTERVAL_MS = 10 * 60 * 1000; // 10 min
  * generation flow nodes; we only persist outputs of these four).
  */
 const TRACKED_KINDS = ['image', 'video', 'audio', 'text'] as const;
-export type HistoryKind = typeof TRACKED_KINDS[number];
+export type HistoryKind = (typeof TRACKED_KINDS)[number];
 
 interface CachedNumber {
   value: number | null;
@@ -80,7 +80,9 @@ export class HistoryRetentionService {
   async getMaxAgeDays(): Promise<number> {
     const cached = this.readCached(this.maxAgeCache);
     if (cached !== undefined) return cached ?? DEFAULT_MAX_AGE_DAYS;
-    const row = await this.prisma.globalConfig.findUnique({ where: { key: KEY_MAX_AGE_DAYS } });
+    const row = await this.prisma.globalConfig.findUnique({
+      where: { key: KEY_MAX_AGE_DAYS },
+    });
     const v = this.unwrapNumberValue(row?.value);
     this.maxAgeCache = { value: v, expiresAt: Date.now() + CACHE_TTL_MS };
     return v ?? DEFAULT_MAX_AGE_DAYS;
@@ -89,7 +91,9 @@ export class HistoryRetentionService {
   async getMaxPerKind(): Promise<number> {
     const cached = this.readCached(this.maxPerKindCache);
     if (cached !== undefined) return cached ?? DEFAULT_MAX_PER_KIND;
-    const row = await this.prisma.globalConfig.findUnique({ where: { key: KEY_MAX_PER_KIND } });
+    const row = await this.prisma.globalConfig.findUnique({
+      where: { key: KEY_MAX_PER_KIND },
+    });
     const v = this.unwrapNumberValue(row?.value);
     this.maxPerKindCache = { value: v, expiresAt: Date.now() + CACHE_TTL_MS };
     return v ?? DEFAULT_MAX_PER_KIND;
@@ -174,8 +178,12 @@ export class HistoryRetentionService {
   // ---- admin surface -------------------------------------------------------
 
   async getViewPayload(): Promise<HistoryRetentionView> {
-    const ageRow = await this.prisma.globalConfig.findUnique({ where: { key: KEY_MAX_AGE_DAYS } });
-    const perKindRow = await this.prisma.globalConfig.findUnique({ where: { key: KEY_MAX_PER_KIND } });
+    const ageRow = await this.prisma.globalConfig.findUnique({
+      where: { key: KEY_MAX_AGE_DAYS },
+    });
+    const perKindRow = await this.prisma.globalConfig.findUnique({
+      where: { key: KEY_MAX_PER_KIND },
+    });
     const ageStored = this.unwrapNumberValue(ageRow?.value);
     const perKindStored = this.unwrapNumberValue(perKindRow?.value);
 
@@ -188,7 +196,9 @@ export class HistoryRetentionService {
       total,
     };
     for (const kind of TRACKED_KINDS) {
-      counts[kind] = await this.prisma.generationHistory.count({ where: { nodeType: kind } });
+      counts[kind] = await this.prisma.generationHistory.count({
+        where: { nodeType: kind },
+      });
     }
 
     return {
@@ -199,7 +209,8 @@ export class HistoryRetentionService {
       maxPerKindDefault: DEFAULT_MAX_PER_KIND,
       maxPerKindConfigured: perKindStored !== null,
       counts,
-      lastPruneAt: this.lastPruneAt > 0 ? new Date(this.lastPruneAt).toISOString() : null,
+      lastPruneAt:
+        this.lastPruneAt > 0 ? new Date(this.lastPruneAt).toISOString() : null,
       lastPruneDeleted: this.lastPruneDeleted,
     };
   }
@@ -221,18 +232,30 @@ export class HistoryRetentionService {
     maxPerKind?: number;
   }): Promise<void> {
     if (input.maxAgeDays !== undefined) {
-      await this.upsertNumber(KEY_MAX_AGE_DAYS, input.maxAgeDays, 'history max age (days)');
+      await this.upsertNumber(
+        KEY_MAX_AGE_DAYS,
+        input.maxAgeDays,
+        'history max age (days)',
+      );
       this.maxAgeCache = null;
     }
     if (input.maxPerKind !== undefined) {
-      await this.upsertNumber(KEY_MAX_PER_KIND, input.maxPerKind, 'history max rows per kind');
+      await this.upsertNumber(
+        KEY_MAX_PER_KIND,
+        input.maxPerKind,
+        'history max rows per kind',
+      );
       this.maxPerKindCache = null;
     }
   }
 
   // ---- internals -----------------------------------------------------------
 
-  private async upsertNumber(key: string, raw: number, description: string): Promise<void> {
+  private async upsertNumber(
+    key: string,
+    raw: number,
+    description: string,
+  ): Promise<void> {
     // Negative or non-finite => clear the row so reads fall back to DEFAULT_*.
     if (!Number.isFinite(raw) || raw < 0) {
       await this.prisma.globalConfig.deleteMany({ where: { key } });
@@ -241,12 +264,18 @@ export class HistoryRetentionService {
     const clamped = Math.floor(raw);
     await this.prisma.globalConfig.upsert({
       where: { key },
-      create: { key, value: clamped, description: `${description} (admin-set)` },
+      create: {
+        key,
+        value: clamped,
+        description: `${description} (admin-set)`,
+      },
       update: { value: clamped },
     });
   }
 
-  private readCached<T>(slot: { value: T; expiresAt: number } | null): T | undefined {
+  private readCached<T>(
+    slot: { value: T; expiresAt: number } | null,
+  ): T | undefined {
     if (!slot) return undefined;
     if (slot.expiresAt < Date.now()) return undefined;
     return slot.value;
@@ -259,7 +288,11 @@ export class HistoryRetentionService {
       const n = Number(value);
       return Number.isFinite(n) ? n : null;
     }
-    if (typeof value === 'object' && value !== null && 'value' in (value as any)) {
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      'value' in (value as any)
+    ) {
       return this.unwrapNumberValue((value as any).value);
     }
     return null;
