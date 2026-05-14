@@ -8,6 +8,8 @@ import type {
   HistorySettingsView,
   ListExecutionsParams,
   PruneResponse,
+  OpenaiSettingsView,
+  OpenaiSettingsUpdate,
   ProviderSettingsView,
   ProviderSettingsUpdate,
   SaveConfigResult,
@@ -113,6 +115,21 @@ export function updateProviderSettings(
   patch: ProviderSettingsUpdate,
 ): Promise<ProviderSettingsView> {
   return adminFetch<ProviderSettingsView>('/api/canvas-flow/provider-settings', {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
+}
+
+// ---- OpenAI-compatible provider --------------------------------------------
+
+export function getOpenaiSettings(): Promise<OpenaiSettingsView> {
+  return adminFetch<OpenaiSettingsView>('/api/canvas-flow/openai-settings');
+}
+
+export function updateOpenaiSettings(
+  patch: OpenaiSettingsUpdate,
+): Promise<OpenaiSettingsView> {
+  return adminFetch<OpenaiSettingsView>('/api/canvas-flow/openai-settings', {
     method: 'PUT',
     body: JSON.stringify(patch),
   });

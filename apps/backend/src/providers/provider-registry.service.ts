@@ -3,17 +3,27 @@ import { DashScopeVideoProvider } from './dashscope-video.provider';
 import { DashScopeImageProvider } from './dashscope-image.provider';
 import { DashScopeChatProvider } from './dashscope-chat.provider';
 import { DashScopeAudioProvider } from './dashscope-audio.provider';
+import { OpenAICompatChatProvider } from './openai-compat-chat.provider';
+import { OpenAICompatImageProvider } from './openai-compat-image.provider';
 import type { ProviderClient } from './provider.types';
 
 /**
  * Routes a model SKU to the right provider.
  *
- * Open-source build only routes Aliyun Bailian (DashScope) SKUs.
- * Anything else throws — there is no external executor fallback.
+ * Routing is by SKU string only; the registry never reads NodeDefinition
+ * or params, so it stays independent of frontend config.
+ *
+ * SKU namespaces shipped today:
+ *   - `qwen-*` / `deepseek*` / `glm*`        → DashScope chat
+ *   - `qwen-image*` / `wanx*`                → DashScope image
+ *   - `wan2.*` / `wanx2.*` / `happyhorse*`   → DashScope video
+ *   - `speech-*` / `fun-music*`              → DashScope audio
+ *   - `openai-chat/*`                        → OpenAI-compat chat
+ *   - `openai-image/*`                       → OpenAI-compat image
  *
  * Adding a new provider = inject it into the constructor and push into
- * `priority`. Routing is by SKU string only; the registry never reads
- * NodeDefinition or params, so it stays independent of frontend config.
+ * `priority`. SKUs that no provider claims throw a clear 400 listing
+ * the routable namespaces.
  */
 @Injectable()
 export class ProviderRegistry {
@@ -25,8 +35,17 @@ export class ProviderRegistry {
     dashscopeImage: DashScopeImageProvider,
     dashscopeChat: DashScopeChatProvider,
     dashscopeAudio: DashScopeAudioProvider,
+    openaiChat: OpenAICompatChatProvider,
+    openaiImage: OpenAICompatImageProvider,
   ) {
-    this.priority = [dashscopeVideo, dashscopeImage, dashscopeChat, dashscopeAudio];
+    this.priority = [
+      dashscopeVideo,
+      dashscopeImage,
+      dashscopeChat,
+      dashscopeAudio,
+      openaiChat,
+      openaiImage,
+    ];
   }
 
   resolve(modelSku: string | null | undefined): ProviderClient {
@@ -37,9 +56,9 @@ export class ProviderRegistry {
         return p;
       }
     }
-    this.logger.warn(`unsupported sku=${sku || '<none>'}; open-source build only routes Aliyun Bailian SKUs`);
+    this.logger.warn(`unsupported sku=${sku || '<none>'}; no provider claims this SKU prefix`);
     throw new HttpException(
-      `Unsupported model SKU "${sku}". Open-source build only routes Aliyun Bailian SKUs (qwen-* / wanx* / wan2.* / happyhorse* / speech-* / fun-music*).`,
+      `Unsupported model SKU "${sku}". Routable namespaces: qwen-* / wanx* / wan2.* / happyhorse* / speech-* / fun-music* (DashScope) · openai-chat/* · openai-image/* (OpenAI-compat).`,
       400,
     );
   }

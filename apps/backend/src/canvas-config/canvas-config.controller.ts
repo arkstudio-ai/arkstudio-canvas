@@ -2,9 +2,11 @@ import { Controller, Get, Post, Put, Query, Body } from '@nestjs/common';
 import { CanvasConfigService } from './canvas-config.service';
 import { DashscopeConfigService } from './dashscope-config.service';
 import { HistoryRetentionService } from './history-retention.service';
+import { OpenaiCompatConfigService } from './openai-compat-config.service';
 import { StorageConfigService } from './storage-config.service';
 import { SaveConfigDto } from './dto/save-config.dto';
 import { UpdateProviderSettingsDto } from './dto/provider-settings.dto';
+import { UpdateOpenaiSettingsDto } from './dto/openai-settings.dto';
 import { UpdateHistorySettingsDto } from './dto/history-settings.dto';
 import { UpdateStorageSettingsDto } from './dto/storage-settings.dto';
 
@@ -14,6 +16,7 @@ export class CanvasConfigController {
     private configService: CanvasConfigService,
     private dashscopeConfig: DashscopeConfigService,
     private historyRetention: HistoryRetentionService,
+    private openaiConfig: OpenaiCompatConfigService,
     private storageConfig: StorageConfigService,
   ) {}
 
@@ -77,6 +80,35 @@ export class CanvasConfigController {
   async updateProviderSettings(@Body() dto: UpdateProviderSettingsDto) {
     await this.dashscopeConfig.updateSettings(dto);
     return this.dashscopeConfig.getViewPayload();
+  }
+
+  /**
+   * GET /api/canvas-flow/openai-settings
+   * View-only payload for the admin OpenAI-compatible Provider 设置
+   * panel. Same shape as `provider-settings` so the admin UI can
+   * render both with the same component. Never returns the plaintext
+   * apiKey.
+   *
+   * Endpoint kept separate (rather than `provider-settings?vendor=openai`)
+   * so each provider config service stays independently route-able and
+   * future `bytedance-settings` / `google-settings` follow the same
+   * one-route-per-vendor pattern.
+   */
+  @Get('openai-settings')
+  async getOpenaiSettings() {
+    return this.openaiConfig.getViewPayload();
+  }
+
+  /**
+   * PUT /api/canvas-flow/openai-settings
+   * Admin update for OpenAI-compatible base URL / API key / per-kind
+   * timeouts. See UpdateOpenaiSettingsDto for the empty-string "clear"
+   * semantics.
+   */
+  @Put('openai-settings')
+  async updateOpenaiSettings(@Body() dto: UpdateOpenaiSettingsDto) {
+    await this.openaiConfig.updateSettings(dto);
+    return this.openaiConfig.getViewPayload();
   }
 
   /**

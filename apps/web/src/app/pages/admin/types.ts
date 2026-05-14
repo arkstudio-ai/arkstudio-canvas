@@ -223,6 +223,34 @@ export interface ProviderSettingsUpdate {
   timeouts?: Partial<Record<DashscopeKind, number>>;
 }
 
+// ---- OpenAI-compatible provider settings ----------------------------------
+//
+// Mirrors apps/backend/src/canvas-config/openai-compat-config.service.ts.
+// Same shape as ProviderSettings* on purpose so the admin section can reuse
+// every render primitive (StatusCard, TimeoutsTable, ...). Kept as a parallel
+// type rather than a generic so future bytedance / google variants can each
+// own their own DEFAULT_BASE_URL / KIND set without forcing a refactor.
+//
+// Kinds always include all four (chat/image/video/audio) even though only
+// chat + image have providers today; that way adding an audio provider
+// doesn't require a second frontend migration on top of the backend one.
+
+export type OpenaiCompatKind = 'chat' | 'image' | 'video' | 'audio';
+
+export interface OpenaiSettingsView {
+  baseUrl: string;
+  baseUrlConfigured: boolean;
+  apiKeyMask: string | null;
+  apiKeyConfigured: boolean;
+  timeouts: Record<OpenaiCompatKind, TimeoutEntry>;
+}
+
+export interface OpenaiSettingsUpdate {
+  baseUrl?: string;
+  apiKey?: string;
+  timeouts?: Partial<Record<OpenaiCompatKind, number>>;
+}
+
 // ---- Generation history retention -----------------------------------------
 //
 // Mirrors apps/backend/src/canvas-config/history-retention.service.ts. Both

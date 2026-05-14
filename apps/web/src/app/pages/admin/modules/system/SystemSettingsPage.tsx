@@ -9,6 +9,7 @@ import {
   History,
   KeyRound,
   Link2,
+  Plug,
   Scale,
   Timer,
   Trash2,
@@ -16,10 +17,12 @@ import {
 import { toast } from 'sonner';
 import {
   getHistorySettings,
+  getOpenaiSettings,
   getProviderSettings,
   getStorageSettings,
   pruneHistory,
   updateHistorySettings,
+  updateOpenaiSettings,
   updateProviderSettings,
   updateStorageSettings,
 } from '../../api/admin-api';
@@ -27,6 +30,8 @@ import type {
   DashscopeKind,
   HistoryKind,
   HistorySettingsView,
+  OpenaiCompatKind,
+  OpenaiSettingsView,
   ProviderSettingsView,
   StorageSettingsView,
 } from '../../types';
@@ -280,6 +285,9 @@ export const SystemSettingsPage: React.FC = () => {
         </div>
       </section>
 
+      {/* OpenAI-compatible provider (OpenAI / OpenRouter / vLLM / ...) */}
+      <OpenaiSection />
+
       {/* Generation history retention */}
       <HistoryRetentionSection />
 
@@ -294,7 +302,7 @@ const Header: React.FC = () => (
     <div>
       <h1 style={titleStyle}>系统设置</h1>
       <div style={subTitleStyle}>
-        开源信息 · DashScope 凭据 / 超时 · 生成历史保留 · 对象存储
+        开源信息 · DashScope 凭据 / 超时 · OpenAI-compat · 生成历史保留 · 对象存储
       </div>
     </div>
   </header>
@@ -1140,6 +1148,307 @@ const StatusCard: React.FC<{
     <div style={{ ...statusCardSrcStyle, color: ok ? tokens.textMuted : tokens.err }}>{source}</div>
   </div>
 );
+
+// ---- OpenAI-compatible provider section -----------------------------------
+//
+// Self-contained: owns its own load / save / draft state so a backend hiccup
+// on /openai-settings doesn't block the rest of the page from rendering, and
+// so the DashScope state above stays untouched. UI deliberately mirrors the
+// DashScope cards above (status grid + base URL + API key + timeouts) so an
+// operator can apply the exact same mental model: `(undefined → untouched,
+// '' → clear/revert, value → upsert)`. This pattern is the template future
+// providers (字节 / 谷歌) will follow.
+
+const OPENAI_DEFAULT_BASE_URL = 'https://api.openai.com/v1';
+
+const OPENAI_TIMEOUT_KINDS: { kind: OpenaiCompatKind; label: string; hint: string }[] = [
+  { kind: 'chat', label: 'Chat', hint: '/chat/completions (gpt-* / openrouter / vllm ...)' },
+  { kind: 'image', label: 'Image', hint: '/images/generations (dall-e-3 偶发 60s+)' },
+  { kind: 'video', label: 'Video', hint: '当前 OpenAI 无标准视频接口；保留以兼容未来扩展' },
+  { kind: 'audio', label: 'Audio', hint: '/audio/speech TTS（暂未接入 provider，预留 schema）' },
+];
+
+const OpenaiSection: React.FC = () => {
+  const [view, setView] = useState<OpenaiSettingsView | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [baseUrlDraft, setBaseUrlDraft] = useState('');
+  const [apiKeyDraft, setApiKeyDraft] = useState('');
+  const [showKey, setShowKey] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const v = await getOpenaiSettings();
+      setView(v);
+      setBaseUrlDraft(v.baseUrlConfigured ? v.baseUrl : '');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '加载 OpenAI 设置失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const apply = async (patch: {
+    baseUrl?: string;
+    apiKey?: string;
+    timeouts?: Partial<Record<OpenaiCompatKind, number>>;
+  }) => {
+    setSaving(true);
+    try {
+      const v = await updateOpenaiSettings(patch);
+      setView(v);
+      if (patch.baseUrl !== undefined) {
+        setBaseUrlDraft(v.baseUrlConfigured ? v.baseUrl : '');
+      }
+      if (patch.apiKey !== undefined) {
+        setApiKeyDraft('');
+        setShowKey(false);
+      }
+      toast.success('已保存');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '保存失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!view) {
+    return (
+      <section style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>
+          <Plug size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+          OpenAI-compatible
+        </h3>
+        <div style={sectionBodyStyle}>
+          <div style={emptyStyle}>{loading ? '加载中…' : '加载失败'}</div>
+        </div>
+      </section>
+    );
+  }
+
+  const baseUrlDirty = baseUrlDraft.trim() !== (view.baseUrlConfigured ? view.baseUrl : '');
+  const apiKeyDirty = apiKeyDraft.trim().length > 0;
+
+  return (
+    <>
+      <section style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>
+          <Plug size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+          OpenAI-compatible · Base URL & API Key
+        </h3>
+        <div style={sectionBodyStyle}>
+          <p style={hintStyle}>
+            支持任何 <strong>OpenAI Chat Completions / Images Generations</strong> 协议的网关：
+            <code>OpenAI</code> / <code>OpenRouter</code> / <code>Together</code> / <code>Groq</code> /
+            自建 <code>vLLM</code>。SKU 用 <code>openai-chat/&lt;model&gt;</code> 或{' '}
+            <code>openai-image/&lt;model&gt;</code> 前缀（如 <code>openai-chat/gpt-4o-mini</code>、
+            <code>openai-image/dall-e-3</code>），在 <code>/admin/config</code> 的节点 models 列表里挂上即可。
+          </p>
+
+          <div style={statusGridStyle}>
+            <StatusCard
+              icon={<Link2 size={14} />}
+              label="Base URL"
+              value={view.baseUrl}
+              source={view.baseUrlConfigured ? 'DB 覆盖' : '内置默认'}
+              ok
+            />
+            <StatusCard
+              icon={<KeyRound size={14} />}
+              label="API Key"
+              value={view.apiKeyConfigured ? view.apiKeyMask ?? '已配置' : '未配置'}
+              source={view.apiKeyConfigured ? 'DB · 加密存储' : '⚠ 未配置 · 该 provider 不可用'}
+              ok={view.apiKeyConfigured}
+            />
+          </div>
+
+          <div style={{ ...fieldRowStyle, marginTop: 12 }}>
+            <span style={fieldLabelStyle}>Base URL</span>
+            <input
+              value={baseUrlDraft}
+              onChange={(e) => setBaseUrlDraft(e.target.value)}
+              placeholder={`默认 ${OPENAI_DEFAULT_BASE_URL}`}
+              style={inputMonoStyle}
+              disabled={saving}
+            />
+            <button
+              type="button"
+              onClick={() => apply({ baseUrl: baseUrlDraft.trim() })}
+              style={baseUrlDirty ? buttonAccentStyle : buttonStyle}
+              disabled={!baseUrlDirty || saving}
+            >
+              保存
+            </button>
+            {view.baseUrlConfigured && (
+              <button
+                type="button"
+                onClick={() => apply({ baseUrl: '' })}
+                style={buttonGhostStyle}
+                disabled={saving}
+                title="清除 DB 配置，回退到默认 URL"
+              >
+                重置默认
+              </button>
+            )}
+          </div>
+
+          <p style={{ ...hintStyle, marginTop: 0 }}>
+            约定 base URL <strong>包含 <code>/v1</code> 且末尾不含斜线</strong>（保存时自动剪掉）。
+            OpenRouter 用 <code>https://openrouter.ai/api/v1</code>，自建 vLLM 用{' '}
+            <code>http://your-host:8000/v1</code>。
+          </p>
+
+          <div style={fieldRowStyle}>
+            <span style={fieldLabelStyle}>API Key</span>
+            <div style={apiKeyInputWrapStyle}>
+              <input
+                value={apiKeyDraft}
+                onChange={(e) => setApiKeyDraft(e.target.value)}
+                placeholder={
+                  view.apiKeyConfigured
+                    ? `当前: ${view.apiKeyMask} · 输入新值覆盖`
+                    : '尚未配置 · 输入 sk-... 并保存'
+                }
+                type={showKey ? 'text' : 'password'}
+                style={{ ...inputMonoStyle, paddingRight: 36 }}
+                disabled={saving}
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey((s) => !s)}
+                style={eyeBtnStyle}
+                title={showKey ? '隐藏' : '显示'}
+                tabIndex={-1}
+              >
+                {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => apply({ apiKey: apiKeyDraft.trim() })}
+              style={apiKeyDirty ? buttonAccentStyle : buttonStyle}
+              disabled={!apiKeyDirty || saving}
+            >
+              保存
+            </button>
+            {view.apiKeyConfigured && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!confirm('确认清除 OpenAI API Key? 清除后所有 openai-chat/ openai-image/ 模型调用都会失败。')) return;
+                  void apply({ apiKey: '' });
+                }}
+                style={buttonGhostStyle}
+                disabled={saving}
+                title="从 DB 删除 apiKey 行"
+              >
+                清除
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>
+          <Timer size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+          OpenAI-compatible · 超时设置 (秒)
+        </h3>
+        <div style={sectionBodyStyle}>
+          <p style={hintStyle}>
+            DALL-E 3 / GPT-image-1 偶发 60s+，所以默认值比 DashScope 略宽。video / audio
+            两档暂时无对应 provider，配置仍保留以便未来加入。留空 = 用内置默认；保存值 ≥ 1s。
+          </p>
+          <OpenaiTimeoutsTable view={view} saving={saving} apply={apply} />
+        </div>
+      </section>
+    </>
+  );
+};
+
+const OpenaiTimeoutsTable: React.FC<{
+  view: OpenaiSettingsView;
+  saving: boolean;
+  apply: (patch: { timeouts?: Partial<Record<OpenaiCompatKind, number>> }) => void;
+}> = ({ view, saving, apply }) => {
+  const [drafts, setDrafts] = useState<Record<OpenaiCompatKind, string>>({
+    chat: '',
+    image: '',
+    video: '',
+    audio: '',
+  });
+
+  return (
+    <div style={timeoutTableStyle}>
+      {OPENAI_TIMEOUT_KINDS.map(({ kind, label, hint }) => {
+        const entry = view.timeouts[kind];
+        const draft = drafts[kind];
+        const draftNum = Number(draft);
+        const dirty =
+          draft !== '' &&
+          Number.isFinite(draftNum) &&
+          draftNum > 0 &&
+          draftNum !== entry.value;
+        return (
+          <div key={kind} style={timeoutRowStyle}>
+            <div style={timeoutLabelColStyle}>
+              <span style={timeoutLabelStyle}>{label}</span>
+              <span style={timeoutHintStyle}>{hint}</span>
+            </div>
+            <div style={timeoutValueColStyle}>
+              <span style={timeoutCurrentStyle}>{entry.value}s</span>
+              {entry.configured ? (
+                <span style={{ ...badgeStyle, color: tokens.ok, borderColor: 'rgba(155,227,154,0.3)' }}>
+                  DB
+                </span>
+              ) : (
+                <span style={badgeStyle}>默认</span>
+              )}
+            </div>
+            <input
+              value={draft}
+              onChange={(e) => setDrafts((s) => ({ ...s, [kind]: e.target.value }))}
+              placeholder="新值"
+              style={{ ...inputStyle, width: 100, flex: 'none' }}
+              type="number"
+              min="1"
+              disabled={saving}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (!Number.isFinite(draftNum) || draftNum <= 0) return;
+                apply({ timeouts: { [kind]: Math.floor(draftNum) } });
+                setDrafts((s) => ({ ...s, [kind]: '' }));
+              }}
+              style={dirty ? buttonAccentStyle : buttonStyle}
+              disabled={!dirty || saving}
+            >
+              保存
+            </button>
+            {entry.configured ? (
+              <button
+                type="button"
+                onClick={() => apply({ timeouts: { [kind]: 0 } })}
+                style={buttonGhostStyle}
+                disabled={saving}
+                title="清除 DB 配置，回退到内置默认"
+              >
+                重置
+              </button>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 const TimeoutsTable: React.FC<{
   view: ProviderSettingsView;

@@ -143,9 +143,20 @@ interface ProviderClient {
 
 ---
 
-### 2.2 路径 B：百炼外的新模型源（OpenAI 兼容 / 自建 vLLM / DeepSeek 直连）
+### 2.2 路径 B：百炼外的新模型源（接字节 / 谷歌 / 自建 OpenAI-compat 网关）
 
-这是后续 roadmap 的主要方向。以"接 OpenAI 协议"为例：
+> ✅ **OpenAI 协议（OpenAI / OpenRouter / vLLM / Together / Groq）已经内置**，
+> 见 `apps/backend/src/providers/openai-compat-{chat,image}.provider.ts`。
+> 直接到 `/admin/system` 填 baseUrl + apiKey、然后到 `/admin/config` 把
+> `openai-chat/<model>` 或 `openai-image/<model>` 加进对应节点的 models 列表
+> 即可使用 —— **不需要再走下面这套自接流程**。
+>
+> 下文保留作为接**字节豆包 / 谷歌 Gemini / 其他厂商**的模板。每个新厂商
+> 自己起一个 namespace（`bytedance-chat/`、`google-image/` ...），跟 OpenAI
+> 一份独立 ConfigService、独立 Provider、独立 admin 卡片，跟现有代码完全
+> 平行，互不影响。
+
+以"接 OpenAI 协议"为例（也对应当前内置实现的结构）：
 
 #### 步骤 1：新建 provider 文件
 
@@ -172,11 +183,14 @@ export class OpenAICompatChatProvider implements ProviderClient {
   ) {}
 
   /**
-   * SKU 命名约定：以 `openai/` 前缀做命名空间，避免和百炼 SKU 冲突。
-   * 例如：`openai/gpt-4o-mini`、`openai/deepseek-chat`、`openai/qwen-plus`（自建 vLLM）
+   * SKU 命名约定：每个 provider × 模态各起一个独立 namespace
+   * （`openai-chat/`、`openai-image/`），避免一个 provider 既支持 chat
+   * 又支持 image 时让 ProviderRegistry 必须再读子路径才能区分。
+   * 例如：`openai-chat/gpt-4o-mini`、`openai-chat/anthropic/claude-3-haiku`
+   * （OpenRouter 风格）。
    */
   supports(modelSku: string): boolean {
-    return modelSku?.toLowerCase().startsWith('openai/');
+    return modelSku?.toLowerCase().startsWith('openai-chat/');
   }
 
   async submit(req: SubmitRequest): Promise<SubmitResult> {
@@ -185,7 +199,7 @@ export class OpenAICompatChatProvider implements ProviderClient {
     const timeout = await this.openaiConfig.getTimeoutMs('chat');
 
     // 去掉 namespace 前缀，把真实 SKU 上送
-    const realSku = req.modelSku.replace(/^openai\//, '');
+    const realSku = req.modelSku.replace(/^openai-chat\//, '');
 
     const messages = [
       ...(req.inputs ?? [])
@@ -293,13 +307,18 @@ export function updateOpenaiSettings(patch: OpenaiSettingsUpdate): Promise<...> 
 
 #### 步骤 5：admin/config 加模型条目
 
-跟路径 A 步骤 2 完全一样，区别只是 `value` 写成 `openai/gpt-4o-mini` 这种带命名空间的 SKU。
+跟路径 A 步骤 2 完全一样，区别只是 `value` 写成
+`openai-chat/gpt-4o-mini` / `openai-image/dall-e-3` 这种带命名空间的 SKU。
+未来给字节起 `bytedance-chat/doubao-seed-1.5`、给谷歌起
+`google-image/imagen-4` —— 同一规则。
 
 #### 关于 image/video/audio 的 OpenAI 协议适配
 
-- **image** —— OpenAI `images/generations` API 协议比较简单，一个新的 `OpenAICompatImageProvider` 就够；同步返回，不需要 polling
+- **image** —— 已内置 `OpenAICompatImageProvider`（同步 `/images/generations`，
+  支持 dall-e-2 / dall-e-3 / 兼容 gpt-image-1）。i2i / edit 模式没接，需要的话
+  接 `/images/edits`（`multipart/form-data`）即可
 - **video** —— 截至目前 OpenAI 没标准化 video 异步 API；如果对接 Sora 类需要自己定 polling 协议（参考 `dashscope-video.provider.ts` 的 submit + poll 实现）
-- **audio** —— `audio/speech` 同步，类似 image
+- **audio** —— `audio/speech` 同步，类似 image，可照内置 image provider 模板加
 
 > 通用约定：异步任务的 `taskId` 必须是字符串（registry 在 `pollStatus(taskId)` 时只把字符串透传），不要塞 JSON。
 
