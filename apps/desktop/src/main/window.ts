@@ -14,7 +14,7 @@
 // The backend already exposes everything the renderer needs over HTTP; there
 // is no reason to widen the renderer's blast radius with raw Node access.
 
-import { BrowserWindow, shell } from 'electron';
+import { BrowserWindow, session, shell } from 'electron';
 import path from 'node:path';
 import log from 'electron-log/main';
 
@@ -27,7 +27,41 @@ export interface CreateWindowOptions {
   rendererFile?: string;
 }
 
+// backend 返回的资源 URL 在数据库里是同源相对路径 (`/static/uploads/<key>`).
+// 浏览器在 http 加载场景下解析到同一个 origin (vite dev / nginx 自部署)，
+// 但 Electron 用 file:// 加载 index.html, 相对路径 resolve 到 file:// 根,
+// `<img src="/static/uploads/...">` 全部 404 → 黑图.
+//
+// 改 ~10 个 <img>/<video>/<audio> 调用方一个个加前缀太碎易漏. 这里走网络
+// 拦截: file:///static/uploads/<key> → http://127.0.0.1:<backend>/static/uploads/<key>.
+// 渲染层代码不需要改, MediaNode / canvas 缩略图 / 模板封面 / 历史列表 /
+// 剪贴板 / 各 dialog 全部一发命中.
+//
+// 安全考量: 只匹配 /static/uploads/ 前缀, 不会广撒网拦截渲染层自身的
+// .js/.css/.png 资源 (vite 打包用 `./assets/...` 相对路径).
+function installStaticUploadsRedirect(backendBaseUrl: string): void {
+  session.defaultSession.webRequest.onBeforeRequest(
+    // chrome match-pattern 要求 file scheme 的 host 部分用 * 通配
+    { urls: ['file://*/static/uploads/*'] },
+    (details, callback) => {
+      try {
+        const parsed = new URL(details.url);
+        const redirectURL = `${backendBaseUrl}${parsed.pathname}${parsed.search}${parsed.hash}`;
+        log.info('[window] redirect', details.url, '->', redirectURL);
+        callback({ redirectURL });
+      } catch (err) {
+        log.warn('[window] redirect skipped, URL parse failed:', details.url, err);
+        callback({});
+      }
+    },
+  );
+}
+
 export function createMainWindow(opts: CreateWindowOptions): BrowserWindow {
+  // 必须在 BrowserWindow 创建前注册 webRequest 监听, 否则首屏渲染的封面
+  // 图可能跑在拦截器装好之前直接 404.
+  installStaticUploadsRedirect(opts.backendBaseUrl);
+
   // Per-OS frame chrome:
   //   macOS: `hiddenInset` keeps the traffic-light buttons (red/yellow/green)
   //          but hides the rest of the title bar. The renderer paints its
@@ -90,8 +124,38 @@ export function createMainWindow(opts: CreateWindowOptions): BrowserWindow {
     });
     return { action: 'deny' };
   });
+
+  // will-navigate fires on full-page navigation (hash-only changes go through
+  // did-navigate-in-page instead, and don't trip this hook). Two real triggers
+  // in our app:
+  //   1. <a href=...> link the user clicked.
+  //   2. `window.location.href = url.toString()` patterns used to switch flowId
+  //      (CanvasRailList) — same document, just a different search string.
+  //
+  // The original guard `if (rendererUrl && url.startsWith(rendererUrl))` was
+  // broken for prod: in packaged mode `rendererUrl` is undefined (we use
+  // loadFile), so EVERY navigation got routed to shell.openExternal, including
+  // legitimate same-page query-string updates. Setting flowId would then open
+  // the entire app in the system browser and freeze the rails.
+  //
+  // Correct test: compare against the currently-loaded document. Same protocol +
+  // host + pathname means it's still "us", only the search/hash differs — let
+  // the reload happen. Anything else (different origin, foreign file://, etc.)
+  // gets forwarded to the OS browser as before.
   win.webContents.on('will-navigate', (event, url) => {
-    if (opts.rendererUrl && url.startsWith(opts.rendererUrl)) return;
+    try {
+      const target = new URL(url);
+      const current = new URL(win.webContents.getURL());
+      if (
+        target.protocol === current.protocol &&
+        target.host === current.host &&
+        target.pathname === current.pathname
+      ) {
+        return;
+      }
+    } catch {
+      // Malformed URL — fall through and treat as external.
+    }
     event.preventDefault();
     shell.openExternal(url).catch((err) => {
       log.warn('[window] failed to open external navigation url:', url, err);
