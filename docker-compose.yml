@@ -3,58 +3,34 @@
 #
 # Usage:
 #   1. cp .env.docker.example .env
-#   2. edit ENCRYPTION_KEY (生产环境必改！) and optionally MYSQL_ROOT_PASSWORD
+#   2. edit ENCRYPTION_KEY (生产环境必改！)
 #   3. docker compose up -d --build
 #   4. open http://localhost:8080  →  /admin/system 填一次 DashScope API Key
 #
 # Defaults:
-#   - mysql  :  internal-only network (not exposed to host)
-#               Add `ports: ["3306:3306"]` to mysql service if you need a GUI tool.
-#   - backend:  internal-only; web nginx reverse-proxies all backend routes
-#   - web    :  exposed on host :8080 (single entry point for the browser)
+#   - 数据库:  SQLite, 单文件落在命名卷 canvas_flow_db:/data/db/canvas-flow.db
+#              零外部依赖. 想换 MySQL 看 docs/database-mysql.md.
+#   - backend: 内部网络; web nginx 反代所有 backend 路由
+#   - web    : 暴露在宿主机 :8080 (浏览器唯一入口)
 #
 # Persistent data:
-#   - canvas_flow_mysql_data  (named volume, survives `docker compose down`)
-#   - canvas_flow_uploads     (named volume, holds uploads + AI generation
-#                              results; survives `docker compose down`)
-#   - destroyed by `docker compose down -v` only.
+#   - canvas_flow_db       (SQLite 库文件; survives `docker compose down`)
+#   - canvas_flow_uploads  (上传 + AI 生成结果; survives `docker compose down`)
+#   - 都只会被 `docker compose down -v` 销毁.
 # ============================================================================
 
 name: canvas-flow
 
 services:
-  mysql:
-    image: mysql:8.4
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-canvas_flow_root}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-canvas_flow}
-    volumes:
-      - canvas_flow_mysql_data:/var/lib/mysql
-    healthcheck:
-      # `mysqladmin ping` returns 0 once the server accepts connections.
-      # backend's entrypoint also retries `prisma db push` for ~30s as a
-      # second safety net.
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-canvas_flow_root}"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 30s
-    # Uncomment to expose MySQL to the host (DataGrip / TablePlus etc.):
-    # ports:
-    #   - "3306:3306"
-
   backend:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
     restart: unless-stopped
-    depends_on:
-      mysql:
-        condition: service_healthy
     environment:
       # --- Required ---------------------------------------------------------
-      DATABASE_URL: "mysql://root:${MYSQL_ROOT_PASSWORD:-canvas_flow_root}@mysql:3306/${MYSQL_DATABASE:-canvas_flow}"
+      # SQLite 路径; 跟下面 volumes: 里 canvas_flow_db 的 mount 点对齐.
+      DATABASE_URL: "file:/data/db/canvas-flow.db"
       PORT: "18500"
       ENCRYPTION_KEY: "${ENCRYPTION_KEY:?ENCRYPTION_KEY is required - generate one with openssl rand -base64 48}"
 
@@ -69,6 +45,7 @@ services:
       # update the volumes: mapping below to match.
       STORAGE_LOCAL_DATA_DIR: ${STORAGE_LOCAL_DATA_DIR:-/data/uploads}
     volumes:
+      - canvas_flow_db:/data/db
       - canvas_flow_uploads:/data/uploads
     healthcheck:
       # Every backend image bundles wget (busybox)
@@ -94,5 +71,5 @@ services:
       - "${WEB_PORT:-8080}:80"
 
 volumes:
-  canvas_flow_mysql_data:
+  canvas_flow_db:
   canvas_flow_uploads:

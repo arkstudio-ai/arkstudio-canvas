@@ -1,22 +1,34 @@
+// ============================================================================
+// MySQL opt-in variant. NOT the default.
+// ============================================================================
+//
+// 主 schema 是 SQLite (prisma/schema.prisma); 这一份只在你想跑 MySQL 时用.
+// 用法 + 取舍 + 数据迁移路径见 docs/database-mysql.md.
+//
+// 维护契约 (重要):
+//   * 这两份 schema 必须在 model / field / index 层完全一致;
+//   * 唯一允许的差异是: datasource provider, 以及 @db.Text / @db.VarChar(N)
+//     这类只在 MySQL 上有意义的 native type 标注;
+//   * 改动要么两份同时改, 要么改完跑 `pnpm db:check-schema-parity` 让脚本
+//     在 CI 之前就抓出漂移.
+//
+// 客户端生成:
+//   pnpm --filter canvas-flow-backend exec prisma generate \
+//       --schema=prisma/schema.mysql.prisma
+//   pnpm --filter canvas-flow-backend exec prisma db push \
+//       --schema=prisma/schema.mysql.prisma
+//
+// 同一个 PrismaClient 类型对两份 schema 都适用 ——
+// 只是连接层的字节序列化差异, 业务代码不用分叉.
+// ============================================================================
+
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
-// 开源版默认 SQLite —— 单文件零外部依赖, 桌面端 / docker / 本地 dev 通吃.
-// 想跑 MySQL 的部署看 docs/database-mysql.md, 用 schema.mysql.prisma 代替这份.
-// 两份 schema 通过 prisma/check-schema-parity.ts 检查不漂移.
-//
-// 版本要求: Prisma ≥ 6.2.0. SQLite + `Json` 类型在 6.2 才 GA, 5.x 任何版本
-// 都会在 db push 时报 "current connector does not support the Json type".
-// 别因为"瘦身依赖"把 prisma 退回 5.x.
-//
-// SQLite 连接串走 file: 协议, 路径相对于本 schema 文件:
-//   file:./dev.db                 ← apps/backend/prisma/dev.db (本地 dev)
-//   file:/data/db/canvas-flow.db  ← docker compose 命名卷
-//   file:/Users/.../userData/...  ← 桌面端 (Electron 阶段引入)
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -27,8 +39,8 @@ datasource db {
 model Flow {
   id          String  @id @default(uuid())
   name        String
-  description String?
-  cover       String?
+  description String? @db.Text
+  cover       String? @db.Text
 
   structureJson Json
 
@@ -161,7 +173,7 @@ model FlowExecution {
   // Full request / response
   requestPayload  Json?
   responsePayload Json?
-  errorMsg        String?
+  errorMsg        String? @db.Text
 
   createdAt  DateTime  @default(now())
   startedAt  DateTime?
@@ -203,11 +215,10 @@ model FlowExecutionEvent {
   // Snapshot of the upstream provider status at the time of this event
   // (e.g. 'pending', 'running', 'succeeded'); only set for polling/submitted
   externalStatus String?
-  // Free-form human note for log scanning. Length cap removed when MySQL
-  // VARCHAR(1024) was retired: SQLite ignored it, app code never exceeded
-  // ~200 chars, and the @db.VarChar(1024) annotation forced dual-schema
-  // bookkeeping for nothing in return.
-  message        String?
+  // Free-form human note for log scanning. MySQL caps at VARCHAR(1024) to
+  // keep this column out of the row-overflow page; SQLite has no length
+  // distinction so the main schema drops the annotation.
+  message        String? @db.VarChar(1024)
   // Failure-only sanitized upstream error body
   payloadSnippet Json?
 
@@ -257,8 +268,8 @@ model NodeDefinition {
 model Template {
   id          String  @id @default(uuid())
   name        String
-  description String?
-  cover       String?
+  description String? @db.Text
+  cover       String? @db.Text
 
   structureJson Json
 
@@ -330,7 +341,7 @@ model GlobalConfig {
   id          String  @id @default(uuid())
   key         String  @unique
   value       Json
-  description String?
+  description String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -364,13 +375,13 @@ model Voice {
   name         String
   // Source clip URL (the file the user uploaded / recorded). Kept
   // for re-clone / debugging; the file lives in our upload bucket.
-  audioUrl     String?
+  audioUrl     String? @db.Text
   // Demo audio URL returned by the voice_clone call -- short sample
   // synthesized using the new voice. Used by the gallery for preview.
-  demoAudioUrl String?
+  demoAudioUrl String? @db.Text
   // SUCCESS | FAILED. Sync provider only ever writes SUCCESS today.
   status       String  @default("SUCCESS")
-  errorMsg     String?
+  errorMsg     String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -403,17 +414,17 @@ model GenerationHistory {
   nodeType    String
   // Cover for the gallery list. Image/video nodes copy from src; text
   // nodes leave it null and the UI falls back to a styled card.
-  thumbnail   String?
+  thumbnail   String? @db.Text
   // Prompt text used when the result was generated (best-effort: read
   // from params.prompt or params.text at record time).
-  promptText  String?
+  promptText  String? @db.Text
   // ModelEntry.value at submit time (e.g. 'wan2.7-r2v', 'qwen-plus').
   modelName   String?
   width       Int     @default(0)
   height      Int     @default(0)
   // Direct media URL for image/video/audio (= outputData.src). For
   // text nodes this is null and the actual content lives on outputData.
-  src         String?
+  src         String? @db.Text
   // Full snapshot of the node's data after generation (mirrors
   // FlowNode.data at the moment of record). Used by /instantiate
   // to rehydrate a brand new node carrying the same payload.
