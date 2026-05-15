@@ -8,7 +8,6 @@ import { useFlow } from '../../hooks/useFlow';
 import { useFlowExecution } from '../../hooks/useFlowExecution';
 import { useExecutionRecovery } from '../../hooks/useExecutionRecovery';
 import { useGroupSave } from '../../hooks/useGroupSave';
-import { EditorLeftRail } from '../../components/EditorLeftRail';
 import { ClipboardButton, ClipboardDrawer } from '../../components/clipboard';
 import { clipboardStore } from '../../store/clipboardStore';
 import { useUIStore } from '../../store/uiStore';
@@ -26,14 +25,15 @@ import { useApplyTemplateAsset } from './useApplyTemplateAsset';
 import { useApplyHistoryItem } from './useApplyHistoryItem';
 import { NegativeTextNode } from '../../components/nodes/NegativeTextNode';
 import { createRenderNodeToolbar } from '../../components/toolbar/NodeToolbarRenderer';
-import { VoiceGallery } from '../../components/VoiceGallery';
-import { TemplateGallery } from '../../components/TemplateGallery';
-import { CanvasGallery } from '../../components/CanvasGallery';
-import { GenerationHistoryPanel } from '../../components/GenerationHistoryPanel';
 import { GroupSaveDialog } from '../../components/GroupSaveDialog';
-// 旧的右上角"分享 + 后台"浮动按钮组 (EditorTopLeftBar) 在桌面化后被砍：
-//   - "后台" → 移到 DesktopShell 的 P1 底部齿轮 → SettingsOverlay
-//   - "分享" → 占位功能未实装，先移除避免 dead button
+// Desktop-shell 重构后，下列旧浮动 UI 全部被砍并迁到 P1/P2：
+//   - EditorTopLeftBar (右上角分享/后台浮按钮) → P1 底部齿轮 → SettingsOverlay
+//   - EditorLeftRail (左侧"+"+ extraButtons) → P1 「+ 添加节点」popover + P2 tabs
+//     - CanvasGallery   → P1 永久画布列表 (CanvasRailList)
+//     - TemplateGallery → P2 「模板」tab    (SecondaryTemplateList)
+//     - VoiceGallery    → P2 「音色」tab    (SecondaryVoiceList)
+//     - GenerationHistoryPanel → P2 「历史」tab (SecondaryHistoryList)
+// EditorPage 现在只负责画布主区 (P3)，所有"画布外"UI 都属于 DesktopShell。
 
 const appComponentRegistry = {
   ...defaultComponentRegistry,
@@ -53,10 +53,6 @@ export function EditorPage({
 
   const [configStoreVersion, setConfigStoreVersion] = useState(0);
   const [executingNodes, setExecutingNodes] = useState<Set<string>>(new Set());
-  // 编辑器左侧浮动面板互斥状态：同时只展开一个面板，避免遮挡。
-  const [activePanel, setActivePanel] = useState<
-    'template' | 'canvas' | 'history' | 'voice' | null
-  >(null);
 
   // 检测是否在 iframe 中
   const isInIframe = typeof window !== 'undefined' && window.self !== window.top;
@@ -181,6 +177,15 @@ export function EditorPage({
   useEffect(() => {
     setExecutingNodesCount(executingNodes.size);
   }, [executingNodes, setExecutingNodesCount]);
+
+  // 把模板还原回调注册到 store —— SecondaryTemplateList 通过它一键应用模板。
+  const setApplyTemplateAssetAction = useUIStore((s) => s.setApplyTemplateAsset);
+  useEffect(() => {
+    setApplyTemplateAssetAction(
+      applyTemplateAsset as (asset: unknown) => Promise<boolean | void>,
+    );
+    return () => setApplyTemplateAssetAction(null);
+  }, [applyTemplateAsset, setApplyTemplateAssetAction]);
 
   useEffect(() => {
     if (!error) return;
@@ -456,6 +461,24 @@ export function EditorPage({
       .map((def) => ({ type: def.type, label: def.label }));
   }, [appConfig]);
 
+  // 把"添加节点 / 上传节点 / 节点类型清单"全部推到 store，
+  // 让 P1 CanvasRail 的 + 按钮直接驱动 EditorPage 已有的 callback，
+  // 不需要再让 EditorLeftRail 中转一次。
+  const setAddNodeMenuItems = useUIStore((s) => s.setAddNodeMenuItems);
+  const setAddNodeFromMenu = useUIStore((s) => s.setAddNodeFromMenu);
+  const setUploadNodeFromMenu = useUIStore((s) => s.setUploadNodeFromMenu);
+  useEffect(() => {
+    setAddNodeMenuItems(addNodeMenuItems);
+  }, [addNodeMenuItems, setAddNodeMenuItems]);
+  useEffect(() => {
+    setAddNodeFromMenu(handleAddNodeFromMenu);
+    return () => setAddNodeFromMenu(null);
+  }, [handleAddNodeFromMenu, setAddNodeFromMenu]);
+  useEffect(() => {
+    setUploadNodeFromMenu(handleUploadNodeFromMenu);
+    return () => setUploadNodeFromMenu(null);
+  }, [handleUploadNodeFromMenu, setUploadNodeFromMenu]);
+
   // 处理画布拖放事件：把拖入的 URL/文件转成 image/video/audio 节点。
   const handleCanvasDrop = useCallback((event: CanvasDropEvent) => {
     if (!flowRef.current) return;
@@ -623,37 +646,14 @@ export function EditorPage({
         />
       </div>
 
-      {/* iframe 中隐藏这些浮动按钮 */}
+      {/*
+        EditorLeftRail + 4 个 popover (Template/Canvas/Generation/Voice) 已经
+        全部下放到 DesktopShell 的 P1/P2，删了。剪辑区按钮 + 抽屉是相对独立的
+        子系统（不属于"画布外的导航"），暂时保留在 P3 内浮动；后续可考虑挪到
+        P1 底部或 P2 新增 tab。
+      */}
       {!isInIframe && (
         <>
-          <EditorLeftRail
-            onAddNode={handleAddNodeFromMenu}
-            onUploadNode={handleUploadNodeFromMenu}
-            addNodeMenuItems={addNodeMenuItems}
-            extraButtons={
-              <>
-                <TemplateGallery
-                  onSelect={applyTemplateAsset}
-                  open={activePanel === 'template'}
-                  onOpenChange={(v) => setActivePanel(v ? 'template' : null)}
-                />
-                <CanvasGallery
-                  open={activePanel === 'canvas'}
-                  onOpenChange={(v) => setActivePanel(v ? 'canvas' : null)}
-                  currentFlowId={flowId}
-                />
-                <GenerationHistoryPanel
-                  onSelect={applyHistoryItem}
-                  open={activePanel === 'history'}
-                  onOpenChange={(v) => setActivePanel(v ? 'history' : null)}
-                />
-                <VoiceGallery
-                  open={activePanel === 'voice'}
-                  onOpenChange={(v) => setActivePanel(v ? 'voice' : null)}
-                />
-              </>
-            }
-          />
           <ClipboardButton onClick={() => clipboardStore.toggleDrawer()} />
           <ClipboardDrawer
             open={clipboardDrawerOpen}

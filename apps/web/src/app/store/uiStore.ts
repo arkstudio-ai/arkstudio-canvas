@@ -13,7 +13,7 @@
 
 import { create } from 'zustand';
 
-export type SecondaryTab = 'nodes' | 'history';
+export type SecondaryTab = 'nodes' | 'templates' | 'voices' | 'history';
 
 /**
  * Slim node snapshot for the P2 node tree. Mirrors a subset of
@@ -25,6 +25,16 @@ export interface NodeTreeEntry {
   type: string;
   /** Optional human-friendly label. Falls back to type when missing. */
   label?: string;
+}
+
+/**
+ * One entry in the "+ add node" popover menu. Mirrors EditorPage's
+ * `addNodeMenuItems` shape so we can publish it via the store without
+ * dragging `appConfig.nodeDefinitions` types into shell code.
+ */
+export interface AddNodeMenuItem {
+  type: string;
+  label: string;
 }
 
 interface UIState {
@@ -77,6 +87,27 @@ interface UIState {
    */
   executingNodesCount: number;
 
+  /**
+   * Available node types the user can add from the rail's "+ add node"
+   * popover. Sourced from EditorPage (which filters appConfig.nodeDefinitions
+   * by visibility) so the rail doesn't need to know about app config.
+   */
+  addNodeMenuItems: AddNodeMenuItem[];
+  /**
+   * Imperative actions hung off EditorPage so the rail can spawn nodes
+   * without owning a flowRef. Same pattern as `applyHistoryItem`.
+   *
+   * `addNodeFromMenu(type)` — drop a fresh node of the given type at canvas
+   *   center.
+   * `uploadNodeFromMenu(file)` — pick image/video/audio type from the file
+   *   then drop the node at canvas center with the upload queued.
+   * `applyTemplateAsset(asset)` — instantiate a template into the current
+   *   canvas (returns true on success so the rail can close any popover).
+   */
+  addNodeFromMenu: ((nodeType: string) => void) | null;
+  uploadNodeFromMenu: ((file: File) => void) | null;
+  applyTemplateAsset: ((asset: unknown) => Promise<boolean | void>) | null;
+
   openSettings: (section?: string) => void;
   closeSettings: () => void;
   setSettingsSection: (section: string) => void;
@@ -88,6 +119,12 @@ interface UIState {
     fn: ((item: unknown) => Promise<boolean | void>) | null,
   ) => void;
   setExecutingNodesCount: (n: number) => void;
+  setAddNodeMenuItems: (items: AddNodeMenuItem[]) => void;
+  setAddNodeFromMenu: (fn: ((nodeType: string) => void) | null) => void;
+  setUploadNodeFromMenu: (fn: ((file: File) => void) | null) => void;
+  setApplyTemplateAsset: (
+    fn: ((asset: unknown) => Promise<boolean | void>) | null,
+  ) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -99,6 +136,10 @@ export const useUIStore = create<UIState>((set) => ({
   currentNodes: [],
   applyHistoryItem: null,
   executingNodesCount: 0,
+  addNodeMenuItems: [],
+  addNodeFromMenu: null,
+  uploadNodeFromMenu: null,
+  applyTemplateAsset: null,
 
   openSettings: (section) =>
     set((s) => ({
@@ -113,4 +154,8 @@ export const useUIStore = create<UIState>((set) => ({
   setCurrentNodes: (nodes) => set({ currentNodes: nodes }),
   setApplyHistoryItem: (fn) => set({ applyHistoryItem: fn }),
   setExecutingNodesCount: (n) => set({ executingNodesCount: n }),
+  setAddNodeMenuItems: (items) => set({ addNodeMenuItems: items }),
+  setAddNodeFromMenu: (fn) => set({ addNodeFromMenu: fn }),
+  setUploadNodeFromMenu: (fn) => set({ uploadNodeFromMenu: fn }),
+  setApplyTemplateAsset: (fn) => set({ applyTemplateAsset: fn }),
 }));

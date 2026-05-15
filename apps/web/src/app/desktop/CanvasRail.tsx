@@ -14,6 +14,7 @@ import { Settings } from 'lucide-react';
 
 import { useUIStore } from '../store/uiStore';
 import { CanvasRailList } from './CanvasRailList';
+import { AddNodeButton } from './AddNodeButton';
 
 export const CanvasRail: React.FC = () => {
   const openSettings = useUIStore((s) => s.openSettings);
@@ -24,6 +25,12 @@ export const CanvasRail: React.FC = () => {
       <CanvasRailList currentFlowId={currentFlowId} />
 
       <div style={bottomGroupStyle}>
+        {/*
+          + Add node — sits above the gear so the most-used canvas action
+          (drop a new node onto the current canvas) gets a thumb-distance
+          tap zone, mirroring how Discord puts "+ server" near the bottom.
+        */}
+        <AddNodeButton />
         <RailButton title="设置" onClick={() => openSettings()}>
           <Settings size={18} />
         </RailButton>

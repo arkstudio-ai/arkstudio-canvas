@@ -13,10 +13,14 @@ import React from 'react';
 
 import { useUIStore, type SecondaryTab } from '../store/uiStore';
 import { SecondaryNodeTree } from './SecondaryNodeTree';
+import { SecondaryTemplateList } from './SecondaryTemplateList';
+import { SecondaryVoiceList } from './SecondaryVoiceList';
 import { SecondaryHistoryList } from './SecondaryHistoryList';
 
 const TABS: ReadonlyArray<{ id: SecondaryTab; label: string }> = [
   { id: 'nodes', label: '节点' },
+  { id: 'templates', label: '模板' },
+  { id: 'voices', label: '音色' },
   { id: 'history', label: '历史' },
 ];
 
@@ -51,6 +55,8 @@ export const SecondaryRail: React.FC = () => {
 
       <div style={tabContentStyle}>
         {activeTab === 'nodes' && <SecondaryNodeTree />}
+        {activeTab === 'templates' && <SecondaryTemplateList />}
+        {activeTab === 'voices' && <SecondaryVoiceList />}
         {activeTab === 'history' && <SecondaryHistoryList />}
       </div>
     </aside>
