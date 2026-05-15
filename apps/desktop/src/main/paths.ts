@@ -15,6 +15,13 @@ export interface DesktopPaths {
   userData: string;
   /** SQLite file lives under userData/db so backups can grab the whole dir. */
   dbFile: string;
+  /**
+   * Prisma SQLite DATABASE_URL form of dbFile. Always forward-slashed —
+   * Windows `file:C:\Users\...` historically tripped prisma's URL parser,
+   * `file:C:/Users/...` is universally safe. Use this for any spawn that
+   * needs DATABASE_URL.
+   */
+  dbFileUrl: string;
   /** Local uploads (images, videos) — same layout that `local-storage.service` uses. */
   uploadsDir: string;
   /** Persisted secrets file (ENCRYPTION_KEY etc.) so the backend keeps the same key across launches. */
@@ -50,9 +57,12 @@ export function resolveDesktopPaths(): DesktopPaths {
   // strategy in backend.ts.
   const backendBundleDir = path.join(process.resourcesPath, 'backend');
 
+  const dbFile = path.join(dbDir, 'canvas-flow.db');
+
   return {
     userData,
-    dbFile: path.join(dbDir, 'canvas-flow.db'),
+    dbFile,
+    dbFileUrl: `file:${dbFile.replace(/\\/g, '/')}`,
     uploadsDir,
     secretsFile: path.join(userData, 'secrets.json'),
     backendEntry: path.join(backendBundleDir, 'dist', 'main.js'),

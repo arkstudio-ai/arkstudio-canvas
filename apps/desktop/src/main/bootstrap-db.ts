@@ -28,9 +28,9 @@ export interface EnsureSchemaOptions {
 
 export async function ensureSchema(opts: EnsureSchemaOptions): Promise<void> {
   const timeoutMs = opts.timeoutMs ?? 30_000;
-  const { prismaCli, backendSchema, backendBundleDir, dbFile } = opts.paths;
+  const { prismaCli, backendSchema, backendBundleDir, dbFileUrl } = opts.paths;
 
-  log.info(`[bootstrap-db] running prisma db push, schema=${backendSchema}, db=${dbFile}`);
+  log.info(`[bootstrap-db] running prisma db push, schema=${backendSchema}, db=${dbFileUrl}`);
 
   await new Promise<void>((resolve, reject) => {
     const child = spawn(
@@ -43,7 +43,7 @@ export async function ensureSchema(opts: EnsureSchemaOptions): Promise<void> {
         env: {
           ...process.env,
           ELECTRON_RUN_AS_NODE: '1',
-          DATABASE_URL: `file:${dbFile}`,
+          DATABASE_URL: dbFileUrl,
           // prisma 会读 PRISMA_HIDE_UPDATE_MESSAGE 跳过 update banner，不至于刷屏。
           PRISMA_HIDE_UPDATE_MESSAGE: '1',
         },

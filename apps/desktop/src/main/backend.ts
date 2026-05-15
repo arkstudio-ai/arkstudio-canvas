@@ -91,7 +91,7 @@ export async function startBackend(opts: StartBackendOptions): Promise<BackendHa
       ELECTRON_RUN_AS_NODE: '1',
       NODE_ENV: 'production',
       PORT: String(port),
-      DATABASE_URL: `file:${opts.paths.dbFile}`,
+      DATABASE_URL: opts.paths.dbFileUrl,
       ENCRYPTION_KEY: opts.encryptionKey,
       // LocalStorageService 读这个键 (不是 LOCAL_STORAGE_DIR) — 跟 docker-compose 保持一致.
       STORAGE_LOCAL_DATA_DIR: opts.paths.uploadsDir,

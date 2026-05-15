@@ -27,9 +27,9 @@ export interface EnsureSeedOptions {
 
 export async function ensureSeed(opts: EnsureSeedOptions): Promise<void> {
   const timeoutMs = opts.timeoutMs ?? 30_000;
-  const { seedScript, backendBundleDir, dbFile } = opts.paths;
+  const { seedScript, backendBundleDir, dbFileUrl } = opts.paths;
 
-  log.info(`[bootstrap-seed] running seed --if-empty, script=${seedScript}, db=${dbFile}`);
+  log.info(`[bootstrap-seed] running seed --if-empty, script=${seedScript}, db=${dbFileUrl}`);
 
   await new Promise<void>((resolve, reject) => {
     const child = spawn(process.execPath, [seedScript, '--if-empty'], {
@@ -39,7 +39,7 @@ export async function ensureSeed(opts: EnsureSeedOptions): Promise<void> {
       env: {
         ...process.env,
         ELECTRON_RUN_AS_NODE: '1',
-        DATABASE_URL: `file:${dbFile}`,
+        DATABASE_URL: dbFileUrl,
         PRISMA_HIDE_UPDATE_MESSAGE: '1',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
