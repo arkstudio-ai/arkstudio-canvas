@@ -11,6 +11,7 @@ import { useGroupSave } from '../../hooks/useGroupSave';
 import { EditorLeftRail } from '../../components/EditorLeftRail';
 import { ClipboardButton, ClipboardDrawer } from '../../components/clipboard';
 import { clipboardStore } from '../../store/clipboardStore';
+import { useUIStore } from '../../store/uiStore';
 // CanvasFlow 的 `execution` prop 在开源版不再承载实际"执行"语义
 // （单/组执行通过 onNodeRun / onGroupRun 走 EditorPage 自己的链路）。
 // 留一个 noop 仅为兼容 prop 形状，避免 core 一侧改动。
@@ -30,7 +31,9 @@ import { TemplateGallery } from '../../components/TemplateGallery';
 import { CanvasGallery } from '../../components/CanvasGallery';
 import { GenerationHistoryPanel } from '../../components/GenerationHistoryPanel';
 import { GroupSaveDialog } from '../../components/GroupSaveDialog';
-import { EditorTopLeftBar } from './EditorTopLeftBar';
+// 旧的右上角"分享 + 后台"浮动按钮组 (EditorTopLeftBar) 在桌面化后被砍：
+//   - "后台" → 移到 DesktopShell 的 P1 底部齿轮 → SettingsOverlay
+//   - "分享" → 占位功能未实装，先移除避免 dead button
 
 const appComponentRegistry = {
   ...defaultComponentRegistry,
@@ -135,6 +138,41 @@ export function EditorPage({
     }, 500);
     return () => clearTimeout(timer);
   }, [flowId]);
+
+  // 把 useFlow 解析出的 flowId 推到全局 uiStore，
+  // 让 P1 (CanvasRail) / P2 (SecondaryRail node tree) / 状态栏等
+  // 不需要再各自 parse URL 或 props 透传。
+  const setCurrentFlowId = useUIStore((s) => s.setCurrentFlowId);
+  useEffect(() => {
+    setCurrentFlowId(flowId ?? null);
+  }, [flowId, setCurrentFlowId]);
+
+  // 同样把当前画布的 node 列表（瘦身版）推给 store，让 P2 节点树消费。
+  // 只取 id/type/label，避免节点 data 频繁变更时整个面板抖动重渲。
+  const setCurrentNodes = useUIStore((s) => s.setCurrentNodes);
+  useEffect(() => {
+    const nodes = currentFlow?.nodes ?? [];
+    setCurrentNodes(
+      nodes.map((n) => ({
+        id: n.id,
+        type: n.type,
+        // 不同节点把"显示名"放在不同字段；这里是 best-effort 兜底。
+        label:
+          (n.data as { label?: string; title?: string; name?: string } | undefined)?.label ??
+          (n.data as { title?: string } | undefined)?.title ??
+          (n.data as { name?: string } | undefined)?.name,
+      })),
+    );
+  }, [currentFlow, setCurrentNodes]);
+
+  // 把"还原历史项到画布"的回调注册到 store，让 SecondaryRail 「历史」tab
+  // 不必拿到 flowRef / appConfig 也能触发。EditorLeftRail 里那份
+  // GenerationHistoryPanel popover 仍然存活（兼容入口），两边共用同一个回调。
+  const setApplyHistoryItemAction = useUIStore((s) => s.setApplyHistoryItem);
+  useEffect(() => {
+    setApplyHistoryItemAction(applyHistoryItem as (item: unknown) => Promise<boolean | void>);
+    return () => setApplyHistoryItemAction(null);
+  }, [applyHistoryItem, setApplyHistoryItemAction]);
 
   useEffect(() => {
     if (!error) return;
@@ -505,10 +543,12 @@ export function EditorPage({
         .react-flow__panel.bottom.left { display: none !important; }
       `}</style>
 
-      <div style={{ position: 'fixed', inset: 0, background: '#000', overflow: 'hidden' }}>
-        {/* 左上角按钮组 - iframe 中隐藏 */}
-        {!isInIframe && <EditorTopLeftBar flowId={flowId} />}
-
+      {/*
+        canvas surface — `position: absolute, inset: 0` 让它撑满父级
+        DesktopShell 的 P3 区，而不是 viewport (旧实现是 fixed)。这样它
+        就乖乖留在三柱布局里，不再覆盖 P1/P2/StatusBar。
+      */}
+      <div style={{ position: 'absolute', inset: 0, background: '#000', overflow: 'hidden' }}>
         {flowLoading && (
           <Flex
             align="center"

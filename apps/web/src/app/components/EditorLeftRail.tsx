@@ -105,7 +105,10 @@ export function EditorLeftRail({
 }
 
 const railContainerStyle: React.CSSProperties = {
-  position: 'fixed',
+  // 桌面化重构后改成 `absolute`：相对父级 (DesktopShell 的 P3 main，
+  // position: relative)，自然嵌进画布主区，不会再盖到 P1/P2 导航条上。
+  // 旧值 `fixed` 是 web SPA 时代假设自己是顶层元素的产物。
+  position: 'absolute',
   left: 12,
   top: '50%',
   transform: 'translateY(-50%)',
