@@ -19,6 +19,8 @@ import { toast } from 'sonner';
 import {
   getHistorySettings,
   getOpenaiSettings,
+  getVolcengineSettings,
+  updateVolcengineSettings,
   getProviderSettings,
   getStorageSettings,
   pruneHistory,
@@ -692,7 +694,7 @@ const StatusCard: React.FC<{
 // 未来加字节/谷歌：在 PROVIDER_CARDS 数组里加一项即可，UI 自动多一个 tab。
 
 interface ProviderCard {
-  id: 'dashscope' | 'openai';
+  id: 'dashscope' | 'openai' | 'volcengine';
   label: string;
   defaultBaseUrl: string;
   /** 影响范围 chips：每条对应 ProviderRegistry 里的一个 supports() 前缀。 */
@@ -800,6 +802,59 @@ const PROVIDER_CARDS: ProviderCard[] = [
     clearKeyConfirm:
       '确认清除 OpenAI API Key? 清除后所有 openai-chat/* / openai-image/* SKU 都会调用失败。',
   },
+  {
+    id: 'volcengine',
+    label: 'Volcengine (火山方舟 Seedance)',
+    defaultBaseUrl: 'http://123.57.80.82/seedance',
+    scopeChips: [
+      { sku: 'doubao-seedance-* / seedance-*', modality: 'video' },
+    ],
+    timeoutKinds: [
+      {
+        kind: 'chat',
+        label: 'Chat',
+        hint: '当前 Volcengine 暂未接入 chat provider；预留位以兼容未来 Doubao 文本模型。',
+      },
+      {
+        kind: 'image',
+        label: 'Image',
+        hint: '当前未接入；预留位。',
+      },
+      {
+        kind: 'video',
+        label: 'Video',
+        hint: 'Seedance 2.0 / 2.0 Fast submit；polling 固定 10s 不暴露。',
+      },
+      {
+        kind: 'audio',
+        label: 'Audio',
+        hint: '当前未接入；预留位。',
+      },
+    ],
+    timeoutsHint:
+      '当前仅 video 落库（Seedance 2.0 / 2.0 Fast）。chat / image / audio 字段写入也会被静默忽略，等对应 provider 接入再启用。Polling 固定 10s 不暴露。',
+    baseUrlHint: (
+      <>
+        Volcengine（火山方舟）Seedance Video API 网关。默认指向第三方代理{' '}
+        <code>http://123.57.80.82/seedance</code>；如有官方 ARK_API_KEY 直接改为{' '}
+        <code>https://ark.cn-beijing.volces.com/api/v3</code>（路径与代理完全一致，
+        切换零代码）。<strong>不要</strong>带 <code>/contents/...</code> 后缀，
+        provider 会自己拼。
+      </>
+    ),
+    apiKeyHint: (
+      <>
+        Bearer Token。第三方代理时填代理 key；切官方时填你的{' '}
+        <code>ARK_API_KEY</code>。落库前用 <code>ENCRYPTION_KEY</code> 做{' '}
+        aes-256-gcm 加密；页面只显示掩码。配置后才能使用{' '}
+        <code>doubao-seedance-*</code> SKU。
+      </>
+    ),
+    load: getVolcengineSettings,
+    save: updateVolcengineSettings,
+    clearKeyConfirm:
+      '确认清除 Volcengine API Key? 清除后所有 doubao-seedance-* / seedance-* SKU 都会调用失败。',
+  },
 ];
 
 const ProvidersSection: React.FC = () => {
@@ -808,20 +863,24 @@ const ProvidersSection: React.FC = () => {
   const [views, setViews] = useState<Record<ProviderCard['id'], ProviderConfigView | null>>({
     dashscope: null,
     openai: null,
+    volcengine: null,
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [baseUrlDrafts, setBaseUrlDrafts] = useState<Record<ProviderCard['id'], string>>({
     dashscope: '',
     openai: '',
+    volcengine: '',
   });
   const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<ProviderCard['id'], string>>({
     dashscope: '',
     openai: '',
+    volcengine: '',
   });
   const [showKey, setShowKey] = useState<Record<ProviderCard['id'], boolean>>({
     dashscope: false,
     openai: false,
+    volcengine: false,
   });
 
   const loadAll = async () => {
@@ -1085,17 +1144,21 @@ const ProviderTabBody: React.FC<{
         </div>
         {/* 探活按钮: 输入框为空时用 DB 已存的, 非空时用草稿; 详细规则见
             TestConnectionButton 组件文档. 放在 API Key 行下面是因为它最常和
-            "我刚改了 key 想验一下"或"配错了不知道为啥不通"的两类操作绑在一起. */}
-        <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>连通性测试</span>
-          <TestConnectionButton
-            providerId={card.id}
-            baseUrlDraft={baseUrlDraft}
-            apiKeyDraft={apiKeyDraft}
-            hasSavedKey={view.apiKeyConfigured}
-            disabled={saving}
-          />
-        </div>
+            "我刚改了 key 想验一下"或"配错了不知道为啥不通"的两类操作绑在一起.
+            Volcengine 暂未接 ProviderConnectivityService 的 testVolcengine
+            endpoint, 隐藏按钮 — 等 Slice 3 (asset 后端) 起来一起补. */}
+        {card.id !== 'volcengine' && (
+          <div style={fieldRowStyle}>
+            <span style={fieldLabelStyle}>连通性测试</span>
+            <TestConnectionButton
+              providerId={card.id}
+              baseUrlDraft={baseUrlDraft}
+              apiKeyDraft={apiKeyDraft}
+              hasSavedKey={view.apiKeyConfigured}
+              disabled={saving}
+            />
+          </div>
+        )}
       </div>
 
       {/* Timeouts */}

@@ -282,6 +282,30 @@ export interface OpenaiSettingsUpdate {
   timeouts?: Partial<Record<OpenaiCompatKind, number>>;
 }
 
+// ---- Volcengine (火山方舟 Seedance) -----------------------------------------
+//
+// 4-kind timeout shape mirrors Dashscope/OpenAI for shared-UI compat; only
+// `video` is real in phase 1. `defaultModel` is Volcengine-specific (lets
+// admin preset e.g. `doubao-seedance-2-0-260128` so node config can omit it).
+
+export type VolcengineKind = 'chat' | 'image' | 'video' | 'audio';
+
+export interface VolcengineSettingsView {
+  baseUrl: string;
+  baseUrlConfigured: boolean;
+  apiKeyMask: string | null;
+  apiKeyConfigured: boolean;
+  defaultModel: string | null;
+  timeouts: Record<VolcengineKind, TimeoutEntry>;
+}
+
+export interface VolcengineSettingsUpdate {
+  baseUrl?: string;
+  apiKey?: string;
+  defaultModel?: string;
+  timeouts?: Partial<Record<VolcengineKind, number>>;
+}
+
 // ---- Provider 连通性测试 ----------------------------------------------------
 //
 // 镜像 apps/backend/src/canvas-config/provider-connectivity.service.ts 的

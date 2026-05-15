@@ -20,6 +20,8 @@ import type {
   TestConnectionInput,
   TestConnectionResult,
   UsageOverview,
+  VolcengineSettingsView,
+  VolcengineSettingsUpdate,
 } from '../types';
 
 // 共用 `apps/web/src/app/config/api.ts` 的解析（runtime 优先 / build-time
@@ -197,6 +199,26 @@ export function testOpenaiSettings(
     {
       method: 'POST',
       body: JSON.stringify(input),
+    },
+  );
+}
+
+// ---- Volcengine (火山方舟 Seedance) -----------------------------------------
+
+export function getVolcengineSettings(): Promise<VolcengineSettingsView> {
+  return adminFetch<VolcengineSettingsView>(
+    '/api/canvas-flow/volcengine-settings',
+  );
+}
+
+export function updateVolcengineSettings(
+  patch: VolcengineSettingsUpdate,
+): Promise<VolcengineSettingsView> {
+  return adminFetch<VolcengineSettingsView>(
+    '/api/canvas-flow/volcengine-settings',
+    {
+      method: 'PUT',
+      body: JSON.stringify(patch),
     },
   );
 }

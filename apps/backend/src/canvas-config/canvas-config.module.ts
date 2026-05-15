@@ -7,6 +7,7 @@ import { DashscopeConfigService } from './dashscope-config.service';
 import { HistoryRetentionService } from './history-retention.service';
 import { OpenaiCompatConfigService } from './openai-compat-config.service';
 import { ProviderConnectivityService } from './provider-connectivity.service';
+import { VolcengineConfigService } from './volcengine-config.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { StorageModule } from '../storage/storage.module';
 
@@ -20,12 +21,14 @@ import { StorageModule } from '../storage/storage.module';
     HistoryRetentionService,
     OpenaiCompatConfigService,
     ProviderConnectivityService,
+    VolcengineConfigService,
   ],
   exports: [
     CanvasConfigService,
     DashscopeConfigService,
     HistoryRetentionService,
     OpenaiCompatConfigService,
+    VolcengineConfigService,
   ],
 })
 export class CanvasConfigModule {}

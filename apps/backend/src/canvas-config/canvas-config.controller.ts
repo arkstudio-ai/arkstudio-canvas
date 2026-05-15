@@ -12,6 +12,8 @@ import { UpdateOpenaiSettingsDto } from './dto/openai-settings.dto';
 import { TestProviderConnectionDto } from './dto/test-provider-connection.dto';
 import { UpdateHistorySettingsDto } from './dto/history-settings.dto';
 import { UpdateStorageSettingsDto } from './dto/storage-settings.dto';
+import { UpdateVolcengineSettingsDto } from './dto/volcengine-settings.dto';
+import { VolcengineConfigService } from './volcengine-config.service';
 
 @Controller('api/canvas-flow')
 export class CanvasConfigController {
@@ -22,6 +24,7 @@ export class CanvasConfigController {
     private openaiConfig: OpenaiCompatConfigService,
     private providerConnectivity: ProviderConnectivityService,
     private localStorage: LocalStorageService,
+    private volcengineConfig: VolcengineConfigService,
   ) {}
 
   /**
@@ -155,6 +158,29 @@ export class CanvasConfigController {
   @Post('openai-settings/test')
   async testOpenaiSettings(@Body() dto: TestProviderConnectionDto) {
     return this.providerConnectivity.testOpenai(dto);
+  }
+
+  /**
+   * GET /api/canvas-flow/volcengine-settings
+   * View-only payload for the admin Volcengine (火山方舟 / Doubao / Seedance)
+   * 设置面板. 同 dashscope/openai 一样脱敏 apiKey, baseUrl 默认指向第三方代理
+   * (`http://123.57.80.82/seedance`), admin 可改为官方
+   * (`https://ark.cn-beijing.volces.com/api/v3`) 0 行代码切换。
+   */
+  @Get('volcengine-settings')
+  async getVolcengineSettings() {
+    return this.volcengineConfig.getViewPayload();
+  }
+
+  /**
+   * PUT /api/canvas-flow/volcengine-settings
+   * Admin 更新 base URL / API key / defaultModel / video submit timeout.
+   * 详见 UpdateVolcengineSettingsDto 的 empty-string=clear 语义。
+   */
+  @Put('volcengine-settings')
+  async updateVolcengineSettings(@Body() dto: UpdateVolcengineSettingsDto) {
+    await this.volcengineConfig.updateSettings(dto);
+    return this.volcengineConfig.getViewPayload();
   }
 
   /**
