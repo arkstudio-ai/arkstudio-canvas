@@ -45,12 +45,12 @@
 - **角色三视图保持一致性** —— `image(角色基础图) → image(wan2.7-image-pro, 多次编辑)`
 - **口播配音 + BGM** —— `text → audio(tts) + audio(FunMusic)`
 
-每个节点的"模型 + 参数 + 输入输出"都落 MySQL，可以在 `/admin` 看历史、复跑、按 kind 看用量。
+每个节点的"模型 + 参数 + 输入输出"都落 DB（默认 SQLite 单文件，opt-in MySQL），可以在 `/admin` 看历史、复跑、按 kind 看用量。
 
 ## 关键特性
 
 - 🎨 **节点画布编辑器** —— 拖拽 / 连线 / 编组 / 框选 / 跨节点 `@图片1` 引用，基于自研 [`@canvas-flow/core`](packages/core)
-- 🛠 **DB 即权威源** —— 节点定义 / 模型清单 / Provider 凭据 / 存储设置全部存 MySQL，admin 改完下一次请求就生效，无需改代码或重启
+- 🛠 **DB 即权威源** —— 节点定义 / 模型清单 / Provider 凭据 / 存储设置全部存 DB（默认 SQLite，零外部依赖；想用 MySQL 看 [docs/database-mysql.md](docs/database-mysql.md)），admin 改完下一次请求就生效，无需改代码或重启
 - 🔌 **Provider 抽象** —— 已接百炼（DashScope）+ OpenAI 兼容协议（chat / image，可指向 OpenRouter / vLLM / DeepSeek / 自建网关）；`src/providers/` 是 SPI 风格，加新源只需新增一个文件
 - 💾 **本地存储 · ComfyUI 思路** —— 上传 / 模型生成结果直接落服务端磁盘，零云端凭据；i2i / i2v 工作流需要公网 URL 时由 dashscope provider 自动经百炼临时桶中转
 - 📦 **零配置开箱即用** —— 一份 `DASHSCOPE_API_KEY` 就跑通完整链路
