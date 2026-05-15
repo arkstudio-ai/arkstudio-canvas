@@ -1,3 +1,7 @@
+// 必须放在第一行: 在 PrismaClient 实例化之前给 process.env 兜默认 DATABASE_URL.
+// 详见 ../src/bootstrap-env.ts.
+import '../src/bootstrap-env';
+
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();

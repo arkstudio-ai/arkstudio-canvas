@@ -33,6 +33,10 @@
  *   pnpm --filter canvas-flow-backend db:patch-models -- --prune         # dry-run, preview add+prune
  *   pnpm --filter canvas-flow-backend db:patch-models -- --prune --apply # apply add+prune (align to defaults)
  */
+// 必须放在第一行: 在 PrismaClient 实例化之前给 process.env 兜默认 DATABASE_URL.
+// 详见 ../../src/bootstrap-env.ts.
+import '../../src/bootstrap-env';
+
 import { Prisma, PrismaClient } from '@prisma/client';
 import { DEFAULT_NODE_DEFINITIONS } from '../default-node-definitions';
 
