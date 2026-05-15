@@ -24,6 +24,23 @@ const isDev = process.env.NODE_ENV === 'development';
 const DEV_RENDERER_URL = process.env.DESKTOP_DEV_RENDERER_URL ?? 'http://localhost:5173';
 const DEV_BACKEND_PORT = Number(process.env.DESKTOP_DEV_BACKEND_PORT ?? 18500);
 
+// 必须在 app ready 之前注册的 commandLine switches。让 Chromium 尽可能跑
+// 硬件加速 —— 默认情况下 Electron 自带的 Chromium 在某些显卡 / 驱动版本
+// 会被自己的 GPU 黑名单回退到软件渲染, 画布拖动直接卡到不能用.
+//
+//   - ignore-gpu-blocklist:    跳过 Chromium 内置的 driver/GPU 黑名单,
+//     允许在已知"有问题"的硬件上仍然尝试硬件加速 (开源 Electron 应用
+//     常用配置, ungoogled-chromium / VS Code 都打开)。
+//   - enable-gpu-rasterization: 把 canvas raster 也丢给 GPU, 不走 CPU。
+//   - enable-zero-copy:         GPU 进程直接读 raster buffer, 减少
+//     一次 IPC 拷贝, 滚动 / pan 体感更顺。
+//
+// 如果用户硬件 / 驱动确实不支持, Chromium 会自己回落到软件渲染,
+// 不会因此崩 —— 所以这几个开关在任何机型上都安全打开。
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+
 // Initialise electron-log: writes to `<userData>/logs/main.log` on all
 // platforms by default. The renderer / preload have their own loggers but for
 // the main process we just hook console too.

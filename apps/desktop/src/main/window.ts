@@ -116,6 +116,24 @@ export function createMainWindow(opts: CreateWindowOptions): BrowserWindow {
     win.show();
   });
 
+  // DevTools 调试快捷键 (即使 prod 打包后也保留).
+  //   - macOS:  Cmd+Option+I
+  //   - Win/Linux:  Ctrl+Shift+I
+  //   - All:    F12
+  // 用 before-input-event 而不是 globalShortcut: 后者是系统级, 没 focus
+  // 时也会拦, 体验差; 前者只在 window focus 时生效.
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    const key = input.key.toLowerCase();
+    const isMacChord = isMac && input.meta && input.alt && key === 'i';
+    const isOtherChord = !isMac && input.control && input.shift && key === 'i';
+    const isF12 = key === 'f12';
+    if (isMacChord || isOtherChord || isF12) {
+      win.webContents.toggleDevTools();
+      event.preventDefault();
+    }
+  });
+
   // External links (e.g. AGPL repo URL on the admin page) should open in the
   // user's browser, NOT navigate the app window away from the canvas.
   win.webContents.setWindowOpenHandler(({ url }) => {
