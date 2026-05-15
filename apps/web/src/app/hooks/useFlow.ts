@@ -472,7 +472,7 @@ export function useFlow(
     }
     
     // 从节点定义合并默认 params:
-    //   1. nodeDefinition.defaultParams (节点级基础默认值, fallback 老 params 字段)
+    //   1. nodeDefinition.defaultParams (节点级基础默认值)
     //   2. 当前 model.defaultParams + paramsSchema[*].defaultValue
     //   3. 多模式 family: mode.defaultParamsOverride + paramsSchemaOverride[*].defaultValue
     //      并写入 params.mode + 用 mode.action 覆盖 action

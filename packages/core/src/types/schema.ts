@@ -40,15 +40,6 @@ export interface NodeDefinition {
 
   /** 模型清单（image/video/text 节点用，其余 null） */
   models?: ModelEntry[] | null;
-
-  /**
-   * 历史字段：节点关联的 InspectorConfig 名称（或内联配置）。
-   *
-   * Core 层不依赖 Inspector 具体结构，这里仅用 `any` 兼容现有
-   * web 端 admin / editor / modelExtractor 等模块对 `def.inspector` 的访问。
-   * 计划在 Phase 7 移除。
-   */
-  inspector?: any;
 }
 
 export interface ModelEntry {
@@ -78,7 +69,7 @@ export interface ModelEntry {
    * 通用参数 schema（结构化）。
    * - 单模式：即模型的全部参数
    * - 多模式：所有 mode 共享的基础参数；mode.paramsSchemaOverride 可按 key 覆盖
-   * 缺省表示该模型无结构化参数描述（仍可走旧 inspector 兼容路径）。
+   * 缺省表示该模型无结构化参数描述，floating window 会按节点类型用内置 fallback schema 渲染。
    */
   paramsSchema?: ParamFieldSpec[];
 

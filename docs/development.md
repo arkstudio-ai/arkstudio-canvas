@@ -94,7 +94,7 @@ canvas-flow/
 - **DB 是配置权威源**：节点定义 / 模型清单 / DashScope 凭据 / 本地存储设置全部存在 MySQL，admin 页面改完下一次请求即生效。前端没有 fallback、没有静态 JSON 兜底 —— 后端没起 admin 整页 503。
 - **写数据库前必须确认 `DATABASE_URL`**：仓库根目录 `.cursor/rules/db-safety.mdc` 列了所有需要确认的破坏性 DB 操作。
 - **新增模型走 Provider 层**：不要给 `model-providers/` 里加 OpenAI / Anthropic / Stability 等非阿里直连 Provider —— 第一期开源版仅适配阿里系。后续接 OpenAI 协议见 [模型接入指南](../MODEL_INTEGRATION.md)。
-- **不要再扩 inspector 配置**：旧的 `inspector` / `inspectorFields` 字段仅做向后兼容保留；新功能都落到 `NodeDefinition.models[*].defaultParams` 或节点级 `defaultParams`。
+- **节点参数全走 `models` + `defaultParams`**：`NodeDefinition` 上历史的 `inspector` / `inspectorFields` / `params` 三个字段已经从代码与 DB 移除；新增/扩展节点参数请落到 `NodeDefinition.models[*].defaultParams` 或节点级 `defaultParams`，`models[*].paramsSchema` 描述 UI 渲染。
 
 ## 调试技巧
 
