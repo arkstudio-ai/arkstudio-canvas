@@ -282,6 +282,35 @@ export interface OpenaiSettingsUpdate {
   timeouts?: Partial<Record<OpenaiCompatKind, number>>;
 }
 
+// ---- Provider 连通性测试 ----------------------------------------------------
+//
+// 镜像 apps/backend/src/canvas-config/provider-connectivity.service.ts 的
+// `TestConnectionResult`. 后端约定: 探活无论成功失败都回 200, 错误装在 body
+// 里, 让前端走同一条 toast 路径处理.
+
+export interface TestConnectionInput {
+  /** 留空 → 使用 DB 已存的 baseUrl. */
+  baseUrl?: string;
+  /** 留空 → 使用 DB 已存的 apiKey; 若 DB 也没存, 后端返回 ok=false. */
+  apiKey?: string;
+}
+
+export interface TestConnectionResult {
+  ok: boolean;
+  /** 上游 HTTP 状态码; 网络错误时为 null. */
+  status: number | null;
+  /** 端到端耗时 (毫秒). */
+  latencyMs: number;
+  /** 实际命中的 baseUrl, 用于在"用 DB 已保存"模式下回显. */
+  baseUrl: string;
+  /** 凭据各来自 draft (这次请求里传的) 还是 saved (DB). */
+  source: { baseUrl: 'draft' | 'saved'; apiKey: 'draft' | 'saved' };
+  /** 上游 GET /models 返回的模型数 (ok=true 时). */
+  modelCount?: number;
+  /** 单行诊断, 直接灌进 toast / 显示在按钮旁边. */
+  message?: string;
+}
+
 // ---- Generation history retention -----------------------------------------
 //
 // Mirrors apps/backend/src/canvas-config/history-retention.service.ts. Both

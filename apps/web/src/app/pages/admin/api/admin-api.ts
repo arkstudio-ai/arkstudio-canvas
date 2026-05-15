@@ -17,6 +17,8 @@ import type {
   SaveConfigResult,
   StorageSettingsUpdate,
   StorageSettingsView,
+  TestConnectionInput,
+  TestConnectionResult,
   UsageOverview,
 } from '../types';
 
@@ -150,6 +152,25 @@ export function updateProviderSettings(
   });
 }
 
+/**
+ * 探活 DashScope. 留空 input 字段 → 用 DB 已存的; 给值 → 用给的 (用于
+ * 第一次配置 / 想换一把 key 试试的"先测后存"场景).
+ *
+ * 后端永远返 200, 失败装在 body.ok=false / body.message; 这里也不抛
+ * envelope.success=false (因为整个请求是成功的, 只是探活失败).
+ */
+export function testProviderSettings(
+  input: TestConnectionInput = {},
+): Promise<TestConnectionResult> {
+  return adminFetch<TestConnectionResult>(
+    '/api/canvas-flow/provider-settings/test',
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
 // ---- OpenAI-compatible provider --------------------------------------------
 
 export function getOpenaiSettings(): Promise<OpenaiSettingsView> {
@@ -163,6 +184,19 @@ export function updateOpenaiSettings(
     method: 'PUT',
     body: JSON.stringify(patch),
   });
+}
+
+/** OpenAI-compat 探活, 同语义见 testProviderSettings. */
+export function testOpenaiSettings(
+  input: TestConnectionInput = {},
+): Promise<TestConnectionResult> {
+  return adminFetch<TestConnectionResult>(
+    '/api/canvas-flow/openai-settings/test',
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
 }
 
 // ---- History retention -----------------------------------------------------

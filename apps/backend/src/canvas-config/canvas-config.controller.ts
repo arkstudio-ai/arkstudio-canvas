@@ -3,11 +3,13 @@ import { CanvasConfigService } from './canvas-config.service';
 import { DashscopeConfigService } from './dashscope-config.service';
 import { HistoryRetentionService } from './history-retention.service';
 import { OpenaiCompatConfigService } from './openai-compat-config.service';
+import { ProviderConnectivityService } from './provider-connectivity.service';
 import { LocalStorageService } from '../storage/local-storage.service';
 import { SaveConfigDto } from './dto/save-config.dto';
 import { ImportConfigDto } from './dto/import-export-config.dto';
 import { UpdateProviderSettingsDto } from './dto/provider-settings.dto';
 import { UpdateOpenaiSettingsDto } from './dto/openai-settings.dto';
+import { TestProviderConnectionDto } from './dto/test-provider-connection.dto';
 import { UpdateHistorySettingsDto } from './dto/history-settings.dto';
 import { UpdateStorageSettingsDto } from './dto/storage-settings.dto';
 
@@ -18,6 +20,7 @@ export class CanvasConfigController {
     private dashscopeConfig: DashscopeConfigService,
     private historyRetention: HistoryRetentionService,
     private openaiConfig: OpenaiCompatConfigService,
+    private providerConnectivity: ProviderConnectivityService,
     private localStorage: LocalStorageService,
   ) {}
 
@@ -107,6 +110,16 @@ export class CanvasConfigController {
   }
 
   /**
+   * POST /api/canvas-flow/provider-settings/test
+   * 用 dto 里的 baseUrl + apiKey (留空则取 DB 已存的) 探一次 DashScope.
+   * 永远 200, 错误装在 body 里; 见 ProviderConnectivityService 的注释.
+   */
+  @Post('provider-settings/test')
+  async testProviderSettings(@Body() dto: TestProviderConnectionDto) {
+    return this.providerConnectivity.testDashscope(dto);
+  }
+
+  /**
    * GET /api/canvas-flow/openai-settings
    * View-only payload for the admin OpenAI-compatible Provider 设置
    * panel. Same shape as `provider-settings` so the admin UI can
@@ -133,6 +146,15 @@ export class CanvasConfigController {
   async updateOpenaiSettings(@Body() dto: UpdateOpenaiSettingsDto) {
     await this.openaiConfig.updateSettings(dto);
     return this.openaiConfig.getViewPayload();
+  }
+
+  /**
+   * POST /api/canvas-flow/openai-settings/test
+   * OpenAI-compat 探活, 同语义见 testProviderSettings.
+   */
+  @Post('openai-settings/test')
+  async testOpenaiSettings(@Body() dto: TestProviderConnectionDto) {
+    return this.providerConnectivity.testOpenai(dto);
   }
 
   /**

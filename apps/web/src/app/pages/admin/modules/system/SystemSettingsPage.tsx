@@ -27,6 +27,7 @@ import {
   updateProviderSettings,
   updateStorageSettings,
 } from '../../api/admin-api';
+import { TestConnectionButton } from './TestConnectionButton';
 import type {
   HistoryKind,
   HistorySettingsView,
@@ -1081,6 +1082,19 @@ const ProviderTabBody: React.FC<{
               清除
             </button>
           )}
+        </div>
+        {/* 探活按钮: 输入框为空时用 DB 已存的, 非空时用草稿; 详细规则见
+            TestConnectionButton 组件文档. 放在 API Key 行下面是因为它最常和
+            "我刚改了 key 想验一下"或"配错了不知道为啥不通"的两类操作绑在一起. */}
+        <div style={fieldRowStyle}>
+          <span style={fieldLabelStyle}>连通性测试</span>
+          <TestConnectionButton
+            providerId={card.id}
+            baseUrlDraft={baseUrlDraft}
+            apiKeyDraft={apiKeyDraft}
+            hasSavedKey={view.apiKeyConfigured}
+            disabled={saving}
+          />
         </div>
       </div>
 
