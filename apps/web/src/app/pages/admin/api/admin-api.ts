@@ -22,8 +22,10 @@ import type {
   UsageOverview,
 } from '../types';
 
-// `??` 而非 `||`：空串 (`""`) 是 docker compose 反代部署的合法值（走相对路径）。
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:18500';
+// 共用 `apps/web/src/app/config/api.ts` 的解析（runtime 优先 / build-time
+// 兜底）。重复在这里写一份会让桌面端 (Electron preload 注入的运行时 URL)
+// 漏掉这个文件的请求。
+import { API_BASE_URL } from '../../../config/api';
 
 /**
  * Thin fetch wrapper for `/admin/*` endpoints.

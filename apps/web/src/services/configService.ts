@@ -14,9 +14,9 @@ import type {
   CanvasFlowConfigResponse,
   ConfigLoadOptions,
 } from '../types/configApi';
-
-// `??` 而非 `||`：空串 (`""`) 是 docker compose 反代部署的合法值（走相对路径）。
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:18500';
+// 共用 `app/config/api.ts` 的解析（runtime > build-time），桌面端 Electron
+// preload 注入的动态 URL 才能在 configService 这边也生效。
+import { API_BASE_URL } from '../app/config/api';
 
 class ConfigService {
   private config: CanvasFlowConfigData | null = null;

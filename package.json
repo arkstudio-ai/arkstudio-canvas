@@ -15,12 +15,16 @@
   "scripts": {
     "dev:web": "pnpm --filter canvas-flow dev",
     "dev:backend": "pnpm --filter canvas-flow-backend start:dev",
+    "dev:desktop": "concurrently --kill-others-on-fail --names backend,web,electron --prefix-colors blue,green,magenta \"pnpm dev:backend\" \"pnpm dev:web\" \"wait-on tcp:5173 tcp:18500 && pnpm --filter canvas-flow-desktop dev\"",
     "build:web": "pnpm --filter canvas-flow build",
     "build:backend": "pnpm --filter canvas-flow-backend build",
+    "build:desktop": "pnpm --filter canvas-flow-desktop build",
     "typecheck": "pnpm -r run typecheck"
   },
   "devDependencies": {
-    "typescript": "~5.9.3"
+    "concurrently": "^9.1.0",
+    "typescript": "~5.9.3",
+    "wait-on": "^8.0.1"
   },
   "engines": {
     "node": ">=18.0.0",
@@ -29,6 +33,14 @@
   "pnpm": {
     "overrides": {
       "vite": "npm:rolldown-vite@7.2.5"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "electron",
+      "electron-builder",
+      "esbuild"
+    ]
   }
 }
