@@ -28,6 +28,20 @@ export interface CreateWindowOptions {
 }
 
 export function createMainWindow(opts: CreateWindowOptions): BrowserWindow {
+  // Per-OS frame chrome:
+  //   macOS: `hiddenInset` keeps the traffic-light buttons (red/yellow/green)
+  //          but hides the rest of the title bar. The renderer paints its
+  //          own title bar in the freed space, with a CSS `app-region: drag`
+  //          zone matching the inset so users can still grab and drag the
+  //          window from the top.
+  //   Windows / Linux: `frame: false` removes the entire native frame; the
+  //          renderer is fully responsible for drawing close/min/max
+  //          controls. We additionally set `titleBarOverlay` on win32 so
+  //          Windows' "snap layouts" hover-on-maximize hint still works
+  //          against our painted minimise/maximise/close icons.
+  const isMac = process.platform === 'darwin';
+  const isWin = process.platform === 'win32';
+
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -35,6 +49,15 @@ export function createMainWindow(opts: CreateWindowOptions): BrowserWindow {
     minHeight: 640,
     backgroundColor: '#0b0b10',
     show: false,
+    titleBarStyle: isMac ? 'hiddenInset' : isWin ? 'hidden' : 'default',
+    // Linux gets the system frame because there is no portable equivalent
+    // of Windows' titleBarOverlay APIs and most distros expect their own
+    // window manager controls anyway.
+    frame: !isMac && !isWin,
+    titleBarOverlay: isWin
+      ? { color: '#0a0a0a', symbolColor: '#cbd0d8', height: 32 }
+      : undefined,
+    trafficLightPosition: isMac ? { x: 12, y: 11 } : undefined,
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'index.js'),
       contextIsolation: true,
@@ -43,7 +66,13 @@ export function createMainWindow(opts: CreateWindowOptions): BrowserWindow {
       // The preload script reads this from process.argv to know where the
       // backend lives. Keep the prefix unique so we don't collide with other
       // electron flags.
-      additionalArguments: [`--backend-base-url=${opts.backendBaseUrl}`],
+      additionalArguments: [
+        `--backend-base-url=${opts.backendBaseUrl}`,
+        // The renderer needs to know the OS without doing UA sniffing —
+        // titlebar layout differs per platform (mac keeps traffic lights
+        // on the left; win paints its own controls on the right).
+        `--host-platform=${process.platform}`,
+      ],
     },
   });
 

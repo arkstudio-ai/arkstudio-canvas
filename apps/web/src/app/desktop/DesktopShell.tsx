@@ -25,6 +25,8 @@ import { CanvasRail } from './CanvasRail';
 import { SecondaryRail } from './SecondaryRail';
 import { StatusBar } from './StatusBar';
 import { SettingsOverlay } from './SettingsOverlay';
+import { CustomTitleBar } from './CustomTitleBar';
+import { useGlobalShortcuts } from './useGlobalShortcuts';
 
 export interface DesktopShellProps {
   /** P3 main content. In production this is `<EditorPage … />`. */
@@ -32,8 +34,11 @@ export interface DesktopShellProps {
 }
 
 export const DesktopShell: React.FC<DesktopShellProps> = ({ children }) => {
+  useGlobalShortcuts();
+
   return (
     <div style={rootStyle}>
+      <CustomTitleBar />
       <div style={railsRowStyle}>
         <CanvasRail />
         <SecondaryRail />

@@ -6,8 +6,10 @@
 // model, perhaps a "go online" toggle.
 
 import React, { useEffect, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 import { API_BASE_URL } from '../config/api';
+import { useUIStore } from '../store/uiStore';
 
 type HealthStatus = 'unknown' | 'ok' | 'down';
 
@@ -15,6 +17,7 @@ const POLL_INTERVAL_MS = 5_000;
 
 export const StatusBar: React.FC = () => {
   const [status, setStatus] = useState<HealthStatus>('unknown');
+  const queue = useUIStore((s) => s.executingNodesCount);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,8 +67,17 @@ export const StatusBar: React.FC = () => {
         <span style={dimStyle}>· {baseDisplay}</span>
       </div>
       <div style={rightGroupStyle}>
-        {/* Phase E: model · queue · network */}
+        {queue > 0 && (
+          <span style={queueStyle} title={`${queue} 个节点正在生成中`}>
+            <Loader2 size={11} style={spinStyle} />
+            {queue} running
+          </span>
+        )}
       </div>
+
+      {/* Inline keyframes for the spinner — kept local so we don't have to
+          touch global CSS just for the status bar. */}
+      <style>{`@keyframes cf-status-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </footer>
   );
 };
@@ -109,3 +121,14 @@ const dotStyle = (color: string): React.CSSProperties => ({
   background: color,
   boxShadow: `0 0 6px ${color}`,
 });
+
+const queueStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  color: '#fbbf24',
+};
+
+const spinStyle: React.CSSProperties = {
+  animation: 'cf-status-spin 1.2s linear infinite',
+};

@@ -150,6 +150,7 @@ export function EditorPage({
   // 同样把当前画布的 node 列表（瘦身版）推给 store，让 P2 节点树消费。
   // 只取 id/type/label，避免节点 data 频繁变更时整个面板抖动重渲。
   const setCurrentNodes = useUIStore((s) => s.setCurrentNodes);
+  const setCurrentFlowName = useUIStore((s) => s.setCurrentFlowName);
   useEffect(() => {
     const nodes = currentFlow?.nodes ?? [];
     setCurrentNodes(
@@ -163,7 +164,8 @@ export function EditorPage({
           (n.data as { name?: string } | undefined)?.name,
       })),
     );
-  }, [currentFlow, setCurrentNodes]);
+    setCurrentFlowName(currentFlow?.meta?.name ?? '');
+  }, [currentFlow, setCurrentNodes, setCurrentFlowName]);
 
   // 把"还原历史项到画布"的回调注册到 store，让 SecondaryRail 「历史」tab
   // 不必拿到 flowRef / appConfig 也能触发。EditorLeftRail 里那份
@@ -173,6 +175,12 @@ export function EditorPage({
     setApplyHistoryItemAction(applyHistoryItem as (item: unknown) => Promise<boolean | void>);
     return () => setApplyHistoryItemAction(null);
   }, [applyHistoryItem, setApplyHistoryItemAction]);
+
+  // 同步"正在执行的节点数"到 store，状态栏会订阅显示队列指示器。
+  const setExecutingNodesCount = useUIStore((s) => s.setExecutingNodesCount);
+  useEffect(() => {
+    setExecutingNodesCount(executingNodes.size);
+  }, [executingNodes, setExecutingNodesCount]);
 
   useEffect(() => {
     if (!error) return;

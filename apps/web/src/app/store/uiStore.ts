@@ -46,6 +46,12 @@ interface UIState {
    */
   currentFlowId: string | null | undefined;
   /**
+   * Current canvas's display name (from `flow.meta.name`). Surfaced in the
+   * custom titlebar; empty string when unknown so the titlebar can render a
+   * neutral fallback ("Canvas Flow") without flickering.
+   */
+  currentFlowName: string;
+  /**
    * Slim snapshot of the current canvas's nodes. Updated by EditorPage every
    * time `currentFlow` changes. Kept on a separate field (rather than
    * embedding the full flow value) so subscribers in P2 only re-render when
@@ -64,16 +70,24 @@ interface UIState {
    * with their own narrow types so circular deps don't grow.
    */
   applyHistoryItem: ((item: unknown) => Promise<boolean | void>) | null;
+  /**
+   * How many nodes the editor currently considers "running" (model call
+   * in flight). Drives the status-bar queue indicator. Updated by EditorPage
+   * whenever its `executingNodes` Set changes.
+   */
+  executingNodesCount: number;
 
   openSettings: (section?: string) => void;
   closeSettings: () => void;
   setSettingsSection: (section: string) => void;
   setSecondaryTab: (tab: SecondaryTab) => void;
   setCurrentFlowId: (id: string | null) => void;
+  setCurrentFlowName: (name: string) => void;
   setCurrentNodes: (nodes: NodeTreeEntry[]) => void;
   setApplyHistoryItem: (
     fn: ((item: unknown) => Promise<boolean | void>) | null,
   ) => void;
+  setExecutingNodesCount: (n: number) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -81,8 +95,10 @@ export const useUIStore = create<UIState>((set) => ({
   settingsSection: 'usage',
   secondaryTab: 'nodes',
   currentFlowId: undefined,
+  currentFlowName: '',
   currentNodes: [],
   applyHistoryItem: null,
+  executingNodesCount: 0,
 
   openSettings: (section) =>
     set((s) => ({
@@ -93,6 +109,8 @@ export const useUIStore = create<UIState>((set) => ({
   setSettingsSection: (section) => set({ settingsSection: section }),
   setSecondaryTab: (tab) => set({ secondaryTab: tab }),
   setCurrentFlowId: (id) => set({ currentFlowId: id }),
+  setCurrentFlowName: (name) => set({ currentFlowName: name }),
   setCurrentNodes: (nodes) => set({ currentNodes: nodes }),
   setApplyHistoryItem: (fn) => set({ applyHistoryItem: fn }),
+  setExecutingNodesCount: (n) => set({ executingNodesCount: n }),
 }));

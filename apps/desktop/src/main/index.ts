@@ -9,7 +9,7 @@
 //   5. Register `before-quit` so the backend child gets a SIGTERM before
 //      Electron tears down — otherwise the child can leak SQLite locks.
 
-import { app, dialog } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import path from 'node:path';
 import log from 'electron-log/main';
 
@@ -31,6 +31,23 @@ log.transports.file.level = 'info';
 log.info(`[main] starting Canvas Flow desktop, dev=${isDev}, electron=${process.versions.electron}`);
 
 let backend: BackendHandle | undefined;
+
+// Painted-titlebar window controls. Renderer dispatches these from its
+// minimise/maximise/close icons (win/linux only — mac uses native traffic
+// lights). Registered once at module load so they survive across re-bootstrap
+// (macOS dock-click reopen).
+ipcMain.on('window:minimize', (e) => {
+  BrowserWindow.fromWebContents(e.sender)?.minimize();
+});
+ipcMain.on('window:maximize-toggle', (e) => {
+  const w = BrowserWindow.fromWebContents(e.sender);
+  if (!w) return;
+  if (w.isMaximized()) w.unmaximize();
+  else w.maximize();
+});
+ipcMain.on('window:close', (e) => {
+  BrowserWindow.fromWebContents(e.sender)?.close();
+});
 
 async function bootstrap() {
   await app.whenReady();

@@ -12,11 +12,15 @@
 // We're keeping the surface tiny on purpose. Every method here is a permanent
 // API contract the desktop renderer can depend on across versions.
 
-import { contextBridge } from 'electron';
+import { contextBridge, ipcRenderer } from 'electron';
 
-const BACKEND_FLAG = '--backend-base-url=';
-const backendArg = process.argv.find((arg) => arg.startsWith(BACKEND_FLAG));
-const backendBaseUrl = backendArg ? backendArg.slice(BACKEND_FLAG.length) : '';
+const readArg = (flag: string): string => {
+  const found = process.argv.find((arg) => arg.startsWith(flag));
+  return found ? found.slice(flag.length) : '';
+};
+
+const backendBaseUrl = readArg('--backend-base-url=');
+const hostPlatform = readArg('--host-platform=') || process.platform;
 
 if (!backendBaseUrl) {
   console.warn(
@@ -32,10 +36,29 @@ contextBridge.exposeInMainWorld('__BACKEND_BASE__', backendBaseUrl);
 contextBridge.exposeInMainWorld('canvasDesktop', {
   /** Backend base URL the main process resolved (dev: localhost:18500, prod: dynamic). */
   backendBaseUrl,
+  /**
+   * `process.platform` of the host (darwin / win32 / linux). Lets the renderer
+   * pick the right titlebar layout without having to do UA sniffing — mac keeps
+   * traffic-light buttons on the left, win paints its own controls on the right
+   * via titleBarOverlay.
+   */
+  platform: hostPlatform,
   /** Electron / Chrome / Node versions for the admin "About" surface, if we want to expose it later. */
   versions: {
     electron: process.versions.electron,
     chrome: process.versions.chrome,
     node: process.versions.node,
+  },
+  /**
+   * Window control intents. Renderer's painted minimise/maximise/close icons
+   * dispatch these; main listens via ipcMain.on('window:minimize') etc.
+   * Implemented for win/linux (where there is no native titlebar). On mac
+   * the renderer hides its painted controls and lets the OS traffic-light
+   * buttons handle these intents directly.
+   */
+  windowControls: {
+    minimize: () => ipcRenderer.send('window:minimize'),
+    maximizeToggle: () => ipcRenderer.send('window:maximize-toggle'),
+    close: () => ipcRenderer.send('window:close'),
   },
 });
