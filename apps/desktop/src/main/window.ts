@@ -41,12 +41,25 @@ export interface CreateWindowOptions {
 // .js/.css/.png 资源 (vite 打包用 `./assets/...` 相对路径).
 function installStaticUploadsRedirect(backendBaseUrl: string): void {
   session.defaultSession.webRequest.onBeforeRequest(
-    // chrome match-pattern 要求 file scheme 的 host 部分用 * 通配
-    { urls: ['file://*/static/uploads/*'] },
+    // 两套 pattern, 覆盖 mac / win 两种 file:// 解析:
+    //   - mac:  `<img src="/static/uploads/x">` @ `file:///path/index.html`
+    //           → file:///static/uploads/x, pathname = "/static/uploads/x"
+    //   - win:  同 src @ `file:///C:/path/index.html`
+    //           → file:///C:/static/uploads/x, pathname = "/C:/static/uploads/x"
+    //             (Chromium 保留 drive letter, server-root-relative 不剥)
+    // 一个 pattern 不够, 必须两条. 第二条用 host=* + 一级目录通配.
+    { urls: ['file:///static/uploads/*', 'file://*/*/static/uploads/*'] },
     (details, callback) => {
       try {
         const parsed = new URL(details.url);
-        const redirectURL = `${backendBaseUrl}${parsed.pathname}${parsed.search}${parsed.hash}`;
+        // 取 `/static/uploads/` 起的尾巴, 无论前面有没有 drive letter.
+        const idx = parsed.pathname.indexOf('/static/uploads/');
+        if (idx < 0) {
+          callback({});
+          return;
+        }
+        const tail = parsed.pathname.slice(idx);
+        const redirectURL = `${backendBaseUrl}${tail}${parsed.search}${parsed.hash}`;
         log.info('[window] redirect', details.url, '->', redirectURL);
         callback({ redirectURL });
       } catch (err) {
