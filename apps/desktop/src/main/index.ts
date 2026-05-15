@@ -16,6 +16,8 @@ import log from 'electron-log/main';
 import { resolveDesktopPaths } from './paths.js';
 import { loadOrCreateSecrets } from './secrets.js';
 import { startBackend, type BackendHandle } from './backend.js';
+import { ensureSchema } from './bootstrap-db.js';
+import { ensureSeed } from './bootstrap-seed.js';
 import { createMainWindow } from './window.js';
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -58,6 +60,15 @@ async function bootstrap() {
   const secrets = loadOrCreateSecrets(paths.secretsFile);
 
   try {
+    // Prod 模式: 先把 schema 推到 userData/db/canvas-flow.db（首次安装 / 升级
+    // 跨 schema 版本时建表 / 加列），然后种子默认节点目录（仅当 node_definitions
+    // 为空时；--if-empty 保护 admin 已编辑过的目录不被清掉）。
+    // dev 模式假设开发者已经手动 db push + 必要 seed 过 apps/backend/prisma/dev.db。
+    if (!isDev) {
+      await ensureSchema({ paths });
+      await ensureSeed({ paths });
+    }
+
     backend = await startBackend({
       paths,
       encryptionKey: secrets.encryptionKey,

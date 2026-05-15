@@ -14,7 +14,7 @@
 //             PORT             — dynamically allocated, see startBackend()
 //             DATABASE_URL     — file: URL pointing at userData/db
 //             ENCRYPTION_KEY   — minted/persisted by secrets.ts
-//             LOCAL_STORAGE_DIR — userData/uploads
+//             STORAGE_LOCAL_DATA_DIR — userData/uploads (LocalStorageService reads this)
 //             NODE_ENV         — production
 //
 // The child's stdout / stderr are piped into electron-log so a packaged user
@@ -93,7 +93,8 @@ export async function startBackend(opts: StartBackendOptions): Promise<BackendHa
       PORT: String(port),
       DATABASE_URL: `file:${opts.paths.dbFile}`,
       ENCRYPTION_KEY: opts.encryptionKey,
-      LOCAL_STORAGE_DIR: opts.paths.uploadsDir,
+      // LocalStorageService 读这个键 (不是 LOCAL_STORAGE_DIR) — 跟 docker-compose 保持一致.
+      STORAGE_LOCAL_DATA_DIR: opts.paths.uploadsDir,
     },
     // Pipe so we can capture logs; 'ipc' is required for fork() but unused here.
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],

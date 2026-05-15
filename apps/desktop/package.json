@@ -13,9 +13,11 @@
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.preload.json --noEmit",
     "dev": "pnpm run build && cross-env NODE_ENV=development electron .",
     "start": "electron .",
-    "pack": "electron-builder --dir",
-    "dist:mac": "electron-builder --mac",
-    "dist:win": "electron-builder --win"
+    "package:backend": "node scripts/package-backend.mjs",
+    "prepack": "pnpm run build && pnpm run package:backend && pnpm --filter canvas-flow build",
+    "pack": "pnpm run prepack && electron-builder --dir",
+    "dist:mac": "pnpm run prepack && electron-builder --mac",
+    "dist:win": "pnpm run prepack && electron-builder --win"
   },
   "dependencies": {
     "electron-log": "^5.2.0"

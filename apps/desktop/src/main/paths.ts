@@ -23,6 +23,12 @@ export interface DesktopPaths {
   backendEntry: string;
   /** Backend's prisma schema (used to bootstrap the DB on first launch). */
   backendSchema: string;
+  /** Bundled prisma CLI entry (`prisma/build/index.js`). Run via ELECTRON_RUN_AS_NODE for `db push` at first launch. */
+  prismaCli: string;
+  /** Root of the bundled backend (cwd for the spawned db-push process so prisma can find @prisma/engines). */
+  backendBundleDir: string;
+  /** Compiled seed entry; spawned with `--if-empty` to seed default node definitions on a fresh install. */
+  seedScript: string;
 }
 
 export function resolveDesktopPaths(): DesktopPaths {
@@ -51,5 +57,8 @@ export function resolveDesktopPaths(): DesktopPaths {
     secretsFile: path.join(userData, 'secrets.json'),
     backendEntry: path.join(backendBundleDir, 'dist', 'main.js'),
     backendSchema: path.join(backendBundleDir, 'prisma', 'schema.prisma'),
+    prismaCli: path.join(backendBundleDir, 'node_modules', 'prisma', 'build', 'index.js'),
+    backendBundleDir,
+    seedScript: path.join(backendBundleDir, 'dist', 'prisma', 'seed-canvas-config.js'),
   };
 }

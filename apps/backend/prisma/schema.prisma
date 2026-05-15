@@ -1,6 +1,8 @@
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+  // native: 开发机自身; linux-musl-*: docker alpine 镜像;
+  // darwin / darwin-arm64 / windows: 桌面端三平台打包.
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "darwin", "darwin-arm64", "windows"]
 }
 
 // 开源版只用 SQLite —— 单文件零外部依赖, 桌面端 / docker / 本地 dev 通吃.

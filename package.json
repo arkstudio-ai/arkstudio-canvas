@@ -19,6 +19,8 @@
     "build:web": "pnpm --filter canvas-flow build",
     "build:backend": "pnpm --filter canvas-flow-backend build",
     "build:desktop": "pnpm --filter canvas-flow-desktop build",
+    "dist:desktop:mac": "pnpm --filter canvas-flow-desktop dist:mac",
+    "dist:desktop:win": "pnpm --filter canvas-flow-desktop dist:win",
     "typecheck": "pnpm -r run typecheck"
   },
   "devDependencies": {
