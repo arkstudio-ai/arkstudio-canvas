@@ -13,6 +13,13 @@
 export interface ProviderInput {
   type: 'image' | 'video' | 'audio';
   url: string;
+  /**
+   * Per-input metadata. Currently only Volcengine Seedance uses this:
+   *   - `role: 'first_frame' | 'last_frame' | 'reference_image' | 'reference_video' | 'reference_audio'`
+   * DashScope ignores `extra` (its mode is derived from SKU suffix). Optional,
+   * so existing call sites that don't pass per-input metadata stay valid.
+   */
+  extra?: Record<string, unknown>;
 }
 
 export interface SubmitRequest {
