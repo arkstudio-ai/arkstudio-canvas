@@ -93,15 +93,27 @@ function ToolbarUploadButton({
 function ToolbarMediaActions({ src, mediaType }: { src: string; mediaType: 'image' | 'video' }) {
   const [viewerOpen, setViewerOpen] = useState(false);
 
-  const handleDownload = () => {
-    const a = document.createElement('a');
-    a.href = src;
-    a.download = '';
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  const handleDownload = async () => {
+    // 不能走 `a.href = src; a.target = '_blank'`: src 是后端返回的相对路径
+    // (`/static/uploads/...`), 桌面端 file:// 协议下 target=_blank 会触发
+    // Electron 的 setWindowOpenHandler → shell.openExternal(file:///...) →
+    // 用系统应用打开一个不存在的文件 → 失败. 浏览器/docker 自部署下虽然
+    // 同源能打开, 但下载行为也不一致 (有时直接预览, 有时新标签页).
+    // 走 fetch + Blob URL 跨平台一致, 跟节点右键菜单的下载实现保持一致.
+    try {
+      const res = await fetch(src);
+      const blob = await res.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = '';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      console.error('[ToolbarMediaActions] download failed:', err);
+    }
   };
 
   return (
