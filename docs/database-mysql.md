@@ -150,18 +150,19 @@ RUN pnpm --filter canvas-flow-backend exec prisma generate \
 
 (或者直接在你自己的 fork 里维护一个 `Dockerfile.mysql`.)
 
-## 4. 数据迁移: SQLite ↔ MySQL
+## 4. 切换 provider = 重新部署
 
-**没有自动化迁移工具**. 两边的数据搬运是你自己的事:
+**没有数据迁移工具, 也不打算有.** 开源版第一期没有线上历史用户数据
+要搬 — 切 SQLite ↔ MySQL 一律按"重新部署一次"对待:
 
-- 量小: 用 `prisma db pull` 各自导出后, 用临时脚本读一边再写另一边.
-- 量大 / 在意一致性: 写一个迁移脚本, 同时连两个 datasource (用两个不同
-  的 `PrismaClient` 实例, 各拿自己的 `--schema` 编译产物), 表对表 copy.
-- 干净最简: 接受"切 provider = 重新开始", 数据存在 admin 里能重建,
-  生成历史 / 执行日志接受丢失.
+1. 起新 DB (空的)
+2. `prisma db push --schema prisma/schema.<provider>.prisma` 建表
+3. `pnpm --filter canvas-flow-backend exec ts-node src/seed-canvas-config.ts`
+   灌默认节点 / 模型配置
+4. 进 admin 重新填 provider API key 等设置
 
-如果你需要把 prod MySQL 数据搬进开发 SQLite 做调试, 上面第二种方案
-2-3 小时的工作量, 不是非常痛苦.
+执行历史 / 生成历史 / 上传文件都接受丢失. 如果以后有自托管用户喊
+"我有 XX GB 老库要搬", 再单独造工具.
 
 ## 5. 改 schema 时的纪律
 
