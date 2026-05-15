@@ -25,6 +25,17 @@ export interface NodeTreeEntry {
   type: string;
   /** Optional human-friendly label. Falls back to type when missing. */
   label?: string;
+  /** Parent group id (CanvasFlowNode.groupId). Undefined for top-level nodes. */
+  groupId?: string;
+}
+
+/**
+ * Slim group snapshot. Mirrors `CanvasFlowGroup` minus geometry —
+ * the P2 tree only needs id + label to render headers.
+ */
+export interface GroupTreeEntry {
+  id: string;
+  label: string;
 }
 
 /**
@@ -45,6 +56,24 @@ interface UIState {
   settingsSection: string;
   /** P2 active tab. P3 stays canvas; P1 is global, neither switches with this. */
   secondaryTab: SecondaryTab;
+  /**
+   * Whether P2 is collapsed (animated to width 0). When true the rail is
+   * still in the DOM but has zero width + overflow:hidden so we can
+   * transition it back smoothly. Cmd+B / collapse button / expand button
+   * all toggle this.
+   */
+  secondaryRailCollapsed: boolean;
+  /**
+   * P1 (canvas rail) display mode.
+   *   - 'expanded': 180px sidebar with [cover + name + created-at] rows.
+   *   - 'collapsed': 56px Discord-style strip with cover-only tiles.
+   *
+   * Defaults to 'expanded' (the design we wanted by default after the user
+   * complained about cover-only mode losing canvas identity). Users who
+   * want to maximise their canvas surface can collapse P1 to recover the
+   * old strip layout.
+   */
+  canvasRailMode: 'expanded' | 'collapsed';
   /**
    * Current canvas (Flow) id. Owned by EditorPage's `useFlow` hook (the only
    * place that knows when a new canvas is created vs picked from URL); the
@@ -69,6 +98,30 @@ interface UIState {
    * updates as the user types into an inspector.
    */
   currentNodes: NodeTreeEntry[];
+  /**
+   * Groups (subgraphs) on the current canvas. Renders as collapsible headers
+   * in the P2 node tree; nodes whose `groupId` matches nest underneath.
+   * Nodes without `groupId` go into a synthetic "未分组" bucket at the end.
+   */
+  currentGroups: GroupTreeEntry[];
+  /**
+   * How many edges are on the current canvas. Cheap counter for the status
+   * bar — no shape needed because we never render the edges anywhere except
+   * the canvas itself, just the count.
+   */
+  currentEdgesCount: number;
+  /**
+   * Current xyflow viewport zoom level (1.0 = 100%). Status bar surfaces it
+   * as a percentage; clicking the readout fits-to-view (handled by the bar
+   * via `resetZoom`). Updated as the user pinches / scrolls / uses the
+   * built-in controls.
+   */
+  currentZoom: number;
+  /**
+   * "Fit current canvas to view" — wired to the status bar's zoom readout
+   * click. EditorPage publishes this so the bar doesn't need a flowRef.
+   */
+  resetZoom: (() => void) | null;
   /**
    * Imperative callback registered by EditorPage so the secondary rail's
    * history list can drop a generation-history item back onto the canvas
@@ -107,6 +160,12 @@ interface UIState {
   addNodeFromMenu: ((nodeType: string) => void) | null;
   uploadNodeFromMenu: ((file: File) => void) | null;
   applyTemplateAsset: ((asset: unknown) => Promise<boolean | void>) | null;
+  /**
+   * Right-click "Delete" on a P2 node tree row needs to remove the
+   * corresponding xyflow node *and* tell the backend. EditorPage's
+   * `handleNodeDelete` already does both, so we publish that here.
+   */
+  deleteNodeFromCanvas: ((nodeId: string) => void) | null;
 
   openSettings: (section?: string) => void;
   closeSettings: () => void;
@@ -115,6 +174,14 @@ interface UIState {
   setCurrentFlowId: (id: string | null) => void;
   setCurrentFlowName: (name: string) => void;
   setCurrentNodes: (nodes: NodeTreeEntry[]) => void;
+  setCurrentGroups: (groups: GroupTreeEntry[]) => void;
+  setCurrentEdgesCount: (n: number) => void;
+  setSecondaryRailCollapsed: (collapsed: boolean) => void;
+  toggleSecondaryRail: () => void;
+  setCanvasRailMode: (mode: 'expanded' | 'collapsed') => void;
+  toggleCanvasRail: () => void;
+  setCurrentZoom: (z: number) => void;
+  setResetZoom: (fn: (() => void) | null) => void;
   setApplyHistoryItem: (
     fn: ((item: unknown) => Promise<boolean | void>) | null,
   ) => void;
@@ -125,21 +192,29 @@ interface UIState {
   setApplyTemplateAsset: (
     fn: ((asset: unknown) => Promise<boolean | void>) | null,
   ) => void;
+  setDeleteNodeFromCanvas: (fn: ((nodeId: string) => void) | null) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
   settingsOpen: false,
   settingsSection: 'usage',
   secondaryTab: 'nodes',
+  secondaryRailCollapsed: false,
+  canvasRailMode: 'expanded',
   currentFlowId: undefined,
   currentFlowName: '',
   currentNodes: [],
+  currentGroups: [],
+  currentEdgesCount: 0,
+  currentZoom: 1,
+  resetZoom: null,
   applyHistoryItem: null,
   executingNodesCount: 0,
   addNodeMenuItems: [],
   addNodeFromMenu: null,
   uploadNodeFromMenu: null,
   applyTemplateAsset: null,
+  deleteNodeFromCanvas: null,
 
   openSettings: (section) =>
     set((s) => ({
@@ -152,10 +227,24 @@ export const useUIStore = create<UIState>((set) => ({
   setCurrentFlowId: (id) => set({ currentFlowId: id }),
   setCurrentFlowName: (name) => set({ currentFlowName: name }),
   setCurrentNodes: (nodes) => set({ currentNodes: nodes }),
+  setCurrentGroups: (groups) => set({ currentGroups: groups }),
+  setCurrentEdgesCount: (n) => set({ currentEdgesCount: n }),
+  setSecondaryRailCollapsed: (collapsed) =>
+    set({ secondaryRailCollapsed: collapsed }),
+  toggleSecondaryRail: () =>
+    set((s) => ({ secondaryRailCollapsed: !s.secondaryRailCollapsed })),
+  setCanvasRailMode: (mode) => set({ canvasRailMode: mode }),
+  toggleCanvasRail: () =>
+    set((s) => ({
+      canvasRailMode: s.canvasRailMode === 'expanded' ? 'collapsed' : 'expanded',
+    })),
+  setCurrentZoom: (z) => set({ currentZoom: z }),
+  setResetZoom: (fn) => set({ resetZoom: fn }),
   setApplyHistoryItem: (fn) => set({ applyHistoryItem: fn }),
   setExecutingNodesCount: (n) => set({ executingNodesCount: n }),
   setAddNodeMenuItems: (items) => set({ addNodeMenuItems: items }),
   setAddNodeFromMenu: (fn) => set({ addNodeFromMenu: fn }),
   setUploadNodeFromMenu: (fn) => set({ uploadNodeFromMenu: fn }),
   setApplyTemplateAsset: (fn) => set({ applyTemplateAsset: fn }),
+  setDeleteNodeFromCanvas: (fn) => set({ deleteNodeFromCanvas: fn }),
 }));

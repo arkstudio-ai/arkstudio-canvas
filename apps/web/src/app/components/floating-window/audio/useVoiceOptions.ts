@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { voiceService, VoiceItem } from '../../../services/voiceService';
-import { VOICE_LIST_REFRESH_EVENT } from '../../VoiceGallery';
+import { VOICE_LIST_REFRESH_EVENT } from '../../../constants/voiceListRefresh';
 
 export interface VoiceOption {
   value: string;

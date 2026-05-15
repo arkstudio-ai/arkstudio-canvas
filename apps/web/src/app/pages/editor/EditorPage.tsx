@@ -26,14 +26,7 @@ import { useApplyHistoryItem } from './useApplyHistoryItem';
 import { NegativeTextNode } from '../../components/nodes/NegativeTextNode';
 import { createRenderNodeToolbar } from '../../components/toolbar/NodeToolbarRenderer';
 import { GroupSaveDialog } from '../../components/GroupSaveDialog';
-// Desktop-shell 重构后，下列旧浮动 UI 全部被砍并迁到 P1/P2：
-//   - EditorTopLeftBar (右上角分享/后台浮按钮) → P1 底部齿轮 → SettingsOverlay
-//   - EditorLeftRail (左侧"+"+ extraButtons) → P1 「+ 添加节点」popover + P2 tabs
-//     - CanvasGallery   → P1 永久画布列表 (CanvasRailList)
-//     - TemplateGallery → P2 「模板」tab    (SecondaryTemplateList)
-//     - VoiceGallery    → P2 「音色」tab    (SecondaryVoiceList)
-//     - GenerationHistoryPanel → P2 「历史」tab (SecondaryHistoryList)
-// EditorPage 现在只负责画布主区 (P3)，所有"画布外"UI 都属于 DesktopShell。
+// DesktopShell（P1/P2）承载画布列表、模板、音色、历史；EditorPage 只负责 P3 画布与编组/剪贴板。
 
 const appComponentRegistry = {
   ...defaultComponentRegistry,
@@ -107,7 +100,7 @@ export function EditorPage({
 
   const getNodeContextMenuItems = useNodeContextMenuItems(flowRef, handleNodeDataChange);
 
-  // 模板资产应用：左侧 TemplateGallery 单击卡片时回调，把模板节点合并进当前画布。
+  // 模板资产应用：P2「模板」tab 通过 store 回调，把模板节点合并进当前画布。
   const bumpConfigStoreVersion = useCallback(() => setConfigStoreVersion((v) => v + 1), []);
   const applyTemplateAsset = useApplyTemplateAsset({
     flowRef,
@@ -117,7 +110,7 @@ export function EditorPage({
     bumpConfigStoreVersion,
   });
 
-  // 生成历史还原：GenerationHistoryPanel 单击卡片 → 在画布中央生成新节点。
+  // 生成历史还原：P2「历史」tab 通过 store，在画布中央生成节点。
   const applyHistoryItem = useApplyHistoryItem({
     flowRef,
     appConfig,
@@ -144,8 +137,10 @@ export function EditorPage({
   }, [flowId, setCurrentFlowId]);
 
   // 同样把当前画布的 node 列表（瘦身版）推给 store，让 P2 节点树消费。
-  // 只取 id/type/label，避免节点 data 频繁变更时整个面板抖动重渲。
+  // 只取 id/type/label/groupId，避免节点 data 频繁变更时整个面板抖动重渲。
   const setCurrentNodes = useUIStore((s) => s.setCurrentNodes);
+  const setCurrentGroups = useUIStore((s) => s.setCurrentGroups);
+  const setCurrentEdgesCount = useUIStore((s) => s.setCurrentEdgesCount);
   const setCurrentFlowName = useUIStore((s) => s.setCurrentFlowName);
   useEffect(() => {
     const nodes = currentFlow?.nodes ?? [];
@@ -153,6 +148,7 @@ export function EditorPage({
       nodes.map((n) => ({
         id: n.id,
         type: n.type,
+        groupId: n.groupId,
         // 不同节点把"显示名"放在不同字段；这里是 best-effort 兜底。
         label:
           (n.data as { label?: string; title?: string; name?: string } | undefined)?.label ??
@@ -160,12 +156,52 @@ export function EditorPage({
           (n.data as { name?: string } | undefined)?.name,
       })),
     );
+    setCurrentGroups(
+      (currentFlow?.groups ?? []).map((g) => ({
+        id: g.id,
+        label: g.label || '编组',
+      })),
+    );
+    setCurrentEdgesCount((currentFlow?.edges ?? []).length);
     setCurrentFlowName(currentFlow?.meta?.name ?? '');
-  }, [currentFlow, setCurrentNodes, setCurrentFlowName]);
+  }, [
+    currentFlow,
+    setCurrentNodes,
+    setCurrentGroups,
+    setCurrentEdgesCount,
+    setCurrentFlowName,
+  ]);
 
-  // 把"还原历史项到画布"的回调注册到 store，让 SecondaryRail 「历史」tab
-  // 不必拿到 flowRef / appConfig 也能触发。EditorLeftRail 里那份
-  // GenerationHistoryPanel popover 仍然存活（兼容入口），两边共用同一个回调。
+  // 把"重置缩放到 100% / 整图"的回调注册到 store, 让状态栏的缩放
+  // 读数点击时能直接调用. fitView 会基于当前节点边界自适应缩放,
+  // 比硬性 setViewport(zoom:1) 更符合用户预期.
+  const setResetZoom = useUIStore((s) => s.setResetZoom);
+  useEffect(() => {
+    setResetZoom(() => flowRef.current?.fitView());
+    return () => setResetZoom(null);
+  }, [setResetZoom]);
+
+  // Poll viewport zoom into the store. xyflow doesn't expose a zoom-change
+  // event on our CanvasFlow wrapper (only `getViewport()`), and adding an
+  // event prop to the core package risks API churn for one consumer. 300ms
+  // is below the human "smooth" threshold (~500ms) for status-bar text and
+  // costs basically nothing — getViewport is O(1) and the store ignores
+  // identical writes (we compare before set).
+  const setCurrentZoom = useUIStore((s) => s.setCurrentZoom);
+  useEffect(() => {
+    let lastZoom = -1;
+    const tick = () => {
+      const z = flowRef.current?.getViewport?.().zoom;
+      if (typeof z === 'number' && z !== lastZoom) {
+        lastZoom = z;
+        setCurrentZoom(z);
+      }
+    };
+    const id = window.setInterval(tick, 300);
+    return () => window.clearInterval(id);
+  }, [setCurrentZoom]);
+
+  // 把"还原历史项到画布"的回调注册到 store，让 P2「历史」tab 不必拿 flowRef。
   const setApplyHistoryItemAction = useUIStore((s) => s.setApplyHistoryItem);
   useEffect(() => {
     setApplyHistoryItemAction(applyHistoryItem as (item: unknown) => Promise<boolean | void>);
@@ -186,6 +222,36 @@ export function EditorPage({
     );
     return () => setApplyTemplateAssetAction(null);
   }, [applyTemplateAsset, setApplyTemplateAssetAction]);
+
+  // 节点删除：右键 P2「节点」tab 行 → 删除画布对应节点.
+  //
+  // useFlow 的 handleNodeDelete 只做「标记 deletedNodesRef + 清 store +
+  // 同步后端」, 假设节点已经从 xyflow 画布上移除 —— 这在画布内置删除
+  // (用户按 Delete) 路径下成立, 因为 xyflow 自己处理了 DOM. 但 P2 列表
+  // 右键删除时, xyflow 不知情, 节点在画布上还显示着. wrapper 先 setFlow
+  // 把节点 + 涉及的边从画布移除, 再调 handleNodeDelete 走原有清理.
+  const setDeleteNodeFromCanvas = useUIStore((s) => s.setDeleteNodeFromCanvas);
+  const deleteNodeById = useCallback(
+    (nodeId: string) => {
+      const handle = flowRef.current;
+      if (handle) {
+        const flow = handle.getFlow();
+        handle.setFlow({
+          ...flow,
+          nodes: flow.nodes.filter((n) => n.id !== nodeId),
+          edges: flow.edges.filter(
+            (e) => e.source !== nodeId && e.target !== nodeId,
+          ),
+        });
+      }
+      handleNodeDelete(nodeId);
+    },
+    [handleNodeDelete],
+  );
+  useEffect(() => {
+    setDeleteNodeFromCanvas(deleteNodeById);
+    return () => setDeleteNodeFromCanvas(null);
+  }, [deleteNodeById, setDeleteNodeFromCanvas]);
 
   useEffect(() => {
     if (!error) return;
@@ -461,9 +527,7 @@ export function EditorPage({
       .map((def) => ({ type: def.type, label: def.label }));
   }, [appConfig]);
 
-  // 把"添加节点 / 上传节点 / 节点类型清单"全部推到 store，
-  // 让 P1 CanvasRail 的 + 按钮直接驱动 EditorPage 已有的 callback，
-  // 不需要再让 EditorLeftRail 中转一次。
+  // 把添加节点 / 上传 / 类型清单推到 store，供 P2 SecondaryNodeTree 等驱动。
   const setAddNodeMenuItems = useUIStore((s) => s.setAddNodeMenuItems);
   const setAddNodeFromMenu = useUIStore((s) => s.setAddNodeFromMenu);
   const setUploadNodeFromMenu = useUIStore((s) => s.setUploadNodeFromMenu);
@@ -647,10 +711,8 @@ export function EditorPage({
       </div>
 
       {/*
-        EditorLeftRail + 4 个 popover (Template/Canvas/Generation/Voice) 已经
-        全部下放到 DesktopShell 的 P1/P2，删了。剪辑区按钮 + 抽屉是相对独立的
-        子系统（不属于"画布外的导航"），暂时保留在 P3 内浮动；后续可考虑挪到
-        P1 底部或 P2 新增 tab。
+        P1/P2 已迁入 DesktopShell。剪贴板按钮 + 抽屉仍浮动在 P3，
+        后续如需可再挪到侧栏。
       */}
       {!isInIframe && (
         <>

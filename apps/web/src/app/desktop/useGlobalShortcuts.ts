@@ -36,6 +36,7 @@ const isEditableTarget = (el: EventTarget | null): boolean => {
 
 export function useGlobalShortcuts() {
   const openSettings = useUIStore((s) => s.openSettings);
+  const toggleSecondaryRail = useUIStore((s) => s.toggleSecondaryRail);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -44,9 +45,18 @@ export function useGlobalShortcuts() {
         if (isEditableTarget(e.target)) return;
         e.preventDefault();
         openSettings();
+        return;
+      }
+      // Cmd+B / Ctrl+B — toggle secondary rail (matches VS Code, Linear,
+      // Slack, Notion's "hide sidebar" binding). Doesn't conflict with
+      // anything in the canvas (xyflow uses no Cmd+B).
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'b' || e.key === 'B')) {
+        if (isEditableTarget(e.target)) return;
+        e.preventDefault();
+        toggleSecondaryRail();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [openSettings]);
+  }, [openSettings, toggleSecondaryRail]);
 }

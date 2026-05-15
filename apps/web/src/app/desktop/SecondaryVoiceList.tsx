@@ -1,31 +1,34 @@
-// P2 「音色」tab — slim list of cloned voices with one-tap preview.
+// P2 「音色」tab — cloned voices with one-tap preview, create, delete.
 //
-// Read-only on purpose: creating / deleting voices belongs in a settings
-// surface (or a dedicated dialog) rather than the rail. The rail is for
-// "I want to use one of these in my canvas" workflows; clicking play is
-// the only interaction users normally take here.
+// Toolbar "+" opens CreateVoiceDialog; 成功后 CreateVoiceDialog 会 dispatch
+// VOICE_LIST_REFRESH_EVENT，与本 tab 的 listener 一起刷新列表。
 //
-// Listens to the `voice-list-refresh` event (same one CreateVoiceDialog
-// dispatches when a clone finishes) so brand-new voices appear without
-// the user having to switch tabs.
-//
-// Audio playback uses one shared <Audio> element kept in a ref. Playing
-// a second item swaps the source so we never overlap audio.
+// Right-click row → 试听 / 详情 / 删除.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Pause, Play } from 'lucide-react';
+import { Pause, Play, Plus, Info, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 import {
   voiceService,
   type VoiceItem,
 } from '../services/voiceService';
-import { VOICE_LIST_REFRESH_EVENT } from '../components/VoiceGallery';
+import { VOICE_LIST_REFRESH_EVENT } from '../constants/voiceListRefresh';
+import { CreateVoiceDialog } from '../components/CreateVoiceDialog';
+import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import { DetailModal, type DetailField } from './DetailModal';
 
 export const SecondaryVoiceList: React.FC = () => {
   const [items, setItems] = useState<VoiceItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [ctxMenu, setCtxMenu] = useState<{
+    pos: { x: number; y: number };
+    item: VoiceItem;
+  } | null>(null);
+  const [detail, setDetail] = useState<VoiceItem | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -78,57 +81,201 @@ export const SecondaryVoiceList: React.FC = () => {
     setPlayingId(item.id);
   }, [playingId]);
 
-  if (loading && items.length === 0) {
-    return <div style={dimStyle}>加载中…</div>;
-  }
-  if (error) {
-    return (
-      <div style={errorStyle}>
-        {error}
-        <button type="button" style={retryStyle} onClick={() => void fetchList()}>
-          重试
-        </button>
-      </div>
-    );
-  }
-  if (items.length === 0) {
-    return <div style={dimStyle}>暂无自定义音色</div>;
-  }
+  const handleDelete = useCallback(async (item: VoiceItem) => {
+    if (!window.confirm(`确认删除音色「${item.name}」？该操作不可恢复。`)) return;
+    try {
+      await voiceService.deleteVoice(item.id);
+      setItems((prev) => prev.filter((v) => v.id !== item.id));
+      // Stop any playback of the deleted voice.
+      if (playingId === item.id) {
+        audioRef.current?.pause();
+        setPlayingId(null);
+      }
+      toast.success('已删除');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '删除失败');
+    }
+  }, [playingId]);
+
+  const ctxItems: ContextMenuItem[] = ctxMenu
+    ? [
+        {
+          label: ctxMenu.item.demoAudioUrl
+            ? playingId === ctxMenu.item.id ? '暂停试听' : '试听'
+            : '无试听音频',
+          icon: playingId === ctxMenu.item.id ? <Pause size={14} /> : <Play size={14} />,
+          disabled: !ctxMenu.item.demoAudioUrl,
+          onClick: () => handlePlay(ctxMenu.item),
+        },
+        {
+          label: '详细信息',
+          icon: <Info size={14} />,
+          onClick: () => setDetail(ctxMenu.item),
+        },
+        { divider: true, label: '' },
+        {
+          label: '删除',
+          icon: <Trash2 size={14} />,
+          danger: true,
+          onClick: () => void handleDelete(ctxMenu.item),
+        },
+      ]
+    : [];
+
+  const detailFields: DetailField[] = detail
+    ? [
+        { label: 'ID', value: detail.id, copyable: true, monospace: true },
+        { label: 'Voice ID', value: detail.voiceId, copyable: true, monospace: true },
+        { label: '名称', value: detail.name },
+        { label: '状态', value: detail.status },
+        { label: '错误信息', value: detail.errorMsg ?? '' },
+        {
+          label: '试听 URL',
+          value: detail.demoAudioUrl ?? '',
+          copyable: !!detail.demoAudioUrl,
+          monospace: true,
+        },
+        {
+          label: '创建于',
+          value: new Date(detail.createdAt).toLocaleString(),
+        },
+      ]
+    : [];
 
   return (
-    <ul style={listStyle}>
-      {items.map((item) => {
-        const playing = playingId === item.id;
-        const playable = !!item.demoAudioUrl;
-        return (
-          <li key={item.id}>
-            <div style={rowStyle}>
-              <button
-                type="button"
-                onClick={() => handlePlay(item)}
-                disabled={!playable}
-                style={{
-                  ...playBtnStyle,
-                  cursor: playable ? 'pointer' : 'not-allowed',
-                  color: playable ? '#e0e0e0' : '#3f4451',
-                }}
-                title={playable ? (playing ? '暂停试听' : '试听') : '无试听音频'}
-              >
-                {playing ? <Pause size={14} /> : <Play size={14} />}
-              </button>
-              <div style={textColStyle}>
-                <span style={titleStyle}>{item.name}</span>
-                <span style={metaStyle}>
-                  {item.voiceId.slice(0, 16)}
-                  {item.voiceId.length > 16 ? '…' : ''}
-                </span>
-              </div>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+    <div style={containerStyle}>
+      <div style={toolbarStyle}>
+        <button
+          type="button"
+          onClick={() => setShowCreate(true)}
+          style={createBtnStyle}
+          title="克隆新音色"
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+          }}
+        >
+          <Plus size={14} />
+          <span style={createLabelStyle}>克隆音色</span>
+        </button>
+      </div>
+
+      {loading && items.length === 0 ? (
+        <div style={dimStyle}>加载中…</div>
+      ) : error ? (
+        <div style={errorStyle}>
+          {error}
+          <button type="button" style={retryStyle} onClick={() => void fetchList()}>
+            重试
+          </button>
+        </div>
+      ) : items.length === 0 ? (
+        <div style={dimStyle}>暂无自定义音色</div>
+      ) : (
+        <ul style={listStyle}>
+          {items.map((item) => {
+            const playing = playingId === item.id;
+            const playable = !!item.demoAudioUrl;
+            return (
+              <li key={item.id}>
+                <div
+                  style={rowStyle}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setCtxMenu({ pos: { x: e.clientX, y: e.clientY }, item });
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handlePlay(item)}
+                    disabled={!playable}
+                    style={{
+                      ...playBtnStyle,
+                      cursor: playable ? 'pointer' : 'not-allowed',
+                      color: playable ? '#e0e0e0' : '#3f4451',
+                    }}
+                    title={playable ? (playing ? '暂停试听' : '试听') : '无试听音频'}
+                  >
+                    {playing ? <Pause size={14} /> : <Play size={14} />}
+                  </button>
+                  <div style={textColStyle}>
+                    <span style={titleStyle}>{item.name}</span>
+                    <span style={metaStyle}>
+                      {item.voiceId.slice(0, 16)}
+                      {item.voiceId.length > 16 ? '…' : ''}
+                    </span>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {showCreate && (
+        <CreateVoiceDialog
+          open={showCreate}
+          onClose={() => setShowCreate(false)}
+          onSuccess={() => {
+            setShowCreate(false);
+            void fetchList();
+          }}
+        />
+      )}
+
+      {ctxMenu && (
+        <ContextMenu
+          position={ctxMenu.pos}
+          items={ctxItems}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
+
+      {detail && (
+        <DetailModal
+          title={`音色 · ${detail.name}`}
+          fields={detailFields}
+          onClose={() => setDetail(null)}
+        />
+      )}
+    </div>
   );
+};
+
+const containerStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+  height: '100%',
+};
+
+const toolbarStyle: React.CSSProperties = {
+  display: 'flex',
+  paddingBottom: 4,
+  borderBottom: '1px solid #1a1a1a',
+  marginBottom: 4,
+};
+
+const createBtnStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  flex: 1,
+  padding: '6px 8px',
+  borderRadius: 6,
+  border: 'none',
+  background: 'transparent',
+  color: '#cbd0d8',
+  fontSize: 12,
+  textAlign: 'left',
+  cursor: 'pointer',
+  transition: 'background 0.15s',
+};
+
+const createLabelStyle: React.CSSProperties = {
+  flex: 1,
 };
 
 const listStyle: React.CSSProperties = {
