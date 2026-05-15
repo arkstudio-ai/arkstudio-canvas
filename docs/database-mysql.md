@@ -156,9 +156,8 @@ RUN pnpm --filter canvas-flow-backend exec prisma generate \
 要搬 — 切 SQLite ↔ MySQL 一律按"重新部署一次"对待:
 
 1. 起新 DB (空的)
-2. `prisma db push --schema prisma/schema.<provider>.prisma` 建表
-3. `pnpm --filter canvas-flow-backend exec ts-node src/seed-canvas-config.ts`
-   灌默认节点 / 模型配置
+2. `pnpm --filter canvas-flow-backend exec prisma db push --schema prisma/schema.<provider>.prisma` 建表
+3. `pnpm --filter canvas-flow-backend run seed:canvas-config` 灌默认节点 / 模型配置
 4. 进 admin 重新填 provider API key 等设置
 
 执行历史 / 生成历史 / 上传文件都接受丢失. 如果以后有自托管用户喊
