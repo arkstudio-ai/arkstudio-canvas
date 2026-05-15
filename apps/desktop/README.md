@@ -63,8 +63,8 @@ pnpm dev:web          # 5173
 pnpm --filter canvas-flow-desktop dev   # 等 backend 健康后弹窗
 ```
 
-> 注意：dev 模式 backend 用你 `apps/backend/.env` 里的 `DATABASE_URL`。
-> 想脱离 MySQL 跑纯 SQLite，临时 `export DATABASE_URL=file:./dev.db` 再 dev。
+> 注意：dev 模式 backend 用你 `apps/backend/.env` 里的 `DATABASE_URL`，
+> 没设 `bootstrap-env.ts` 会自动兜到 `apps/backend/prisma/dev.db`。
 
 ## 打包（阶段 6 实装，目前只是占位）
 

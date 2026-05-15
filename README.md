@@ -99,6 +99,7 @@ docker compose up -d --build
 | **跑起来给团队用** | [📦 部署指南](docs/deployment.md) |
 | **拉源码改代码** | [💻 开发指南](docs/development.md) |
 | **接新模型 / 接 OpenAI 协议 / 加新存储** | [🔌 模型接入指南](MODEL_INTEGRATION.md) |
+| **理解分层 · 桌面端 vs 自部署端** | [🧱 架构分层](docs/architecture.md) |
 | 看某个子项目细节 | [`apps/backend/README.md`](apps/backend/README.md) · [`apps/web/README.md`](apps/web/README.md) · [`packages/core/README.md`](packages/core/README.md) |
 
 ## 路线图
