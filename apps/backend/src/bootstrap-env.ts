@@ -8,7 +8,7 @@
 // 用户数据目录, dev 路径 (pnpm dev:backend / pnpm dev:desktop) 由本文件
 // 兜到工程目录的 prisma/dev.db.
 //
-// 自部署 (docker / 裸跑 mysql) 属于支线, 走显式 .env 路线, 见 docs/.
+// 自部署 (docker) 属于支线, 走显式 .env 路线, 见 docs/.
 
 import path from 'node:path';
 import fs from 'node:fs';
@@ -16,8 +16,7 @@ import dotenv from 'dotenv';
 
 // 必须先 load .env, 再判断是否要兜默认值. 否则我们的兜底默认会先到位,
 // 之后 NestJS 的 ConfigModule.forRoot 加载 .env 时, dotenv 默认不覆盖
-// 已存在的 process.env, 用户在 .env 里写的 DATABASE_URL 就被吞了 ——
-// 桌面端不在乎, 但 self-host 想换 mysql 就会撞这个坑.
+// 已存在的 process.env, 用户在 .env 里写的 DATABASE_URL 就被吞了.
 //
 // 路径: apps/backend/.env. cwd 不可靠 (Electron 子进程的 cwd 是 Resources/),
 // 用 __dirname 锚到 backend 包根. 在 dist/ 下 __dirname = .../dist, ../  =

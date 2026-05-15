@@ -29,13 +29,9 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "db:push": "npx prisma db push",
-    "db:push:mysql": "npx prisma db push --schema prisma/schema.mysql.prisma",
     "db:check": "npx prisma migrate diff --from-url \"$DATABASE_URL\" --to-schema-datamodel prisma/schema.prisma",
-    "db:check:mysql": "npx prisma migrate diff --from-url \"$DATABASE_URL\" --to-schema-datamodel prisma/schema.mysql.prisma",
     "db:check:script": "npx prisma migrate diff --from-url \"$DATABASE_URL\" --to-schema-datamodel prisma/schema.prisma --script",
     "db:generate": "npx prisma generate",
-    "db:generate:mysql": "npx prisma generate --schema prisma/schema.mysql.prisma",
-    "db:check-schema-parity": "ts-node prisma/check-schema-parity.ts",
     "seed:canvas-config": "ts-node prisma/seed-canvas-config.ts",
     "db:patch-models": "ts-node prisma/patches/sync-default-models.ts"
   },

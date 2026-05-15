@@ -7,7 +7,7 @@
 
 - **Node.js** ≥ 18（建议 20.x，与 Docker 镜像保持一致）
 - **pnpm** ≥ 8（这是个 pnpm workspace，不要用 npm/yarn）
-- **数据库**：默认 SQLite，单文件零外部依赖；想跑 MySQL 看 [docs/database-mysql.md](./database-mysql.md)
+- **数据库**：SQLite 单文件零外部依赖（开源版仅支持 SQLite）
 - **阿里云百炼（DashScope）API Key**（无 key 跑不通图片 / 视频 / 语音 / chat 链路；text 节点不依赖）
 
 ## 5 步起服务
@@ -21,7 +21,7 @@ pnpm install
 # 2. 必填的 3 个 backend env
 cp apps/backend/.env.example apps/backend/.env
 # 编辑 apps/backend/.env，至少改这三个：
-#   DATABASE_URL=file:./dev.db                   # SQLite 默认；MySQL 见上文链接
+#   DATABASE_URL=file:./dev.db                   # SQLite 单文件
 #   PORT=18500
 #   ENCRYPTION_KEY=$(openssl rand -base64 48)   # ≥ 32 字符；不要轮换
 
@@ -48,7 +48,7 @@ canvas-flow/
 │   └── core/                    @canvas-flow/core  画布编辑器 NPM 包（独立可复用）
 ├── apps/
 │   ├── web/                     Vite + React 19   /canvas + /admin/*
-│   └── backend/                 NestJS + Prisma + SQLite (默认) / MySQL (opt-in)
+│   └── backend/                 NestJS + Prisma + SQLite
 ├── docs/                        部署 / 开发指南（本目录）
 ├── pnpm-workspace.yaml
 ├── docker-compose.yml           一键部署：backend (含 sqlite) + web（单端口 8080）
@@ -72,9 +72,7 @@ canvas-flow/
 | `pnpm dev:web` / `pnpm dev:backend` | 单独跑一边 |
 | `pnpm build:web` / `pnpm build:backend` | 生产构建 |
 | `pnpm typecheck` | 全仓 `tsc --noEmit`（web + backend） |
-| `pnpm --filter canvas-flow-backend run db:push` | 应用 schema 变更（SQLite 默认） |
-| `pnpm --filter canvas-flow-backend run db:push:mysql` | 应用 MySQL schema 变更（opt-in） |
-| `pnpm --filter canvas-flow-backend run db:check-schema-parity` | 检查两份 schema 是否漂移 |
+| `pnpm --filter canvas-flow-backend run db:push` | 应用 schema 变更 |
 | `pnpm --filter canvas-flow-backend run seed:canvas-config` | 灌默认节点 / 模型 / 模式配置 |
 | `pnpm --filter canvas-flow-backend run db:check` | 看 DB 与 schema 的 diff |
 
@@ -86,14 +84,14 @@ canvas-flow/
 |---|---|
 | 画布 | React 19 / TypeScript / [@xyflow/react](https://reactflow.dev) |
 | 前端 | Vite (rolldown-vite) / React Router 7 / Zustand / Sonner / Lucide |
-| 后端 | NestJS 11 / Prisma 5 / SQLite (默认, MySQL opt-in) / class-validator |
+| 后端 | NestJS 11 / Prisma 6 / SQLite / class-validator |
 | 模型 | DashScope (Bailian) — qwen / 万相 2.7 image / 万相 2.6+2.7 video / MiniMax-tts / FunMusic |
-| 存储 | DB（结构 + 配置 + 凭据加密；默认 SQLite 单文件 / 可切 MySQL）+ 本地磁盘（媒体落 `STORAGE_LOCAL_DATA_DIR`，i2i/i2v 时按需经百炼临时桶中转） |
+| 存储 | DB（结构 + 配置 + 凭据加密，SQLite 单文件）+ 本地磁盘（媒体落 `STORAGE_LOCAL_DATA_DIR`，i2i/i2v 时按需经百炼临时桶中转） |
 | 安全 | AES-256-GCM 加密敏感字段（`ENCRYPTION_KEY` 落 env，密文落 DB） |
 
 ## 几个开发约定
 
-- **DB 是配置权威源**：节点定义 / 模型清单 / DashScope 凭据 / 本地存储设置全部存在 DB（默认 SQLite，opt-in MySQL），admin 页面改完下一次请求即生效。前端没有 fallback、没有静态 JSON 兜底 —— 后端没起 admin 整页 503。
+- **DB 是配置权威源**：节点定义 / 模型清单 / DashScope 凭据 / 本地存储设置全部存在 SQLite，admin 页面改完下一次请求即生效。前端没有 fallback、没有静态 JSON 兜底 —— 后端没起 admin 整页 503。
 - **写数据库前必须确认 `DATABASE_URL`**：仓库根目录 `.cursor/rules/db-safety.mdc` 列了所有需要确认的破坏性 DB 操作。
 - **新增模型走 Provider 层**：不要给 `model-providers/` 里加 OpenAI / Anthropic / Stability 等非阿里直连 Provider —— 第一期开源版仅适配阿里系。后续接 OpenAI 协议见 [模型接入指南](../MODEL_INTEGRATION.md)。
 - **节点参数全走 `models` + `defaultParams`**：`NodeDefinition` 上历史的 `inspector` / `inspectorFields` / `params` 三个字段已经从代码与 DB 移除；新增/扩展节点参数请落到 `NodeDefinition.models[*].defaultParams` 或节点级 `defaultParams`，`models[*].paramsSchema` 描述 UI 渲染。

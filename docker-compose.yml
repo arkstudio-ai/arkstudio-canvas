@@ -9,7 +9,7 @@
 #
 # Defaults:
 #   - 数据库:  SQLite, 单文件落在命名卷 canvas_flow_db:/data/db/canvas-flow.db
-#              零外部依赖. 想换 MySQL 看 docs/database-mysql.md.
+#              零外部依赖. 开源版只支持 SQLite.
 #   - backend: 内部网络; web nginx 反代所有 backend 路由
 #   - web    : 暴露在宿主机 :8080 (浏览器唯一入口)
 #

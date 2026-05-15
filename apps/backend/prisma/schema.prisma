@@ -3,9 +3,8 @@ generator client {
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
-// 开源版默认 SQLite —— 单文件零外部依赖, 桌面端 / docker / 本地 dev 通吃.
-// 想跑 MySQL 的部署看 docs/database-mysql.md, 用 schema.mysql.prisma 代替这份.
-// 两份 schema 通过 prisma/check-schema-parity.ts 检查不漂移.
+// 开源版只用 SQLite —— 单文件零外部依赖, 桌面端 / docker / 本地 dev 通吃.
+// 不再维护 MySQL/PostgreSQL 双轨, 想换 DB 自己 fork.
 //
 // 版本要求: Prisma ≥ 6.2.0. SQLite + `Json` 类型在 6.2 才 GA, 5.x 任何版本
 // 都会在 db push 时报 "current connector does not support the Json type".
@@ -14,7 +13,7 @@ generator client {
 // SQLite 连接串走 file: 协议, 路径相对于本 schema 文件:
 //   file:./dev.db                 ← apps/backend/prisma/dev.db (本地 dev)
 //   file:/data/db/canvas-flow.db  ← docker compose 命名卷
-//   file:/Users/.../userData/...  ← 桌面端 (Electron 阶段引入)
+//   file:/Users/.../userData/...  ← 桌面端 Electron app.getPath('userData')
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")

@@ -1,8 +1,8 @@
 # Canvas Flow Backend
 
-NestJS + Prisma + SQLite (默认) / MySQL (opt-in) —— Canvas Flow 的执行/编排/配置中枢。所有 AI 模型调用都在这里直连阿里云百炼（DashScope），开源版不依赖独立的 executor service。
+NestJS + Prisma + SQLite —— Canvas Flow 的执行/编排/配置中枢。所有 AI 模型调用都在这里直连阿里云百炼（DashScope），开源版不依赖独立的 executor service。
 
-> DB 默认 SQLite 单文件，零外部依赖。想跑 MySQL 看 [docs/database-mysql.md](../../docs/database-mysql.md) —— 两份 schema 在 `prisma/` 下并排维护，用 `pnpm db:check-schema-parity` 防漂移。
+> DB 走 SQLite 单文件，零外部依赖。开源版只支持 SQLite，桌面端 / docker / 本地 dev 一份 schema 通吃。
 
 > 这份文档讲 **backend service 内部结构**。
 > 想看完整部署 / env / 存储策略请看 [📦 部署指南](../../docs/deployment.md)；
@@ -91,7 +91,7 @@ src/
 
 | Env | 用途 |
 |---|---|
-| `DATABASE_URL` | Prisma 启动必备。SQLite 默认 `file:./dev.db`，MySQL 用 `mysql://root:pwd@host:3306/db` |
+| `DATABASE_URL` | Prisma 启动必备。SQLite 单文件，默认 `file:./dev.db` |
 | `PORT` | HTTP 监听端口（默认 18500） |
 | `ENCRYPTION_KEY` | aes-256-gcm 根钥匙，加密 DB 中的 secrets。≥ 32 字符；**不要**轮换 |
 
@@ -175,7 +175,7 @@ docker build -f apps/backend/Dockerfile -t canvas-flow-backend .
 cd ../.. && docker compose up -d --build
 ```
 
-启动逻辑：`apps/backend/docker-entrypoint.sh` → SQLite 模式下 `mkdir -p` 库父目录（MySQL 模式下重试 30s 等 server）→ `prisma db push` → 仅当 `node_definitions` 表为空时才 `node dist/seed-canvas-config.js`（之后 admin 改的配置不会被覆盖）→ `exec node dist/main`。
+启动逻辑：`apps/backend/docker-entrypoint.sh` → `mkdir -p` SQLite 库父目录 → `prisma db push` → 仅当 `node_definitions` 表为空时才 `node dist/seed-canvas-config.js`（之后 admin 改的配置不会被覆盖）→ `exec node dist/main`。
 
 镜像通过 `pnpm deploy --prod` 抽取 production 依赖，最终运行时镜像不带 dev deps + 源码。
 
