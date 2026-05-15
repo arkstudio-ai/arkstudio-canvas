@@ -32,8 +32,6 @@ export type CanvasFlowConfigResponse = ApiResponse<CanvasFlowConfigData>;
 
 /** 配置加载选项 */
 export interface ConfigLoadOptions {
-  /** 用户ID（用于权限过滤） */
-  userId?: string;
   /** 强制刷新配置（忽略缓存） */
   forceRefresh?: boolean;
 }

@@ -18,8 +18,6 @@ import type { RecordHistoryDto } from './dto/record-history.dto';
  *      `remove(:id)` to delete a row.
  *
  * Open-source notes:
- *   - No userId / no ownership filter — every record is visible to every user
- *     of the deployment.
  *   - Lazy retention: every successful `record(...)` triggers a throttled
  *     `HistoryRetentionService.pruneIfNeeded()` so the table stays bounded
  *     without running a cron. Admin can also force a prune from the system

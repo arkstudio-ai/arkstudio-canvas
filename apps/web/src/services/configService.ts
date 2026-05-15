@@ -24,7 +24,7 @@ class ConfigService {
   private loadPromise: Promise<CanvasFlowConfigData> | null = null;
 
   async loadConfig(options: ConfigLoadOptions = {}): Promise<CanvasFlowConfigData> {
-    const { userId, forceRefresh = false } = options;
+    const { forceRefresh = false } = options;
 
     if (this.config && !forceRefresh) {
       console.log('[ConfigService] 使用缓存配置');
@@ -37,7 +37,7 @@ class ConfigService {
     }
 
     this.loading = true;
-    this.loadPromise = this.doLoadConfig(userId);
+    this.loadPromise = this.doLoadConfig();
 
     try {
       const config = await this.loadPromise;
@@ -49,13 +49,10 @@ class ConfigService {
     }
   }
 
-  private async doLoadConfig(userId?: string): Promise<CanvasFlowConfigData> {
+  private async doLoadConfig(): Promise<CanvasFlowConfigData> {
     console.log('[ConfigService] 从 API 加载配置:', API_BASE_URL);
 
-    let url = `${API_BASE_URL}/api/canvas-flow/config`;
-    if (userId) {
-      url += `?userId=${encodeURIComponent(userId)}`;
-    }
+    const url = `${API_BASE_URL}/api/canvas-flow/config`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -86,9 +83,9 @@ class ConfigService {
     this.config = null;
   }
 
-  async refreshConfig(userId?: string): Promise<CanvasFlowConfigData> {
+  async refreshConfig(): Promise<CanvasFlowConfigData> {
     console.log('[ConfigService] 刷新配置...');
-    return this.loadConfig({ userId, forceRefresh: true });
+    return this.loadConfig({ forceRefresh: true });
   }
 
   isLoaded(): boolean {
@@ -100,11 +97,6 @@ class ConfigService {
   }
 }
 
-// 导出单例实例
 export const configService = new ConfigService();
 
-// 导出类型（供其他模块使用）
 export type { ConfigService };
-
-
-
