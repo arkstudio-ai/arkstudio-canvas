@@ -193,6 +193,15 @@ export class OpenAICompatImageProvider implements ProviderClient {
       );
     } catch (e: any) {
       const data = e?.response?.data ?? null;
+      // 把上游真实错误码 + body 落 log, 不然 ExecutionsService 那层只看到
+      // wrapper HttpException 类名 ("Http Exception"), root cause 全丢失.
+      // 跟 dashscope-video / dashscope-upload 那对 catch 同款做法.
+      this.logger.error(
+        `[openai-compat-image:submit] ❌ sku=${req.modelSku} ` +
+          `status=${e?.response?.status ?? '?'} code=${e?.code ?? '?'} ` +
+          `upstream=${JSON.stringify(data).slice(0, 600)} ` +
+          `axiosMessage=${(e as Error).message}`,
+      );
       const err = this.toHttpException(
         data?.error?.message ||
           data?.message ||
@@ -403,6 +412,9 @@ export class OpenAICompatImageProvider implements ProviderClient {
       status,
     );
     (err as any).payloadSnippet = payload ?? message;
+    // 显式覆盖 .message, 否则 NestJS 默认 .message = 'Http Exception'(类名),
+    // ExecutionsService log 只看到 wrapper 名字, root cause 丢失.
+    (err as any).message = message;
     return err;
   }
 }
