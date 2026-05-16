@@ -14,7 +14,6 @@
 import { HttpException, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import type { AxiosProxyConfig } from 'axios';
 
 import type {
   ProviderInput,
@@ -27,7 +26,6 @@ export interface EditsCallArgs {
   baseUrl: string;
   apiKey: string;
   timeoutMs: number;
-  proxy: AxiosProxyConfig | false;
   realSku: string;
   prompt: string;
   imageInputs: ProviderInput[];
@@ -57,7 +55,7 @@ export class OpenAICompatImageEdits {
 
   async run(args: EditsCallArgs): Promise<EditsCallResult> {
     const buffers = await Promise.all(
-      args.imageInputs.map((i) => this.fetchImage(i.url, args.proxy)),
+      args.imageInputs.map((i) => this.fetchImage(i.url)),
     );
 
     const form = new FormData();
@@ -105,7 +103,6 @@ export class OpenAICompatImageEdits {
             // do NOT hardcode 'multipart/form-data' here or axios skips
             // boundary insertion and upstream 400s.
           },
-          proxy: args.proxy,
           maxBodyLength: Infinity,
           maxContentLength: Infinity,
         }),
@@ -161,7 +158,6 @@ export class OpenAICompatImageEdits {
 
   private async fetchImage(
     url: string,
-    proxy: AxiosProxyConfig | false,
   ): Promise<{ buffer: Buffer; mimeType: string; filename: string }> {
     if (url.startsWith('data:')) {
       // Inline data URL — parse without a network hop.
@@ -180,7 +176,6 @@ export class OpenAICompatImageEdits {
         responseType: 'arraybuffer',
         timeout: 60_000,
         maxContentLength: MAX_FETCH_BYTES,
-        proxy,
       }),
     );
     const buffer = Buffer.from(resp.data as ArrayBuffer);

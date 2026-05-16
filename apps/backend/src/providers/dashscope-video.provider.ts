@@ -118,8 +118,6 @@ export class DashScopeVideoProvider implements ProviderClient {
             'X-DashScope-OssResourceResolve': 'enable',
             'Content-Type': 'application/json',
           },
-          // 强制直连 — 见 dashscope-chat.provider 同款 proxy:false 注释.
-          proxy: false,
         }),
       );
     } catch (e: any) {
@@ -179,7 +177,6 @@ export class DashScopeVideoProvider implements ProviderClient {
         this.httpService.get(url, {
           timeout: this.POLL_TIMEOUT_MS,
           headers: { Authorization: `Bearer ${apiKey}` },
-          proxy: false,
         }),
       );
     } catch (e: any) {

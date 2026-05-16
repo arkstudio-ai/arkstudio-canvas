@@ -183,9 +183,6 @@ export class DashScopeImageProvider implements ProviderClient {
             'X-DashScope-OssResourceResolve': 'enable',
             'Content-Type': 'application/json',
           },
-          // 强制直连, 不复用 axios process-wide agent pool 里可能残留的 proxy
-          // agent. 见 dashscope-chat.provider 同款 proxy:false 注释.
-          proxy: false,
         }),
       );
     } catch (e: any) {

@@ -104,10 +104,6 @@ export class FileTransferService {
       responseType: 'arraybuffer',
       timeout: 60_000,
       maxContentLength: 500 * 1024 * 1024,
-      // 强制直连. 这条 GET 拉的是上游 vendor (DashScope OSS / Volcengine TOS)
-      // 返回的资源 URL, 国内 IDC 直连最快; 走 proxy 容易在 axios agent pool
-      // 残留的 proxy agent 里报 ERR_ASSERTION / protocol mismatch (见 f96d7fb).
-      proxy: false,
     });
     const contentType = String(
       response.headers['content-type'] || this.getContentType(fileType),

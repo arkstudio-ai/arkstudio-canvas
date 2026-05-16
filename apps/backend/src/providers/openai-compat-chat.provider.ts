@@ -10,7 +10,6 @@ import type {
   SubmitResult,
 } from './provider.types';
 import { OpenaiCompatConfigService } from '../canvas-config/openai-compat-config.service';
-import { NetworkConfigService } from '../canvas-config/network-config.service';
 import { summarizeBody } from './log-utils';
 
 /**
@@ -61,7 +60,6 @@ export class OpenAICompatChatProvider implements ProviderClient {
   constructor(
     private readonly httpService: HttpService,
     private readonly openaiConfig: OpenaiCompatConfigService,
-    private readonly network: NetworkConfigService,
   ) {}
 
   /**
@@ -135,10 +133,8 @@ export class OpenAICompatChatProvider implements ProviderClient {
         `requestId=${req.requestId} url=${url} body=${summarizeBody(body)}`,
     );
 
-    // 显式拿 admin 配置的代理 (或 false). 不依赖 env-based detection,
-    // 因为 axios v1 的 agent pool 在 env 翻转时会缓存陈旧 agent →
-    // ERR_ASSERTION / protocol mismatch. 见 NetworkConfigService.getAxiosProxy 注释.
-    const proxy = await this.network.getAxiosProxy(url);
+    // Proxy lives globally on http(s).globalAgent via NetworkConfigService.
+    // Don't set `proxy` here — that would override the global policy.
     let resp;
     try {
       resp = await firstValueFrom(
@@ -148,7 +144,6 @@ export class OpenAICompatChatProvider implements ProviderClient {
             Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
-          proxy,
         }),
       );
     } catch (e: any) {

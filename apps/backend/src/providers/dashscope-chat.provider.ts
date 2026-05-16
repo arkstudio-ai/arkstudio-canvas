@@ -108,11 +108,6 @@ export class DashScopeChatProvider implements ProviderClient {
             'X-DashScope-OssResourceResolve': 'enable',
             'Content-Type': 'application/json',
           },
-          // DashScope 国内 IDC 直连最快, 强制不走任何 proxy. 即使 env 已被
-          // NetworkConfigService unset, axios process-wide agent pool 里也
-          // 可能缓存了早期带 proxy 的 https.Agent (复用就 ERR_ASSERTION /
-          // protocol mismatch). proxy:false 是确定的禁用开关.
-          proxy: false,
         }),
       );
     } catch (e: any) {

@@ -107,10 +107,6 @@ export class DashscopeUploadService {
         // setting it manually here drops the boundary param.
         maxContentLength: MAX_FILE_BYTES + 1024,
         maxBodyLength: MAX_FILE_BYTES + 1024,
-        // 同 fetchPolicy: 强制禁用 axios v1 env-based proxy detection.
-        // OSS upload host 在 oss-cn-* 子域名上, 直连最快; 走任何代理都可能
-        // protocol mismatch / TLS handshake reject.
-        proxy: false,
       });
       const elapsed = Date.now() - startTime;
       const ossUrl = `oss://${key}`;
@@ -229,10 +225,6 @@ export class DashscopeUploadService {
         params: { action: 'getPolicy', model },
         headers: { Authorization: `Bearer ${apiKey}` },
         timeout: 15_000,
-        // 强制禁用 axios v1 的自动 env-based proxy detection. NetworkConfigService
-        // 已经在 process.env 层面禁用了代理 (force direct), 这里是 belt-and-
-        // suspenders — 避免 shell 重新 export HTTPS_PROXY 等情况漏过去.
-        proxy: false,
       });
     } catch (e) {
       const status = (e as { response?: { status?: number } })?.response?.status;
