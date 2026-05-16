@@ -2,6 +2,7 @@ import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { VolcengineConfigService } from '../canvas-config/volcengine-config.service';
+import { VolcengineAssetService } from '../volcengine-asset/volcengine-asset.service';
 import { summarizeBody } from './log-utils';
 import type {
   PollResult,
@@ -67,6 +68,7 @@ export class VolcengineVideoProvider implements ProviderClient {
   constructor(
     private readonly httpService: HttpService,
     private readonly volcengineConfig: VolcengineConfigService,
+    private readonly volcengineAsset: VolcengineAssetService,
   ) {}
 
   supports(modelSku: string): boolean {
@@ -99,6 +101,17 @@ export class VolcengineVideoProvider implements ProviderClient {
         400,
         null,
       );
+    }
+
+    // 二道防线: 提交前批量校验 asset:// 引用是否 Active. Upstream / proxy 偶尔会
+    // LRU 淘汰长期不用的 asset, 或仍在 Processing 状态. 不预检的话 submit 会被
+    // 上游拒, 但错误信息抽象 (InvalidParameter); 预检失败抛 400 携带具体哪条 asset
+    // 出问题, 前端可直接提示用户 "刷新一下素材状态".
+    const assetUris = (req.inputs ?? [])
+      .map((i) => i.url)
+      .filter((u): u is string => typeof u === 'string' && u.startsWith('asset://'));
+    if (assetUris.length > 0) {
+      await this.volcengineAsset.assertActive(assetUris);
     }
 
     const ep = req.extraParams ?? {};

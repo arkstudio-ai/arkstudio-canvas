@@ -11,6 +11,7 @@ import { VolcengineVideoProvider } from './volcengine-video.provider';
 import { ProviderRegistry } from './provider-registry.service';
 import { CanvasConfigModule } from '../canvas-config/canvas-config.module';
 import { UploadModule } from '../upload/upload.module';
+import { VolcengineAssetModule } from '../volcengine-asset/volcengine-asset.module';
 
 /**
  * Provider layer.
@@ -32,7 +33,13 @@ import { UploadModule } from '../upload/upload.module';
  * without restarting backend.
  */
 @Module({
-  imports: [HttpModule, ConfigModule, CanvasConfigModule, UploadModule],
+  imports: [
+    HttpModule,
+    ConfigModule,
+    CanvasConfigModule,
+    UploadModule,
+    VolcengineAssetModule,
+  ],
   providers: [
     DashScopeVideoProvider,
     DashScopeImageProvider,
