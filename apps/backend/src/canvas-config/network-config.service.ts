@@ -127,6 +127,7 @@ export class NetworkConfigService implements OnModuleInit {
     effective: {
       httpProxy: string | null;
       httpsProxy: string | null;
+      allProxy: string | null;
     };
     /**
      * What's wired into http(s).globalAgent right now. Constructor
@@ -151,6 +152,7 @@ export class NetworkConfigService implements OnModuleInit {
       effective: {
         httpProxy: process.env.HTTP_PROXY ?? process.env.http_proxy ?? null,
         httpsProxy: process.env.HTTPS_PROXY ?? process.env.https_proxy ?? null,
+        allProxy: process.env.ALL_PROXY ?? process.env.all_proxy ?? null,
       },
       globalAgent: {
         http: (http.globalAgent as { constructor: { name: string } })
@@ -277,6 +279,15 @@ export class NetworkConfigService implements OnModuleInit {
       process.env.HTTPS_PROXY = httpsEffective;
       process.env.https_proxy = httpsEffective;
     }
+    // Override ALL_PROXY too — axios's bundled proxy-from-env falls
+    // back to ALL_PROXY when HTTP(S)_PROXY isn't set for the target's
+    // scheme. We mirror our admin proxy onto it so user-shell values
+    // (esp. `socks5://...` from V2Ray/Clash) can't sneak through.
+    const allEffective = httpsEffective ?? httpEffective;
+    if (allEffective) {
+      process.env.ALL_PROXY = allEffective;
+      process.env.all_proxy = allEffective;
+    }
 
     this.logSnapshot('proxied', false);
   }
@@ -299,7 +310,8 @@ export class NetworkConfigService implements OnModuleInit {
         `http.globalAgent=${httpName}/${httpProto} ` +
         `https.globalAgent=${httpsName}/${httpsProto} ` +
         `env={HTTP_PROXY:${process.env.HTTP_PROXY ? this.maskProxy(process.env.HTTP_PROXY) : '(unset)'},` +
-        `HTTPS_PROXY:${process.env.HTTPS_PROXY ? this.maskProxy(process.env.HTTPS_PROXY) : '(unset)'}}`,
+        `HTTPS_PROXY:${process.env.HTTPS_PROXY ? this.maskProxy(process.env.HTTPS_PROXY) : '(unset)'},` +
+        `ALL_PROXY:${process.env.ALL_PROXY ? this.maskProxy(process.env.ALL_PROXY) : '(unset)'}}`,
     );
   }
 
@@ -354,6 +366,13 @@ export class NetworkConfigService implements OnModuleInit {
     delete process.env.http_proxy;
     delete process.env.HTTPS_PROXY;
     delete process.env.https_proxy;
+    // axios's bundled proxy-from-env falls back to ALL_PROXY when
+    // HTTP(S)_PROXY is missing — must clear it too or shell-exported
+    // `ALL_PROXY=socks5://...` leaks through and produces axios's
+    // ERR_ASSERTION "protocol mismatch" (socks5: vs http: assertion
+    // inside follow-redirects). Same goes for the lowercase variant.
+    delete process.env.ALL_PROXY;
+    delete process.env.all_proxy;
   }
 
   /** Strip user:pass from a proxy URL before logging. */

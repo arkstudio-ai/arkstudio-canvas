@@ -166,6 +166,10 @@ export const NetworkSection: React.FC = () => {
                 HTTPS_PROXY=
                 {view.effective.httpsProxy ?? <em style={emTagStyle}>(未设)</em>}
               </code>
+              <code style={effectiveLineStyle}>
+                ALL_PROXY=
+                {view.effective.allProxy ?? <em style={emTagStyle}>(未设)</em>}
+              </code>
             </>
           ) : (
             <code style={effectiveLineStyle}>

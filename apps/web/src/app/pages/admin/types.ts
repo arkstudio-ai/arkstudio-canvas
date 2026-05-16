@@ -325,6 +325,10 @@ export interface NetworkSettingsView {
   effective: {
     httpProxy: string | null;
     httpsProxy: string | null;
+    /** axios's bundled proxy-from-env falls back here when HTTP(S)_PROXY
+     *  isn't set; we mirror our admin value into it so user-shell
+     *  `ALL_PROXY=socks5://...` (V2Ray/Clash) can't sneak through. */
+    allProxy?: string | null;
   };
   /** Constructor name of http(s).globalAgent right now. Triages
    *  "protocol mismatch" without a backend restart — `HttpProxyAgent`
