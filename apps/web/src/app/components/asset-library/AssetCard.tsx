@@ -5,7 +5,7 @@
 //   - Failed 时把上游错误 message 显在卡片下边
 
 import React from 'react';
-import { Copy, Trash2 } from 'lucide-react';
+import { Copy, Link2, Trash2 } from 'lucide-react';
 import type { Asset } from '../../services/volcengineAssetApi';
 import {
   cardActionsStyle,
@@ -18,6 +18,7 @@ import {
   cardTitleRowStyle,
   cardTitleStyle,
   cardUriStyle,
+  smallBtnAccentStyle,
   smallBtnDangerStyle,
   smallBtnStyle,
   statusBadgeStyle,
@@ -42,12 +43,21 @@ export interface AssetCardProps {
   asset: Asset;
   onDelete: () => void;
   onCopyUri: () => void;
+  /**
+   * When present, the card renders a prominent "引用" button (in
+   * addition to 复制 URI). The drawer wires this from
+   * `uiStore.assetLibraryReferenceHandler`, which is set by whichever
+   * caller opened the drawer in "reference to a specific node" mode
+   * (currently only the SD2 video node's 素材库 button).
+   */
+  onReference?: () => void;
 }
 
 export const AssetCard: React.FC<AssetCardProps> = ({
   asset,
   onDelete,
   onCopyUri,
+  onReference,
 }) => {
   const tint = STATUS_TINT[asset.status];
   return (
@@ -81,6 +91,22 @@ export const AssetCard: React.FC<AssetCardProps> = ({
           <div style={cardErrorStyle}>{asset.error}</div>
         )}
         <div style={cardActionsStyle}>
+          {onReference && (
+            <button
+              type="button"
+              style={smallBtnAccentStyle}
+              onClick={onReference}
+              disabled={asset.status !== 'Active'}
+              title={
+                asset.status === 'Active'
+                  ? '引用到当前 SD2 节点 (作为上游素材)'
+                  : '只有就绪状态才能引用'
+              }
+            >
+              <Link2 size={12} />
+              <span>引用</span>
+            </button>
+          )}
           <button
             type="button"
             style={smallBtnStyle}

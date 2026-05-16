@@ -5,7 +5,16 @@ import { FileTransferService } from '../upload/file-transfer.service';
 
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.ogg', '.aac', '.flac', '.m4a'];
-const EXCLUDED_PARAM_KEYS = ['prompt', 'action', 'model'];
+// `assetRefs` is a frontend-only snapshot for the SD2 strip + @ mention
+// chips. Resolved into `inputs[]` below; excluded from extraParams so it
+// doesn't leak into upstream vendor bodies.
+const EXCLUDED_PARAM_KEYS = ['prompt', 'action', 'model', 'assetRefs'];
+
+interface AssetRefSnapshot {
+  id: string;
+  uri: string;
+  assetType?: string; // 'Image' / 'Video' / 'Audio'
+}
 
 /**
  * Builds the SubmitRequest payload that ProviderRegistry consumes, from
@@ -84,6 +93,16 @@ export class ParamsBuilderService {
         inputs.push({ type: 'image', url: src });
       }
     });
+
+    // SD2 asset-library snapshots → inputs[] with asset:// URIs. The
+    // Volcengine Seedance provider dereferences asset:// natively (sends
+    // the CreateAsset-returned URL upstream); other providers will 400
+    // on the scheme — that's the right failure mode since the assetRefs
+    // chip only renders on SD2 nodes in the frontend.
+    const assetRefs = this.extractAssetRefs(params);
+    for (const a of assetRefs) {
+      inputs.push({ type: this.assetTypeToInputType(a.assetType), url: a.uri });
+    }
 
     const extraParams: Record<string, any> = {};
     if (typeof params === 'object' && params !== null) {
@@ -173,5 +192,37 @@ export class ParamsBuilderService {
   private isAudio(src: string): boolean {
     const lower = src.toLowerCase().split('?')[0];
     return AUDIO_EXTENSIONS.some((ext) => lower.endsWith(ext));
+  }
+
+  private extractAssetRefs(params: Record<string, any>): AssetRefSnapshot[] {
+    const raw = params?.assetRefs;
+    if (!Array.isArray(raw)) return [];
+    const out: AssetRefSnapshot[] = [];
+    for (const r of raw) {
+      if (!r || typeof r !== 'object') continue;
+      const id = (r as { id?: unknown }).id;
+      const uri = (r as { uri?: unknown }).uri;
+      const assetType = (r as { assetType?: unknown }).assetType;
+      if (typeof id !== 'string' || typeof uri !== 'string') continue;
+      out.push({
+        id,
+        uri,
+        assetType: typeof assetType === 'string' ? assetType : undefined,
+      });
+    }
+    return out;
+  }
+
+  private assetTypeToInputType(
+    assetType: string | undefined,
+  ): 'image' | 'video' | 'audio' {
+    switch ((assetType || '').toLowerCase()) {
+      case 'video':
+        return 'video';
+      case 'audio':
+        return 'audio';
+      default:
+        return 'image';
+    }
   }
 }

@@ -48,6 +48,33 @@ export interface AddNodeMenuItem {
   label: string;
 }
 
+/**
+ * Snapshot of one Volcengine asset, as stashed on a SD2 video node's
+ * `params.assetRefs[]` when the user picks "引用" from the asset library
+ * drawer. We snapshot (not just `id`) so deleting the asset in the drawer
+ * later doesn't blank the chip on the node — the strip + @ mention keeps
+ * working from the cached metadata, and the backend still posts
+ * `asset://<id>` (which 400s upstream if the id was deleted, surfacing
+ * a clear error rather than a silent drop).
+ */
+export interface AssetReferenceSnapshot {
+  id: string;
+  name: string;
+  uri: string;
+  assetType: 'Image' | 'Video' | 'Audio';
+  thumbnailUrl?: string;
+}
+
+/**
+ * Callback passed when the asset-library drawer is opened in "reference
+ * to a specific node" mode (as opposed to the global StatusBar entry,
+ * which opens in "browse + copy URI" mode). The drawer renders an extra
+ * "引用" button per Active asset and routes clicks to this handler.
+ */
+export type AssetReferenceHandler =
+  | ((asset: AssetReferenceSnapshot) => void)
+  | null;
+
 interface UIState {
   /** Settings (was: /admin/*) overlay visibility. Esc / scrim click closes. */
   settingsOpen: boolean;
@@ -56,6 +83,12 @@ interface UIState {
    * it; the drawer renders a portal so its z-index doesn't tangle with P3.
    */
   assetLibraryOpen: boolean;
+  /**
+   * Set when the drawer is opened by a SD2 node's 素材库 button. Drawer
+   * shows an extra "引用" affordance per asset; click → snapshot pushed
+   * through here → drawer closes. Cleared on every open / close.
+   */
+  assetLibraryReferenceHandler: AssetReferenceHandler;
   /** Which sub-section the settings overlay's left nav has selected. Maps 1:1
    *  to existing admin module ids (usage / logs / config / system). */
   settingsSection: string;
@@ -174,7 +207,7 @@ interface UIState {
 
   openSettings: (section?: string) => void;
   closeSettings: () => void;
-  openAssetLibrary: () => void;
+  openAssetLibrary: (opts?: { onReference?: AssetReferenceHandler }) => void;
   closeAssetLibrary: () => void;
   toggleAssetLibrary: () => void;
   setSettingsSection: (section: string) => void;
@@ -206,6 +239,7 @@ interface UIState {
 export const useUIStore = create<UIState>((set) => ({
   settingsOpen: false,
   assetLibraryOpen: false,
+  assetLibraryReferenceHandler: null,
   settingsSection: 'usage',
   secondaryTab: 'nodes',
   secondaryRailCollapsed: false,
@@ -231,10 +265,20 @@ export const useUIStore = create<UIState>((set) => ({
       settingsSection: section ?? s.settingsSection,
     })),
   closeSettings: () => set({ settingsOpen: false }),
-  openAssetLibrary: () => set({ assetLibraryOpen: true }),
-  closeAssetLibrary: () => set({ assetLibraryOpen: false }),
+  openAssetLibrary: (opts) =>
+    set({
+      assetLibraryOpen: true,
+      assetLibraryReferenceHandler: opts?.onReference ?? null,
+    }),
+  closeAssetLibrary: () =>
+    set({ assetLibraryOpen: false, assetLibraryReferenceHandler: null }),
   toggleAssetLibrary: () =>
-    set((s) => ({ assetLibraryOpen: !s.assetLibraryOpen })),
+    set((s) => ({
+      assetLibraryOpen: !s.assetLibraryOpen,
+      // Toggle resets the handler too — opening from elsewhere shouldn't
+      // pick up a stale reference target.
+      assetLibraryReferenceHandler: null,
+    })),
   setSettingsSection: (section) => set({ settingsSection: section }),
   setSecondaryTab: (tab) => set({ secondaryTab: tab }),
   setCurrentFlowId: (id) => set({ currentFlowId: id }),

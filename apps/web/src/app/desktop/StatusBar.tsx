@@ -123,7 +123,7 @@ export const StatusBar: React.FC = () => {
         )}
         <button
           type="button"
-          onClick={openAssetLibrary}
+          onClick={() => openAssetLibrary()}
           style={assetBtnStyle}
           title="火山方舟素材库 (Seedance 参考素材)"
           onMouseEnter={(e) => {

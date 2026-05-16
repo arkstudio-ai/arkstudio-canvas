@@ -20,6 +20,7 @@ import {
   getAsset,
   listAssets,
 } from '../../services/volcengineAssetApi';
+import { useUIStore } from '../../store/uiStore';
 import { AddAssetForm } from './AddAssetForm';
 import { AssetCard } from './AssetCard';
 import {
@@ -60,6 +61,10 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({
   const [loading, setLoading] = useState(false);
   const [typeFilter, setTypeFilter] = useState<AssetType | 'All'>('All');
   const [addOpen, setAddOpen] = useState(false);
+  // When set, the drawer renders an extra "引用" affordance per Active
+  // asset card. Owned by uiStore so any opener (StatusBar / SD2 node)
+  // can wire its own handler without prop drilling.
+  const referenceHandler = useUIStore((s) => s.assetLibraryReferenceHandler);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -238,6 +243,23 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({
                 asset={asset}
                 onDelete={() => handleDelete(asset)}
                 onCopyUri={() => handleCopyUri(asset.uri)}
+                onReference={
+                  referenceHandler
+                    ? () => {
+                        referenceHandler({
+                          id: asset.id,
+                          name: asset.name || asset.id,
+                          uri: asset.uri,
+                          assetType: asset.assetType,
+                          thumbnailUrl: asset.url,
+                        });
+                        // Close the drawer so the chip-in-strip is
+                        // immediately visible without the user having
+                        // to dismiss the overlay manually.
+                        onClose();
+                      }
+                    : undefined
+                }
               />
             ))
           )}

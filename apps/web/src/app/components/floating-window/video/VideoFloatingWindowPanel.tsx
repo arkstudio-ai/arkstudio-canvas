@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
+import { toast } from 'sonner';
 import type { CanvasConfig, ModelEntry, ParamFieldOption, ParamFieldSpec } from '@canvas-flow/core';
 import type { NodeConfig } from '../../../store/nodeConfigStore';
 import { useUIStore } from '../../../store/uiStore';
@@ -18,9 +19,15 @@ import {
   resolveMode,
   mergeParamSchema,
   mergeDefaultParams,
-  isUpstreamActiveForMode,
   buildParamSummary,
 } from './modeUtils';
+import {
+  buildAssetCtx,
+  buildMentionCandidates,
+  buildStripItems,
+  buildUpstreamMentionContexts,
+  parseAssetRefs,
+} from './videoMentionBuilder';
 import {
   ParamsPopoverContainer,
   ParamsPopoverEmpty,
@@ -44,34 +51,6 @@ export interface VideoFloatingWindowPanelProps {
   onRun: () => void;
   onDisconnectUpstream: (sourceNodeId: string) => void;
   onAddUpstreamViaFile: (file: File) => void;
-}
-
-const TYPE_PREFIX: Record<string, string> = {
-  image: '图片',
-  video: '视频',
-  text: '文本',
-  audio: '音频',
-};
-
-function buildUpstreamMentionContexts(
-  upstreams: VideoFloatingWindowPanelProps['upstreamNodes'],
-): Map<string, { mentionLabel: string }> {
-  const counts: Record<string, number> = {};
-  const map = new Map<string, { mentionLabel: string }>();
-  for (const u of upstreams) {
-    const pref = TYPE_PREFIX[u.type] || '素材';
-    counts[u.type] = (counts[u.type] || 0) + 1;
-    map.set(u.id, { mentionLabel: `${pref}${counts[u.type]}` });
-  }
-  return map;
-}
-
-function pickThumbnail(type: string, media: Record<string, unknown>): string | undefined {
-  if (type === 'image' || type === 'video') {
-    const s = media.src ?? media.output;
-    if (typeof s === 'string') return s;
-  }
-  return undefined;
 }
 
 /**
@@ -148,28 +127,66 @@ export const VideoFloatingWindowPanel: React.FC<VideoFloatingWindowPanelProps> =
     [upstreamNodes],
   );
 
-  const stripItems: RefStripItem[] = useMemo(() => {
-    return upstreamNodes.map((u) => ({
-      id: u.id,
-      mentionLabel: upstreamCtx.get(u.id)?.mentionLabel ?? u.label,
-      type: u.type,
-      thumbnailUrl: pickThumbnail(u.type, getNodeMedia(u.id)),
-      onRemove: () => onDisconnectUpstream(u.id),
-      inactive: !isUpstreamActiveForMode(u.type, currentMode),
-    }));
-  }, [upstreamNodes, upstreamCtx, getNodeMedia, onDisconnectUpstream, currentMode]);
+  /**
+   * SD2 asset-library references. Snapshotted onto `params.assetRefs[]`
+   * when the user picks 引用 in the drawer (see handleOpenAssetLibrary).
+   * Render as additional chips on the strip + as @ mention candidates,
+   * so the prompt-side UX is identical to a connected upstream node.
+   *
+   * Backend params-builder reads the same array and posts each entry
+   * as `inputs[]` with `url:'asset://<id>'` — Seedance provider
+   * dereferences asset:// natively.
+   */
+  const assetRefs = useMemo(() => parseAssetRefs(params), [params]);
+  const assetCtx = useMemo(() => buildAssetCtx(assetRefs), [assetRefs]);
 
-  const mentionCandidates: MentionCandidate[] = useMemo(() => {
-    return upstreamNodes.map((u) => {
-      const label = upstreamCtx.get(u.id)?.mentionLabel ?? u.label;
-      return {
-        id: u.id,
-        label,
-        type: u.type,
-        thumbnailUrl: pickThumbnail(u.type, getNodeMedia(u.id)),
-      };
-    });
-  }, [upstreamNodes, upstreamCtx, getNodeMedia]);
+  const removeAssetRef = useCallback(
+    (assetId: string) => {
+      onChange({
+        params: {
+          ...params,
+          assetRefs: assetRefs.filter((r) => r.id !== assetId),
+        },
+      });
+    },
+    [assetRefs, params, onChange],
+  );
+
+  const stripItems: RefStripItem[] = useMemo(
+    () =>
+      buildStripItems({
+        upstreamNodes,
+        upstreamCtx,
+        assetRefs,
+        assetCtx,
+        getNodeMedia,
+        currentMode,
+        onDisconnectUpstream,
+        onRemoveAssetRef: removeAssetRef,
+      }),
+    [
+      upstreamNodes,
+      upstreamCtx,
+      assetRefs,
+      assetCtx,
+      getNodeMedia,
+      currentMode,
+      onDisconnectUpstream,
+      removeAssetRef,
+    ],
+  );
+
+  const mentionCandidates: MentionCandidate[] = useMemo(
+    () =>
+      buildMentionCandidates({
+        upstreamNodes,
+        upstreamCtx,
+        assetRefs,
+        assetCtx,
+        getNodeMedia,
+      }),
+    [upstreamNodes, upstreamCtx, assetRefs, assetCtx, getNodeMedia],
+  );
 
   const updateParams = useCallback(
     (patch: Record<string, unknown>) => {
@@ -260,6 +277,25 @@ export const VideoFloatingWindowPanel: React.FC<VideoFloatingWindowPanelProps> =
     const sku = (currentFamily?.value || '').toLowerCase();
     return sku.startsWith('doubao-seedance-') || sku.startsWith('seedance-');
   }, [currentFamily?.value]);
+
+  /**
+   * 节点级 "素材库" 入口: 开 drawer 并注入 onReference, 用户在 drawer 里
+   * 点 引用 时 snapshot 进 params.assetRefs (dedupe by id), 不会走全局
+   * "只复制 URI" 那个口径.
+   */
+  const handleOpenAssetLibrary = useCallback(() => {
+    openAssetLibrary({
+      onReference: (asset) => {
+        if (assetRefs.some((r) => r.id === asset.id)) {
+          toast.info(`"${asset.name}" 已在素材引用列表中`);
+          return;
+        }
+        onChange({ params: { ...params, assetRefs: [...assetRefs, asset] } });
+        toast.success(`已引用素材 "${asset.name}"`);
+      },
+    });
+  }, [openAssetLibrary, assetRefs, params, onChange]);
+
   const activeModeId = currentMode?.id ?? '';
 
   return (
@@ -280,7 +316,7 @@ export const VideoFloatingWindowPanel: React.FC<VideoFloatingWindowPanelProps> =
           items={stripItems}
           disabled={isRunning}
           onPickFile={onAddUpstreamViaFile}
-          onOpenAssetLibrary={isSeedanceFamily ? openAssetLibrary : undefined}
+          onOpenAssetLibrary={isSeedanceFamily ? handleOpenAssetLibrary : undefined}
         />
       }
       promptArea={

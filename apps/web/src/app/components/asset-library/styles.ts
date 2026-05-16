@@ -240,3 +240,9 @@ export const smallBtnDangerStyle: React.CSSProperties = {
   ...smallBtnStyle,
   color: '#fca5a5',
 };
+export const smallBtnAccentStyle: React.CSSProperties = {
+  ...smallBtnStyle,
+  borderColor: 'rgba(52,211,153,0.45)',
+  background: 'rgba(52,211,153,0.10)',
+  color: '#5eead4',
+};
