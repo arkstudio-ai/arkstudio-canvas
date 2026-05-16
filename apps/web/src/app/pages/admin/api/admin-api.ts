@@ -24,6 +24,8 @@ import type {
   VolcengineSettingsUpdate,
   NetworkSettingsView,
   NetworkSettingsUpdate,
+  OssSettingsView,
+  OssSettingsUpdate,
 } from '../types';
 
 // 共用 `apps/web/src/app/config/api.ts` 的解析（runtime 优先 / build-time
@@ -235,6 +237,21 @@ export function updateNetworkSettings(
   patch: NetworkSettingsUpdate,
 ): Promise<NetworkSettingsView> {
   return adminFetch<NetworkSettingsView>('/api/canvas-flow/network-settings', {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
+}
+
+// ---- OSS / TOS object storage ----------------------------------------------
+
+export function getOssSettings(): Promise<OssSettingsView> {
+  return adminFetch<OssSettingsView>('/api/canvas-flow/oss-settings');
+}
+
+export function updateOssSettings(
+  patch: OssSettingsUpdate,
+): Promise<OssSettingsView> {
+  return adminFetch<OssSettingsView>('/api/canvas-flow/oss-settings', {
     method: 'PUT',
     body: JSON.stringify(patch),
   });

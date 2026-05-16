@@ -3,6 +3,7 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { VolcengineConfigService } from '../canvas-config/volcengine-config.service';
 import { VolcengineAssetService } from '../volcengine-asset/volcengine-asset.service';
+import { OssUploadService } from '../upload/oss-upload.service';
 import { summarizeBody } from './log-utils';
 import type {
   PollResult,
@@ -70,6 +71,7 @@ export class VolcengineVideoProvider implements ProviderClient {
     private readonly httpService: HttpService,
     private readonly volcengineConfig: VolcengineConfigService,
     private readonly volcengineAsset: VolcengineAssetService,
+    private readonly ossUpload: OssUploadService,
   ) {}
 
   supports(modelSku: string): boolean {
@@ -95,7 +97,12 @@ export class VolcengineVideoProvider implements ProviderClient {
       );
     }
 
-    const content = this.buildContent(req.prompt, req.inputs ?? []);
+    // Volcengine 拉素材是 server-side 通过 URL; 本地 backend 的 /static/uploads/
+    // 它够不到. 先把每个 local URL 通过 OssUploadService 上传到用户配的 OSS / TOS
+    // 拿公网 URL, 再喂给 content[]. 未配置 OSS 且需要 staging 时, 抛 400 引导用户
+    // 去 /admin/system 配 OSS — 跟竞品的"本地上传无法继续, 请配存储"行为对齐.
+    const stagedInputs = await this.stageLocalInputs(req.inputs ?? [], modelId);
+    const content = this.buildContent(req.prompt, stagedInputs);
     if (content.length === 0) {
       throw this.toHttpException(
         `${modelId} 需要至少一个 text/image/video/audio 输入`,
@@ -272,6 +279,58 @@ export class VolcengineVideoProvider implements ProviderClient {
   // ---- content 构建 -------------------------------------------------------
 
   /**
+   * Walk inputs. For each one with a local-backend URL (relative
+   * `/static/uploads/...` or `http://localhost`-style), stage via
+   * OssUploadService and replace `.url` with the resulting public URL.
+   * `asset://...` and already-public `https://...` pass through.
+   *
+   * If OSS isn't configured AND staging is needed, throw 400 with a
+   * helpful pointer to /admin/system — this is the runtime error the
+   * user explicitly asked for as part of the OSS feature.
+   */
+  private async stageLocalInputs(
+    inputs: ProviderInput[],
+    modelId: string,
+  ): Promise<ProviderInput[]> {
+    const localInputs = inputs.filter((i) => isLocalUrl(i.url));
+    if (localInputs.length === 0) return inputs;
+
+    const ossReady = await this.ossUpload.isReady();
+    if (!ossReady) {
+      throw this.toHttpException(
+        `${modelId} 用到了本地上传的素材, 但当前没有配置 OSS / TOS。火山方舟的视频生成 ` +
+          `API 只接受公网 URL — 请去 /admin/system → 对象存储 (OSS / TOS) 配一个 bucket, ` +
+          `或改用素材库 (asset://) / 直接粘公网 URL.`,
+        400,
+        null,
+      );
+    }
+
+    const map = new Map<string, string>();
+    for (const inp of localInputs) {
+      if (map.has(inp.url)) continue;
+      const result = await this.ossUpload.stageLocalToOss(inp.url);
+      if (!result) {
+        // 理论上 ossReady=true 时不会到这, 但兜底一下 — 比如凭据被 admin 中途清掉
+        throw this.toHttpException(
+          `OSS staging 失败 (${inp.url}): 凭据被中途清掉或上传过程失败`,
+          500,
+          null,
+        );
+      }
+      map.set(inp.url, result.publicUrl);
+      this.logger.log(
+        `[volcengine-video:stage] ${inp.url} → ${result.publicUrl} (${result.provider})`,
+      );
+    }
+
+    return inputs.map((inp) => {
+      const staged = map.get(inp.url);
+      return staged ? { ...inp, url: staged } : inp;
+    });
+  }
+
+  /**
    * 把 (prompt, ProviderInput[]) 摊成 Seedance content[].
    *
    * Role 取值约定 (per-input 由 `extra.role` 指定, 未指定时按 type 兜底):
@@ -410,6 +469,37 @@ export class VolcengineVideoProvider implements ProviderClient {
     );
     (err as unknown as { payloadSnippet?: unknown }).payloadSnippet =
       payload ?? message;
+    // 把 message 显式写到 .message 字段, 这样 ExecutionsService log 这条 err
+    // 时不会只看到 NestJS 默认的 "Http Exception" 类名. 跟 dashscope-video
+    // provider 后续也会同款修.
+    (err as unknown as { message: string }).message = message;
     return err;
+  }
+}
+
+/**
+ * Local URL detection.
+ *   - server-root-relative paths (`/static/uploads/...`)
+ *   - `http://localhost:<port>/...` / `http://127.0.0.1:<port>/...`
+ *   - LAN ranges (192.168.x.x / 10.x.x.x / 172.16-31.x.x)
+ *
+ * `asset://` URIs, `https://` and public-host `http://` URLs pass through.
+ */
+function isLocalUrl(url: string): boolean {
+  if (!url) return false;
+  if (url.startsWith('asset://')) return false;
+  if (url.startsWith('/')) return true; // server-root-relative, definitely local
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    // localhost / 127.* / 192.168.* / 10.* / 172.16~31.* 都是 LAN, 火山够不到.
+    const host = u.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') return true;
+    if (host.startsWith('192.168.') || host.startsWith('10.')) return true;
+    if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return true;
+    return false;
+  } catch {
+    // 不是 absolute URL — 当 local 处理 (relative path)
+    return true;
   }
 }

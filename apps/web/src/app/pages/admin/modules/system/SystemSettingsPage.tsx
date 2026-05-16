@@ -51,6 +51,7 @@ import {
 } from '../config/styles';
 import { NetworkSection } from './NetworkSection';
 import { DesktopSection } from './DesktopSection';
+import { OssSection } from './OssSection';
 
 
 /**
@@ -89,6 +90,9 @@ export const SystemSettingsPage: React.FC = () => (
 
     {/* 网络代理 — 影响 backend axios 出站; 国内厂商建议禁用代理 */}
     <NetworkSection />
+
+    {/* 对象存储 — Volcengine Seedance i2v / r2v 必需; 不配则只能跑 t2v */}
+    <OssSection />
 
     {/* 桌面端独占 (GPU 加速等) — 浏览器访问时显示 "桌面端独占" disabled 态 */}
     <DesktopSection />
@@ -857,6 +861,12 @@ const PROVIDER_CARDS: ProviderCard[] = [
         Bearer Token。官方填你的 <code>ARK_API_KEY</code>；私有代理填代理 key。
         落库前用 <code>ENCRYPTION_KEY</code> 做 aes-256-gcm 加密；页面只显示
         掩码。配置后才能使用 <code>doubao-seedance-*</code> SKU。
+        <br />
+        <br />
+        <strong style={{ color: tokens.warn }}>
+          注意：Seedance 视频生成的 i2v / r2v 模式还要额外配「对象存储 (OSS / TOS)」
+          (下面那个 section)，否则本地上传的图片无法被火山服务器拉到，只能跑纯文本 t2v。
+        </strong>
       </>
     ),
     load: getVolcengineSettings,

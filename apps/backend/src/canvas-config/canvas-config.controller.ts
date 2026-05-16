@@ -16,6 +16,8 @@ import { UpdateVolcengineSettingsDto } from './dto/volcengine-settings.dto';
 import { VolcengineConfigService } from './volcengine-config.service';
 import { UpdateNetworkSettingsDto } from './dto/network-settings.dto';
 import { NetworkConfigService } from './network-config.service';
+import { UpdateOssSettingsDto } from './dto/oss-settings.dto';
+import { OssConfigService } from './oss-config.service';
 
 @Controller('api/canvas-flow')
 export class CanvasConfigController {
@@ -28,6 +30,7 @@ export class CanvasConfigController {
     private localStorage: LocalStorageService,
     private volcengineConfig: VolcengineConfigService,
     private networkConfig: NetworkConfigService,
+    private ossConfig: OssConfigService,
   ) {}
 
   /**
@@ -204,6 +207,28 @@ export class CanvasConfigController {
   async updateNetworkSettings(@Body() dto: UpdateNetworkSettingsDto) {
     await this.networkConfig.updateSettings(dto);
     return this.networkConfig.getViewPayload();
+  }
+
+  /**
+   * GET /api/canvas-flow/oss-settings
+   * 阿里 OSS / 火山 TOS 凭据配置. provider 字段选 'aliyun-oss' 或
+   * 'volcengine-tos'; 留空 = 禁用 OSS staging (Volcengine Seedance 走不了
+   * i2v / r2v). 凭据脱敏返回掩码.
+   */
+  @Get('oss-settings')
+  async getOssSettings() {
+    return this.ossConfig.getViewPayload();
+  }
+
+  /**
+   * PUT /api/canvas-flow/oss-settings
+   * 更新 provider + AK/SK + bucket + region 等. AK/SK 落库前 aes-256-gcm
+   * 加密. 保存后立即对 OssUploadService 生效.
+   */
+  @Put('oss-settings')
+  async updateOssSettings(@Body() dto: UpdateOssSettingsDto) {
+    await this.ossConfig.updateSettings(dto);
+    return this.ossConfig.getViewPayload();
   }
 
   /**

@@ -334,6 +334,37 @@ export interface NetworkSettingsUpdate {
   disabled?: boolean;
 }
 
+// ---- OSS / TOS object storage ---------------------------------------------
+//
+// Used to stage local file uploads (`/static/uploads/...`) to a public-
+// internet-reachable URL so URL-only vendors (Volcengine Seedance) can fetch
+// them. One provider at a time: Aliyun OSS or Volcengine TOS. 留空 provider
+// 即禁用 staging (Seedance i2v / r2v 不可用).
+
+export type OssProvider = 'aliyun-oss' | 'volcengine-tos';
+
+export interface OssSettingsView {
+  provider: OssProvider | null;
+  bucket: string;
+  region: string;
+  endpoint: string;
+  publicBaseUrl: string;
+  accessKeyIdMask: string | null;
+  accessKeySecretConfigured: boolean;
+  /** Backend's view of "everything filled, ready to upload". */
+  ready: boolean;
+}
+
+export interface OssSettingsUpdate {
+  provider?: OssProvider | '';
+  accessKeyId?: string;
+  accessKeySecret?: string;
+  bucket?: string;
+  region?: string;
+  endpoint?: string;
+  publicBaseUrl?: string;
+}
+
 // ---- Provider 连通性测试 ----------------------------------------------------
 //
 // 镜像 apps/backend/src/canvas-config/provider-connectivity.service.ts 的
