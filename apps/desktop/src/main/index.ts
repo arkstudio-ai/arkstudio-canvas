@@ -19,27 +19,39 @@ import { startBackend, type BackendHandle } from './backend.js';
 import { ensureSchema } from './bootstrap-db.js';
 import { ensureSeed } from './bootstrap-seed.js';
 import { createMainWindow } from './window.js';
+import {
+  type DesktopSettings,
+  loadDesktopSettings,
+  saveDesktopSettings,
+} from './desktop-settings.js';
 
 const isDev = process.env.NODE_ENV === 'development';
 const DEV_RENDERER_URL = process.env.DESKTOP_DEV_RENDERER_URL ?? 'http://localhost:5173';
 const DEV_BACKEND_PORT = Number(process.env.DESKTOP_DEV_BACKEND_PORT ?? 18500);
 
-// 必须在 app ready 之前注册的 commandLine switches。让 Chromium 尽可能跑
-// 硬件加速 —— 默认情况下 Electron 自带的 Chromium 在某些显卡 / 驱动版本
-// 会被自己的 GPU 黑名单回退到软件渲染, 画布拖动直接卡到不能用.
+// 桌面端 settings 从 userData/desktop-settings.json 读 — 必须在 app ready
+// 之前 (因为 GPU command-line switches 只在进程启动时被 Chromium 消费一次).
+// settings 文件不存在时返回默认值 (gpuAcceleration: true).
+const desktopSettings = loadDesktopSettings();
+
+// 必须在 app ready 之前注册的 commandLine switches. 让 Chromium 尽可能跑
+// 硬件加速 — Electron 内置的 Chromium 在某些显卡 / 驱动版本会被自己的
+// GPU blocklist 回退到软件渲染, 画布拖动直接卡到不能用.
 //
-//   - ignore-gpu-blocklist:    跳过 Chromium 内置的 driver/GPU 黑名单,
+//   - ignore-gpu-blocklist:    跳过 Chromium 内置 driver/GPU blocklist,
 //     允许在已知"有问题"的硬件上仍然尝试硬件加速 (开源 Electron 应用
-//     常用配置, ungoogled-chromium / VS Code 都打开)。
-//   - enable-gpu-rasterization: 把 canvas raster 也丢给 GPU, 不走 CPU。
+//     常用配置, VS Code 等都打开).
+//   - enable-gpu-rasterization: 把 canvas raster 也丢给 GPU, 不走 CPU.
 //   - enable-zero-copy:         GPU 进程直接读 raster buffer, 减少
-//     一次 IPC 拷贝, 滚动 / pan 体感更顺。
+//     一次 IPC 拷贝, 滚动 / pan 体感更顺.
 //
-// 如果用户硬件 / 驱动确实不支持, Chromium 会自己回落到软件渲染,
-// 不会因此崩 —— 所以这几个开关在任何机型上都安全打开。
-app.commandLine.appendSwitch('ignore-gpu-blocklist');
-app.commandLine.appendSwitch('enable-gpu-rasterization');
-app.commandLine.appendSwitch('enable-zero-copy');
+// 默认全开. 如果用户 admin 里关了 gpuAcceleration, 这三条都不会注册,
+// Chromium 走自己默认的 GPU 检测 + 黑名单回退逻辑.
+if (desktopSettings.gpuAcceleration) {
+  app.commandLine.appendSwitch('ignore-gpu-blocklist');
+  app.commandLine.appendSwitch('enable-gpu-rasterization');
+  app.commandLine.appendSwitch('enable-zero-copy');
+}
 
 // Initialise electron-log: writes to `<userData>/logs/main.log` on all
 // platforms by default. The renderer / preload have their own loggers but for
@@ -67,6 +79,21 @@ ipcMain.on('window:maximize-toggle', (e) => {
 ipcMain.on('window:close', (e) => {
   BrowserWindow.fromWebContents(e.sender)?.close();
 });
+
+// Desktop settings (GPU acceleration etc) — admin reads + writes via
+// preload bridge. set 后必须重启 app 才能让 commandLine switches 重新生效,
+// renderer 自己负责 toast 提示 "重启生效".
+ipcMain.handle('desktop-settings:get', () => desktopSettings);
+ipcMain.handle(
+  'desktop-settings:set',
+  (_e, patch: Partial<DesktopSettings>) => {
+    const next: DesktopSettings = { ...desktopSettings, ...patch };
+    saveDesktopSettings(next);
+    // 同步本进程缓存. 不影响已经 register 过的 commandLine switches.
+    Object.assign(desktopSettings, next);
+    return next;
+  },
+);
 
 async function bootstrap() {
   await app.whenReady();

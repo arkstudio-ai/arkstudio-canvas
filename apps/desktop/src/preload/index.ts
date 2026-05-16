@@ -61,4 +61,19 @@ contextBridge.exposeInMainWorld('canvasDesktop', {
     maximizeToggle: () => ipcRenderer.send('window:maximize-toggle'),
     close: () => ipcRenderer.send('window:close'),
   },
+  /**
+   * Desktop-level user settings (GPU acceleration etc) persisted across
+   * app launches in a JSON file under userData. Most knobs require a
+   * restart to apply because they affect Chromium command-line switches
+   * that are only consumed at process start — renderer is responsible
+   * for surfacing that.
+   */
+  desktopSettings: {
+    get: (): Promise<{ gpuAcceleration: boolean }> =>
+      ipcRenderer.invoke('desktop-settings:get'),
+    set: (
+      patch: Partial<{ gpuAcceleration: boolean }>,
+    ): Promise<{ gpuAcceleration: boolean }> =>
+      ipcRenderer.invoke('desktop-settings:set', patch),
+  },
 });

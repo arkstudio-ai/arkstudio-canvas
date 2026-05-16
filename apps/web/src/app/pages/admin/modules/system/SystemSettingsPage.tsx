@@ -50,6 +50,7 @@ import {
   tokens,
 } from '../config/styles';
 import { NetworkSection } from './NetworkSection';
+import { DesktopSection } from './DesktopSection';
 
 
 /**
@@ -88,6 +89,9 @@ export const SystemSettingsPage: React.FC = () => (
 
     {/* 网络代理 — 影响 backend axios 出站; 国内厂商建议禁用代理 */}
     <NetworkSection />
+
+    {/* 桌面端独占 (GPU 加速等) — 浏览器访问时显示 "桌面端独占" disabled 态 */}
+    <DesktopSection />
 
     {/* Generation history retention */}
     <HistoryRetentionSection />
