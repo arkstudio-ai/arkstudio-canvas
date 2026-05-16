@@ -1,9 +1,19 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import * as http from 'http';
-import * as https from 'https';
+import type * as HttpType from 'http';
+import type * as HttpsType from 'https';
 import { HttpProxyAgent } from 'http-proxy-agent';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { PrismaService } from '../prisma/prisma.service';
+
+// TypeScript 的 `import * as http from 'http'` 在 esModuleInterop 下会
+// 把 module 转成 namespace object, getter 保留但 setter 被剥掉; 在
+// Node 22 上跑 `http.globalAgent = newAgent` 就会
+// "Cannot set property globalAgent of #<Object> which has only a getter".
+// 用 CJS require 拿原始 module exports, setter 在 — 直接赋值就 OK.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const http: typeof HttpType = require('http');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const https: typeof HttpsType = require('https');
 
 /**
  * Network proxy settings — admin-managed, applied **globally** to every
@@ -264,18 +274,18 @@ export class NetworkConfigService implements OnModuleInit {
   ): void {
     try {
       if (httpProxyUrl) {
-        (http as any).globalAgent = new HttpProxyAgent(httpProxyUrl, {
+        http.globalAgent = new HttpProxyAgent(httpProxyUrl, {
           keepAlive: true,
         });
       } else {
-        (http as any).globalAgent = new http.Agent({ keepAlive: true });
+        http.globalAgent = new http.Agent({ keepAlive: true });
       }
       if (httpsProxyUrl) {
-        (https as any).globalAgent = new HttpsProxyAgent(httpsProxyUrl, {
+        https.globalAgent = new HttpsProxyAgent(httpsProxyUrl, {
           keepAlive: true,
         });
       } else {
-        (https as any).globalAgent = new https.Agent({ keepAlive: true });
+        https.globalAgent = new https.Agent({ keepAlive: true });
       }
     } catch (err) {
       this.logger.error(
@@ -287,8 +297,8 @@ export class NetworkConfigService implements OnModuleInit {
   }
 
   private installDirectAgents(): void {
-    (http as any).globalAgent = new http.Agent({ keepAlive: true });
-    (https as any).globalAgent = new https.Agent({ keepAlive: true });
+    http.globalAgent = new http.Agent({ keepAlive: true });
+    https.globalAgent = new https.Agent({ keepAlive: true });
   }
 
   private unsetProxyEnv(): void {
