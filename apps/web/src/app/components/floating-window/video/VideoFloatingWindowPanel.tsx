@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 import type { CanvasConfig, ModelEntry, ParamFieldOption, ParamFieldSpec } from '@canvas-flow/core';
 import type { NodeConfig } from '../../../store/nodeConfigStore';
+import { useUIStore } from '../../../store/uiStore';
 
 import {
   BottomBar,
@@ -249,6 +250,16 @@ export const VideoFloatingWindowPanel: React.FC<VideoFloatingWindowPanelProps> =
   );
 
   const modes = currentFamily?.modes ?? [];
+
+  // 仅 Volcengine 火山方舟 Seedance 模型支持 asset:// 引用语义, 也只有这种
+  // 节点该出"素材库"按钮 (跟竞品 SD2 UX 对齐). 检测 model SKU 前缀, 不去
+  // 嗅探 provider, 因为 provider routing 在 backend 才解析 — 前端用 SKU
+  // 字符串前缀做廉价判断就够.
+  const openAssetLibrary = useUIStore((s) => s.openAssetLibrary);
+  const isSeedanceFamily = useMemo(() => {
+    const sku = (currentFamily?.value || '').toLowerCase();
+    return sku.startsWith('doubao-seedance-') || sku.startsWith('seedance-');
+  }, [currentFamily?.value]);
   const activeModeId = currentMode?.id ?? '';
 
   return (
@@ -269,6 +280,7 @@ export const VideoFloatingWindowPanel: React.FC<VideoFloatingWindowPanelProps> =
           items={stripItems}
           disabled={isRunning}
           onPickFile={onAddUpstreamViaFile}
+          onOpenAssetLibrary={isSeedanceFamily ? openAssetLibrary : undefined}
         />
       }
       promptArea={
