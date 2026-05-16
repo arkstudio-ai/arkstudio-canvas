@@ -43,7 +43,11 @@ export interface EditsCallResult {
   requestPayloadSummary: Record<string, unknown>;
 }
 
-const IMAGE_EDITS_PATH = '/images/edits';
+// 末尾 / 是关键: OpenAI 官方两边都吃, 但部分 OpenAI-compat relay 只匹配
+// 带 trailing slash 的精确路径, 不带的会落到 fallback handler 返回非
+// 图片响应 (extractResources → 0 → "no usable image"). 跟 generations
+// 那条不同, edits 用 multipart, relay 处理逻辑常常分得更细.
+const IMAGE_EDITS_PATH = '/images/edits/';
 const MAX_FETCH_BYTES = 25 * 1024 * 1024; // OpenAI hard cap per image is 25 MB.
 
 export class OpenAICompatImageEdits {
