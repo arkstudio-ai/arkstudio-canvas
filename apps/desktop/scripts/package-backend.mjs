@@ -97,13 +97,30 @@ run('pnpm', ['--filter', 'canvas-flow-backend', 'deploy', '--legacy', '--prod', 
 //   pnpm deploy 跑的是 fresh install, 不会自动跑 prisma generate,
 //   所以 deployed bundle 的 node_modules/.prisma/client 是空的, @prisma/client
 //   运行时会立刻报错. 我们读 schema 里的 binaryTargets, 生成全部 5 个平台
-//   引擎到 deployed 端的 .prisma/client/. 同时 prisma generate 副作用会把
-//   @prisma/engines 缺的平台引擎一起拉下来.
-run('node', [
-  path.join(OUT_DIR, 'node_modules', 'prisma', 'build', 'index.js'),
-  'generate',
-  `--schema=${path.join(OUT_DIR, 'prisma', 'schema.prisma')}`,
-], { cwd: OUT_DIR });
+//   query 引擎到 deployed 端的 .prisma/client/.
+//
+// PRISMA_CLI_BINARY_TARGETS: 关键. prisma 默认只给 host 平台下载
+// @prisma/engines 里的 **schema engine** (prisma db push 用的那个),
+// query engine 倒是按 binaryTargets 全下. 桌面端首次启动会跑
+// `prisma db push`, Win 用户机上若没 schema-engine-windows.exe,
+// prisma 会现场下载 + 写 node_modules/.cache/prisma —— Program Files
+// 路径只读, mkdir EPERM 当场挂 (实测). 这条 env 强制 generate 阶段
+// 把所有 desktop 平台的 schema engine 一起拉来.
+run(
+  'node',
+  [
+    path.join(OUT_DIR, 'node_modules', 'prisma', 'build', 'index.js'),
+    'generate',
+    `--schema=${path.join(OUT_DIR, 'prisma', 'schema.prisma')}`,
+  ],
+  {
+    cwd: OUT_DIR,
+    env: {
+      PRISMA_CLI_BINARY_TARGETS:
+        'darwin,darwin-arm64,windows,linux-musl-openssl-3.0.x',
+    },
+  },
+);
 
 // Step 6: 抹掉 dev.db, 避免开发机本地数据库被带到用户机器上
 const devDb = path.join(OUT_DIR, 'prisma', 'dev.db');
@@ -147,6 +164,26 @@ const missingEngines = desktopEngines.filter((e) => !fs.existsSync(path.join(cli
 if (missingEngines.length > 0) {
   throw new Error(
     `[package-backend] missing prisma client engines in ${path.relative(OUT_DIR, clientEngineDir)}:\n  - ${missingEngines.join('\n  - ')}`,
+  );
+}
+
+// schema engine 校验 — 桌面端首次启动 prisma db push 走的就是这个. 漏了 win
+// 那个就是上线后 Win 用户报 EPERM (Program Files 只读, prisma 现场下载
+// 触发 mkdir node_modules/.cache/prisma 失败). 跟 query engine 不同位置:
+// 这些归 @prisma/engines/ 管, 由 PRISMA_CLI_BINARY_TARGETS 控制.
+const cliEngineDir = path.join(OUT_DIR, 'node_modules', '@prisma', 'engines');
+const desktopSchemaEngines = [
+  'schema-engine-darwin',
+  'schema-engine-darwin-arm64',
+  'schema-engine-windows.exe',
+];
+const missingSchemaEngines = desktopSchemaEngines.filter(
+  (e) => !fs.existsSync(path.join(cliEngineDir, e)),
+);
+if (missingSchemaEngines.length > 0) {
+  throw new Error(
+    `[package-backend] missing prisma schema engines in ${path.relative(OUT_DIR, cliEngineDir)}:\n  - ${missingSchemaEngines.join('\n  - ')}\n` +
+      `Hint: ensure PRISMA_CLI_BINARY_TARGETS includes all desktop targets in step 5.`,
   );
 }
 
