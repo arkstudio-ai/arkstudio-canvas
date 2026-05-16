@@ -24,11 +24,11 @@ import {
  *                                   so frontend node config can leave model empty)
  *   - volcengine.timeoutSec.video : integer seconds, optional
  *
- * Why default to the 第三方代理 (`http://123.57.80.82/seedance`)? Phase-1 uses
- * the proxy; the path layout for both `/contents/generations/tasks` (video)
- * and `/open/CreateAsset` (asset library) is identical to the volc official
- * 邀测版本, so admin can flip baseUrl to `https://ark.cn-beijing.volces.com/api/v3`
- * with zero code changes once they obtain official credentials.
+ * Default baseUrl points at the **Volcengine 官方 Ark gateway**. Admins running
+ * against a private proxy / 自建代理 can override via the admin UI — both
+ * `/contents/generations/tasks` (video) and `/open/CreateAsset` (asset library)
+ * path layouts are identical between the official gateway and the 邀测期
+ * proxy shape, so the switch is zero-code on this side.
  *
  * Cache TTL: 30s, same as DashscopeConfigService — keeps provider hot-path
  * fast without making admin updates feel sticky.
@@ -39,8 +39,9 @@ const KEY_API_KEY = 'volcengine.apiKey';
 const KEY_DEFAULT_MODEL = 'volcengine.defaultModel';
 const KEY_TIMEOUT_VIDEO = 'volcengine.timeoutSec.video';
 
-// 默认指向第三方代理；admin 可改为 https://ark.cn-beijing.volces.com/api/v3 切官方
-const DEFAULT_BASE_URL = 'http://123.57.80.82/seedance';
+// 默认指向火山方舟官方 gateway. admin 可在 /admin/system 改 baseUrl 切到
+// 任何兼容上述 path layout 的私有代理 / 自建代理.
+const DEFAULT_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
 const DEFAULT_TIMEOUT_VIDEO_SEC = 30;
 const CACHE_TTL_MS = 30_000;
 

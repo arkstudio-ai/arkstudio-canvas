@@ -805,7 +805,7 @@ const PROVIDER_CARDS: ProviderCard[] = [
   {
     id: 'volcengine',
     label: 'Volcengine (火山方舟 Seedance)',
-    defaultBaseUrl: 'http://123.57.80.82/seedance',
+    defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
     scopeChips: [
       { sku: 'doubao-seedance-* / seedance-*', modality: 'video' },
     ],
@@ -835,19 +835,20 @@ const PROVIDER_CARDS: ProviderCard[] = [
       '当前仅 video 落库（Seedance 2.0 / 2.0 Fast）。chat / image / audio 字段写入也会被静默忽略，等对应 provider 接入再启用。Polling 固定 10s 不暴露。',
     baseUrlHint: (
       <>
-        Volcengine（火山方舟）Seedance Video API 网关。默认指向第三方代理{' '}
-        <code>http://123.57.80.82/seedance</code>；如有官方 ARK_API_KEY 直接改为{' '}
-        <code>https://ark.cn-beijing.volces.com/api/v3</code>（路径与代理完全一致，
-        切换零代码）。<strong>不要</strong>带 <code>/contents/...</code> 后缀，
+        Volcengine（火山方舟）Seedance Video API 网关。默认指向官方{' '}
+        <code>https://ark.cn-beijing.volces.com/api/v3</code>。
+        如果你部署了自建/私有代理且 path layout 与官方一致
+        （<code>/contents/generations/tasks</code> +{' '}
+        <code>/open/CreateAsset</code>），可改成你的代理地址，0 代码切换。
+        <strong>不要</strong>带 <code>/contents/...</code> 后缀，
         provider 会自己拼。
       </>
     ),
     apiKeyHint: (
       <>
-        Bearer Token。第三方代理时填代理 key；切官方时填你的{' '}
-        <code>ARK_API_KEY</code>。落库前用 <code>ENCRYPTION_KEY</code> 做{' '}
-        aes-256-gcm 加密；页面只显示掩码。配置后才能使用{' '}
-        <code>doubao-seedance-*</code> SKU。
+        Bearer Token。官方填你的 <code>ARK_API_KEY</code>；私有代理填代理 key。
+        落库前用 <code>ENCRYPTION_KEY</code> 做 aes-256-gcm 加密；页面只显示
+        掩码。配置后才能使用 <code>doubao-seedance-*</code> SKU。
       </>
     ),
     load: getVolcengineSettings,

@@ -163,9 +163,8 @@ export class CanvasConfigController {
   /**
    * GET /api/canvas-flow/volcengine-settings
    * View-only payload for the admin Volcengine (火山方舟 / Doubao / Seedance)
-   * 设置面板. 同 dashscope/openai 一样脱敏 apiKey, baseUrl 默认指向第三方代理
-   * (`http://123.57.80.82/seedance`), admin 可改为官方
-   * (`https://ark.cn-beijing.volces.com/api/v3`) 0 行代码切换。
+   * 设置面板. 同 dashscope/openai 一样脱敏 apiKey. baseUrl 默认指向火山官方
+   * gateway, admin 可改成任何兼容相同 path layout 的私有代理 (0 代码切换).
    */
   @Get('volcengine-settings')
   async getVolcengineSettings() {

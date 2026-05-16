@@ -17,6 +17,7 @@ import {
   formNoteStyle,
   formRowStyle,
   formStyle,
+  linkStyle,
   primaryBtnStyle,
   secondaryBtnStyle,
 } from './styles';
@@ -95,11 +96,31 @@ export const AddAssetForm: React.FC<AddAssetFormProps> = ({
         />
       </div>
       <div style={formNoteStyle}>
-        ⚠ URL 必须公网可达 — 火山服务器要在线拉这个文件.
+        URL 必须公网可达 — 火山服务器要在线拉这个文件.
         <br />
-        常用来源:GitHub raw 链接 · 图床 (sm.ms / imgbb) · OSS / TOS / COS 控制台手传后拿可访问 URL.
         <br />
-        ⏳ 本地直接上传暂未支持（P2 排期，要等接 tunnel 或对象存储桥接）.
+        常用来源:GitHub raw 链接 · 图床 (
+        免费图片图床:
+        <a
+          href="https://www.beeimg.cn/"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={linkStyle}
+        >
+          蜜蜂图床
+        </a>
+        ,视频需求:
+        <a
+          href="https://www.yuque.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={linkStyle}
+        >
+          语雀文档
+        </a>
+        ) · OSS / TOS / COS
+        <br />
+        本地直接上传暂未支持
       </div>
       <div style={formActionsStyle}>
         <button type="button" style={secondaryBtnStyle} onClick={onCancel}>

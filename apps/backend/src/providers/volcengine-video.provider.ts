@@ -22,13 +22,14 @@ import type {
  *   - `doubao-seedance-2-0-260128`        (Seedance 2.0)
  *   - `doubao-seedance-2-0-fast-260128`   (Seedance 2.0 Fast)
  *
- * Endpoint family (identical between 第三方代理 and 火山官方 — only base URL differs):
+ * Endpoint family (identical between 火山官方 gateway and any compliant
+ * private proxy — only base URL differs):
  *   submit:  POST {base}/contents/generations/tasks
  *   poll:    GET  {base}/contents/generations/tasks/{id}
  *   auth:    Authorization: Bearer <api_key>
  *
- * Default `base = http://123.57.80.82/seedance` (第三方代理); admin can flip
- * to `https://ark.cn-beijing.volces.com/api/v3` for direct upstream — zero
+ * Default `base = https://ark.cn-beijing.volces.com/api/v3` (火山官方). Admin
+ * can flip to a private proxy of the same shape via /admin/system — zero
  * code change.
  *
  * Request shape (single body, all variants):

@@ -124,6 +124,11 @@ export const formNoteStyle: React.CSSProperties = {
   color: '#fbbf24',
   lineHeight: 1.5,
 };
+
+export const linkStyle: React.CSSProperties = {
+  color: '#5eead4',
+  textDecoration: 'underline',
+};
 export const formActionsStyle: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'flex-end',
