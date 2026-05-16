@@ -8,6 +8,7 @@ import { HistoryRetentionService } from './history-retention.service';
 import { OpenaiCompatConfigService } from './openai-compat-config.service';
 import { ProviderConnectivityService } from './provider-connectivity.service';
 import { VolcengineConfigService } from './volcengine-config.service';
+import { NetworkConfigService } from './network-config.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { StorageModule } from '../storage/storage.module';
 
@@ -22,6 +23,7 @@ import { StorageModule } from '../storage/storage.module';
     OpenaiCompatConfigService,
     ProviderConnectivityService,
     VolcengineConfigService,
+    NetworkConfigService,
   ],
   exports: [
     CanvasConfigService,
@@ -29,6 +31,7 @@ import { StorageModule } from '../storage/storage.module';
     HistoryRetentionService,
     OpenaiCompatConfigService,
     VolcengineConfigService,
+    NetworkConfigService,
   ],
 })
 export class CanvasConfigModule {}

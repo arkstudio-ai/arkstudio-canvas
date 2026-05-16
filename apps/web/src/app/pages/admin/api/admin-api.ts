@@ -22,6 +22,8 @@ import type {
   UsageOverview,
   VolcengineSettingsView,
   VolcengineSettingsUpdate,
+  NetworkSettingsView,
+  NetworkSettingsUpdate,
 } from '../types';
 
 // 共用 `apps/web/src/app/config/api.ts` 的解析（runtime 优先 / build-time
@@ -221,6 +223,21 @@ export function updateVolcengineSettings(
       body: JSON.stringify(patch),
     },
   );
+}
+
+// ---- Network (proxy) -------------------------------------------------------
+
+export function getNetworkSettings(): Promise<NetworkSettingsView> {
+  return adminFetch<NetworkSettingsView>('/api/canvas-flow/network-settings');
+}
+
+export function updateNetworkSettings(
+  patch: NetworkSettingsUpdate,
+): Promise<NetworkSettingsView> {
+  return adminFetch<NetworkSettingsView>('/api/canvas-flow/network-settings', {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
 }
 
 // ---- History retention -----------------------------------------------------

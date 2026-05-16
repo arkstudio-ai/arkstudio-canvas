@@ -306,6 +306,34 @@ export interface VolcengineSettingsUpdate {
   timeouts?: Partial<Record<VolcengineKind, number>>;
 }
 
+// ---- Network (proxy) -------------------------------------------------------
+//
+// Centralised proxy config so users don't need to wrangle shell env vars.
+// Most relevant for China-based users whose shell has HTTPS_PROXY=...:7890
+// for OpenAI/翻墙, which BREAKS DashScope / Volcengine (国内 IDC 直连).
+//
+// `disabled=true` is the "force direct" big-red-button — overrides the
+// configured strings AND unsets process.env.HTTP_PROXY at backend boot.
+
+export interface NetworkSettingsView {
+  /** DB-stored value (admin form draft). Empty string ↔ no DB row. */
+  httpProxy: string;
+  httpsProxy: string;
+  disabled: boolean;
+  /** Snapshot of process.env at view time — diagnostic so admin can spot
+   *  "I changed it but the shell env is still leaking through" cases. */
+  effective: {
+    httpProxy: string | null;
+    httpsProxy: string | null;
+  };
+}
+
+export interface NetworkSettingsUpdate {
+  httpProxy?: string;
+  httpsProxy?: string;
+  disabled?: boolean;
+}
+
 // ---- Provider 连通性测试 ----------------------------------------------------
 //
 // 镜像 apps/backend/src/canvas-config/provider-connectivity.service.ts 的

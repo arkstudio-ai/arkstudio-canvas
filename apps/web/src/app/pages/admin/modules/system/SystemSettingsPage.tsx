@@ -49,6 +49,7 @@ import {
   sectionTitleStyle,
   tokens,
 } from '../config/styles';
+import { NetworkSection } from './NetworkSection';
 
 
 /**
@@ -84,6 +85,9 @@ export const SystemSettingsPage: React.FC = () => (
 
     {/* 模型 provider —— DashScope + OpenAI-compat 合并 tab 卡片 */}
     <ProvidersSection />
+
+    {/* 网络代理 — 影响 backend axios 出站; 国内厂商建议禁用代理 */}
+    <NetworkSection />
 
     {/* Generation history retention */}
     <HistoryRetentionSection />

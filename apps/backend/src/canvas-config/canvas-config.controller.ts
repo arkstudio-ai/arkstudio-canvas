@@ -14,6 +14,8 @@ import { UpdateHistorySettingsDto } from './dto/history-settings.dto';
 import { UpdateStorageSettingsDto } from './dto/storage-settings.dto';
 import { UpdateVolcengineSettingsDto } from './dto/volcengine-settings.dto';
 import { VolcengineConfigService } from './volcengine-config.service';
+import { UpdateNetworkSettingsDto } from './dto/network-settings.dto';
+import { NetworkConfigService } from './network-config.service';
 
 @Controller('api/canvas-flow')
 export class CanvasConfigController {
@@ -25,6 +27,7 @@ export class CanvasConfigController {
     private providerConnectivity: ProviderConnectivityService,
     private localStorage: LocalStorageService,
     private volcengineConfig: VolcengineConfigService,
+    private networkConfig: NetworkConfigService,
   ) {}
 
   /**
@@ -180,6 +183,27 @@ export class CanvasConfigController {
   async updateVolcengineSettings(@Body() dto: UpdateVolcengineSettingsDto) {
     await this.volcengineConfig.updateSettings(dto);
     return this.volcengineConfig.getViewPayload();
+  }
+
+  /**
+   * GET /api/canvas-flow/network-settings
+   * 网络代理配置面板. 返回 DB 里存的代理 + 当前 process.env 真实生效值
+   * (diagnostic — 让 admin 看清楚 "我配的" 和 "实际跑的" 是否一致).
+   */
+  @Get('network-settings')
+  async getNetworkSettings() {
+    return this.networkConfig.getViewPayload();
+  }
+
+  /**
+   * PUT /api/canvas-flow/network-settings
+   * 更新代理 URL 或 disabled (force-direct). 保存后立刻 apply 到
+   * process.env, 下一次 axios 请求即生效, 无需 restart.
+   */
+  @Put('network-settings')
+  async updateNetworkSettings(@Body() dto: UpdateNetworkSettingsDto) {
+    await this.networkConfig.updateSettings(dto);
+    return this.networkConfig.getViewPayload();
   }
 
   /**
