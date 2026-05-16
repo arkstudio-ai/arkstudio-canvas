@@ -223,7 +223,10 @@ export const DEFAULT_NODE_DEFINITIONS: DefaultNodeDefinition[] = [
         label: 'GPT Image 2',
         action: 'image_generate',
         icon: 'Image',
-        allowedUpstreamTypes: ['text'],
+        // image upstream → i2i via /images/edits (multipart). Provider
+        // routes on family.startsWith('gpt-image-') + non-empty image
+        // inputs, so gpt-image-1 / 1.5 added via admin pick this up too.
+        allowedUpstreamTypes: ['text', 'image'],
         defaultParams: { aspectRatio: 'auto', quality: 'medium', resolution: '2k' },
         paramsSchema: [
           {

@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import type { AxiosProxyConfig } from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -92,6 +93,69 @@ export class NetworkConfigService implements OnModuleInit {
     const value = this.unwrapStringValue(row?.value);
     this.httpsProxyCache = { value, expiresAt: Date.now() + CACHE_TTL_MS };
     return value;
+  }
+
+  /**
+   * Build an axios `proxy` option for one outbound request. Used by
+   * providers that talk to *overseas* endpoints (OpenAI, OpenRouter, ...)
+   * where the user typically needs the configured HTTP/S proxy.
+   *
+   * Why per-request explicit `proxy` and not env-based detection:
+   *
+   *   axios v1 reads HTTP(S)_PROXY from `process.env` per request, but
+   *   the resulting http(s).Agent is cached in a process-wide pool. When
+   *   the env flips between "proxy set" and "proxy cleared" mid-process
+   *   (which is exactly what NetworkConfigService.applyToEnv does on
+   *   admin save), the next call may reuse a stale agent and surface
+   *   `ERR_ASSERTION / protocol mismatch`. Passing `proxy` (object or
+   *   `false`) explicitly per-request bypasses env detection entirely
+   *   and never collides with the pool.
+   *
+   * Semantics:
+   *   - `disabled` flag set → returns `false` (force direct)
+   *   - target is https → prefer `httpsProxy`, fall back to `httpProxy`
+   *   - target is http  → prefer `httpProxy`, fall back to `httpsProxy`
+   *   - no proxy configured → returns `false` (also bypasses pool)
+   *
+   * The returned `protocol` is the proxy *server*'s scheme (e.g. an
+   * `http://127.0.0.1:7890` HTTP proxy tunnels HTTPS targets via
+   * CONNECT — axios handles it natively in v1.x).
+   */
+  async getAxiosProxy(targetUrl: string): Promise<AxiosProxyConfig | false> {
+    if (await this.getDisabled()) return false;
+    const targetIsHttps = targetUrl.toLowerCase().startsWith('https:');
+    const primary = targetIsHttps
+      ? await this.getHttpsProxy()
+      : await this.getHttpProxy();
+    const fallback = targetIsHttps
+      ? await this.getHttpProxy()
+      : await this.getHttpsProxy();
+    const raw = primary ?? fallback;
+    if (!raw) return false;
+    try {
+      const u = new URL(raw);
+      const protocol = (u.protocol === 'https:' ? 'https' : 'http') as
+        | 'http'
+        | 'https';
+      const port = u.port
+        ? Number(u.port)
+        : protocol === 'https'
+          ? 443
+          : 80;
+      const cfg: AxiosProxyConfig = { protocol, host: u.hostname, port };
+      if (u.username || u.password) {
+        cfg.auth = {
+          username: decodeURIComponent(u.username),
+          password: decodeURIComponent(u.password),
+        };
+      }
+      return cfg;
+    } catch {
+      this.logger.warn(
+        `[network-config] proxy URL parse failed: ${raw}; falling back to direct`,
+      );
+      return false;
+    }
   }
 
   // ---- admin surface ------------------------------------------------------

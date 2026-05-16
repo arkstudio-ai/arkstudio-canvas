@@ -12,6 +12,9 @@ import { ProviderRegistry } from './provider-registry.service';
 import { CanvasConfigModule } from '../canvas-config/canvas-config.module';
 import { UploadModule } from '../upload/upload.module';
 import { VolcengineAssetModule } from '../volcengine-asset/volcengine-asset.module';
+// StorageModule provides LocalStorageService — openai-compat-image's
+// i2i path persists gpt-image-* b64_json responses to /static/uploads.
+import { StorageModule } from '../storage/storage.module';
 
 /**
  * Provider layer.
@@ -39,6 +42,7 @@ import { VolcengineAssetModule } from '../volcengine-asset/volcengine-asset.modu
     CanvasConfigModule,
     UploadModule,
     VolcengineAssetModule,
+    StorageModule,
   ],
   providers: [
     DashScopeVideoProvider,
