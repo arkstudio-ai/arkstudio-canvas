@@ -29,6 +29,7 @@ import { SettingsOverlay } from './SettingsOverlay';
 import { CustomTitleBar } from './CustomTitleBar';
 import { useGlobalShortcuts } from './useGlobalShortcuts';
 import { useUIStore } from '../store/uiStore';
+import { AssetLibraryPanel } from '../components/asset-library/AssetLibraryPanel';
 
 export interface DesktopShellProps {
   /** P3 main content. In production this is `<EditorPage … />`. */
@@ -39,6 +40,8 @@ export const DesktopShell: React.FC<DesktopShellProps> = ({ children }) => {
   useGlobalShortcuts();
   const railCollapsed = useUIStore((s) => s.secondaryRailCollapsed);
   const expandRail = useUIStore((s) => s.toggleSecondaryRail);
+  const assetLibraryOpen = useUIStore((s) => s.assetLibraryOpen);
+  const closeAssetLibrary = useUIStore((s) => s.closeAssetLibrary);
 
   return (
     <div style={rootStyle}>
@@ -91,6 +94,7 @@ export const DesktopShell: React.FC<DesktopShellProps> = ({ children }) => {
       </div>
       <StatusBar />
       <SettingsOverlay />
+      <AssetLibraryPanel isOpen={assetLibraryOpen} onClose={closeAssetLibrary} />
     </div>
   );
 };

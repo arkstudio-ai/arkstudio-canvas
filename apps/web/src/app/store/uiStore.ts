@@ -51,6 +51,11 @@ export interface AddNodeMenuItem {
 interface UIState {
   /** Settings (was: /admin/*) overlay visibility. Esc / scrim click closes. */
   settingsOpen: boolean;
+  /**
+   * Volcengine asset-library drawer visibility. StatusBar's 📦 button toggles
+   * it; the drawer renders a portal so its z-index doesn't tangle with P3.
+   */
+  assetLibraryOpen: boolean;
   /** Which sub-section the settings overlay's left nav has selected. Maps 1:1
    *  to existing admin module ids (usage / logs / config / system). */
   settingsSection: string;
@@ -169,6 +174,9 @@ interface UIState {
 
   openSettings: (section?: string) => void;
   closeSettings: () => void;
+  openAssetLibrary: () => void;
+  closeAssetLibrary: () => void;
+  toggleAssetLibrary: () => void;
   setSettingsSection: (section: string) => void;
   setSecondaryTab: (tab: SecondaryTab) => void;
   setCurrentFlowId: (id: string | null) => void;
@@ -197,6 +205,7 @@ interface UIState {
 
 export const useUIStore = create<UIState>((set) => ({
   settingsOpen: false,
+  assetLibraryOpen: false,
   settingsSection: 'usage',
   secondaryTab: 'nodes',
   secondaryRailCollapsed: false,
@@ -222,6 +231,10 @@ export const useUIStore = create<UIState>((set) => ({
       settingsSection: section ?? s.settingsSection,
     })),
   closeSettings: () => set({ settingsOpen: false }),
+  openAssetLibrary: () => set({ assetLibraryOpen: true }),
+  closeAssetLibrary: () => set({ assetLibraryOpen: false }),
+  toggleAssetLibrary: () =>
+    set((s) => ({ assetLibraryOpen: !s.assetLibraryOpen })),
   setSettingsSection: (section) => set({ settingsSection: section }),
   setSecondaryTab: (tab) => set({ secondaryTab: tab }),
   setCurrentFlowId: (id) => set({ currentFlowId: id }),

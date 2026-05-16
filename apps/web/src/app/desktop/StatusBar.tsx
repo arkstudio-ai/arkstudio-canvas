@@ -11,7 +11,7 @@
 // state — what they're looking at + what's being computed for them.
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Package } from 'lucide-react';
 
 import { API_BASE_URL } from '../config/api';
 import { useUIStore } from '../store/uiStore';
@@ -30,6 +30,7 @@ export const StatusBar: React.FC = () => {
   const edgeCount = useUIStore((s) => s.currentEdgesCount);
   const zoom = useUIStore((s) => s.currentZoom);
   const resetZoom = useUIStore((s) => s.resetZoom);
+  const openAssetLibrary = useUIStore((s) => s.openAssetLibrary);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,6 +121,23 @@ export const StatusBar: React.FC = () => {
             <strong style={numStyle}>{queue}</strong> 个生成中…
           </span>
         )}
+        <button
+          type="button"
+          onClick={openAssetLibrary}
+          style={assetBtnStyle}
+          title="火山方舟素材库 (Seedance 参考素材)"
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = '#fff';
+            e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = '#a8aeb6';
+            e.currentTarget.style.background = 'transparent';
+          }}
+        >
+          <Package size={11} />
+          <span>素材库</span>
+        </button>
       </div>
 
       <style>{`@keyframes cf-status-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
@@ -238,4 +256,20 @@ const queueStyle: React.CSSProperties = {
 
 const spinStyle: React.CSSProperties = {
   animation: 'cf-status-spin 1.2s linear infinite',
+};
+
+const assetBtnStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 5,
+  padding: '2px 8px',
+  height: 20,
+  border: 'none',
+  background: 'transparent',
+  color: '#a8aeb6',
+  fontSize: 11,
+  borderRadius: 4,
+  cursor: 'pointer',
+  fontVariantNumeric: 'tabular-nums',
+  transition: 'color 0.12s, background 0.12s',
 };
