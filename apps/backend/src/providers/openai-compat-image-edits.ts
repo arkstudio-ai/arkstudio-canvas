@@ -171,6 +171,22 @@ export class OpenAICompatImageEdits {
         filename: `inline.${mimeExt(mimeType)}`,
       };
     }
+    // Upstream nodes that already produced a result are persisted to
+    // LocalStorageService (`/static/uploads/...`). Reading those over
+    // HTTP would (a) need an absolute base URL (axios throws 'Invalid
+    // URL' on a bare `/static/...` path), (b) round-trip to ourselves
+    // for no reason. Read straight from disk via the storage service.
+    const local = await this.storage.readObjectByLocalUrl(url);
+    if (local) {
+      const mimeType = local.contentType.startsWith('image/')
+        ? local.contentType
+        : 'image/png';
+      return {
+        buffer: local.buffer,
+        mimeType,
+        filename: guessFilename(url, mimeType),
+      };
+    }
     const resp = await firstValueFrom(
       this.http.get(url, {
         responseType: 'arraybuffer',
