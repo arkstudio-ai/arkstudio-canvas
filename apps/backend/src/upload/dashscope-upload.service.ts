@@ -107,6 +107,10 @@ export class DashscopeUploadService {
         // setting it manually here drops the boundary param.
         maxContentLength: MAX_FILE_BYTES + 1024,
         maxBodyLength: MAX_FILE_BYTES + 1024,
+        // 同 fetchPolicy: 强制禁用 axios v1 env-based proxy detection.
+        // OSS upload host 在 oss-cn-* 子域名上, 直连最快; 走任何代理都可能
+        // protocol mismatch / TLS handshake reject.
+        proxy: false,
       });
       const elapsed = Date.now() - startTime;
       const ossUrl = `oss://${key}`;
@@ -122,10 +126,15 @@ export class DashscopeUploadService {
       };
     } catch (e) {
       const elapsed = Date.now() - startTime;
-      const status = e?.response?.status;
-      const body = e?.response?.data?.toString?.()?.slice?.(0, 400);
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      const body = (
+        e as { response?: { data?: { toString?: () => string } } }
+      )?.response?.data?.toString?.()?.slice?.(0, 400);
       this.logger.error(
-        `[dashscope-upload] ❌ failed (${elapsed}ms, status=${status}): ${(e as Error).message} ${body ?? ''}`,
+        `[dashscope-upload] ❌ failed (${elapsed}ms, status=${status}, ` +
+          `code=${(e as { code?: string })?.code ?? '?'}, host=${policy.upload_host}): ` +
+          `${(e as Error).message} ${body ?? ''}\n` +
+          `${(e as Error).stack ?? '(no stack)'}`,
       );
       throw new DashscopeUploadFailedError((e as Error).message, status, body);
     }
@@ -220,10 +229,24 @@ export class DashscopeUploadService {
         params: { action: 'getPolicy', model },
         headers: { Authorization: `Bearer ${apiKey}` },
         timeout: 15_000,
+        // 强制禁用 axios v1 的自动 env-based proxy detection. NetworkConfigService
+        // 已经在 process.env 层面禁用了代理 (force direct), 这里是 belt-and-
+        // suspenders — 避免 shell 重新 export HTTPS_PROXY 等情况漏过去.
+        proxy: false,
       });
     } catch (e) {
-      const status = e?.response?.status;
-      const body = JSON.stringify(e?.response?.data ?? null).slice(0, 400);
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      const body = JSON.stringify(
+        (e as { response?: { data?: unknown } })?.response?.data ?? null,
+      ).slice(0, 400);
+      // 把底层 error 的 code + stack 也打到 log, 方便排查 "protocol mismatch"
+      // 这类 axios message 不带上下文的错. catch 里抛出去的 wrapper 只保留
+      // 给用户看的 message, 调试细节走 logger 不污染前端面板.
+      this.logger.error(
+        `[dashscope-upload] getPolicy raw error (model=${model}, endpoint=${endpoint}, ` +
+          `code=${(e as { code?: string })?.code ?? '?'}, status=${status ?? '?'}): ` +
+          `${(e as Error).message}\n${(e as Error).stack ?? '(no stack)'}`,
+      );
       throw new DashscopeUploadFailedError(
         `getPolicy failed (model=${model}): ${(e as Error).message}`,
         status,

@@ -118,10 +118,21 @@ export class DashScopeVideoProvider implements ProviderClient {
             'X-DashScope-OssResourceResolve': 'enable',
             'Content-Type': 'application/json',
           },
+          // 强制直连 — 见 dashscope-chat.provider 同款 proxy:false 注释.
+          proxy: false,
         }),
       );
     } catch (e: any) {
       const data = e?.response?.data ?? null;
+      // 把上游 DashScope 返回的真实错误码 + body 落 log, 不然 ExecutionsService
+      // 那层只看到 wrapper HttpException 类名 ("Http Exception"), root cause 全
+      // 丢失. 跟 dashscope-upload.service 那对 catch 同款做法.
+      this.logger.error(
+        `[dashscope-video:submit] ❌ sku=${req.modelSku} ` +
+          `status=${e?.response?.status ?? '?'} code=${e?.code ?? '?'} ` +
+          `upstream=${JSON.stringify(data).slice(0, 600)} ` +
+          `axiosMessage=${(e as Error).message}`,
+      );
       const err = this.toHttpException(
         data?.message || e?.message || 'DashScope submit failed',
         e?.response?.status ?? 502,
@@ -168,6 +179,7 @@ export class DashScopeVideoProvider implements ProviderClient {
         this.httpService.get(url, {
           timeout: this.POLL_TIMEOUT_MS,
           headers: { Authorization: `Bearer ${apiKey}` },
+          proxy: false,
         }),
       );
     } catch (e: any) {

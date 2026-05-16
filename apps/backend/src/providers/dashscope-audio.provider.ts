@@ -128,6 +128,8 @@ export class DashScopeAudioProvider implements ProviderClient {
             'X-DashScope-OssResourceResolve': 'enable',
             'Content-Type': 'application/json',
           },
+          // 强制直连 — 见 dashscope-chat.provider 同款 proxy:false 注释.
+          proxy: false,
         }),
       );
     } catch (e: any) {
@@ -289,6 +291,8 @@ export class DashScopeAudioProvider implements ProviderClient {
             'X-DashScope-OssResourceResolve': 'enable',
             'Content-Type': 'application/json',
           },
+          // 强制直连 — 见 dashscope-chat.provider 同款 proxy:false 注释.
+          proxy: false,
         }),
       );
     } catch (e: any) {

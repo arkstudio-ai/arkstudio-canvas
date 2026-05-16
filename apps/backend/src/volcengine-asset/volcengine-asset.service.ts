@@ -188,6 +188,8 @@ export class VolcengineAssetService {
             'Content-Type': 'application/json',
           },
           timeout: 15_000,
+          // 火山方舟直连, 跟 volcengine-video provider 一致.
+          proxy: false,
         }),
       );
       return resp.data;

@@ -159,6 +159,9 @@ export class VolcengineVideoProvider implements ProviderClient {
             Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
+          // 火山方舟在国内 IDC, 直连最稳; 走代理 (例如用户翻墙 Clash) 容易
+          // 在 axios agent pool 缓存里撞 ERR_ASSERTION / protocol mismatch.
+          proxy: false,
         }),
       );
     } catch (e: unknown) {
@@ -220,6 +223,7 @@ export class VolcengineVideoProvider implements ProviderClient {
         this.httpService.get(url, {
           timeout: this.POLL_TIMEOUT_MS,
           headers: { Authorization: `Bearer ${apiKey}` },
+          proxy: false,
         }),
       );
     } catch (e: unknown) {
