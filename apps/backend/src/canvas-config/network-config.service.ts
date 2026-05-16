@@ -333,17 +333,22 @@ export class NetworkConfigService implements OnModuleInit {
     httpsProxyUrl: string | null | undefined,
   ): void {
     try {
+      // Casts: Http(s)ProxyAgent extends `Agent` from `agent-base`, not
+      // Node's http.Agent / https.Agent — runtime fully compatible
+      // (we verified `https.globalAgent = new HttpsProxyAgent(...)`
+      // works), but TS's structural check rejects the assignment. The
+      // double-`unknown` cast tells TS we know what we're doing.
       if (httpProxyUrl) {
         http.globalAgent = new HttpProxyAgent(httpProxyUrl, {
           keepAlive: true,
-        });
+        }) as unknown as HttpType.Agent;
       } else {
         http.globalAgent = new http.Agent({ keepAlive: true });
       }
       if (httpsProxyUrl) {
         https.globalAgent = new HttpsProxyAgent(httpsProxyUrl, {
           keepAlive: true,
-        });
+        }) as unknown as HttpsType.Agent;
       } else {
         https.globalAgent = new https.Agent({ keepAlive: true });
       }
