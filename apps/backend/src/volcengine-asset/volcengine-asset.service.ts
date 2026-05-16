@@ -1,6 +1,13 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
+// Diagnostic-only: log which globalAgent class is in use when a request
+// fails, so we can tell whether the "protocol mismatch" is coming from
+// our installed agent vs something axios picked up itself.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const http = require('http') as typeof import('http');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const https = require('https') as typeof import('https');
 import { VolcengineConfigService } from '../canvas-config/volcengine-config.service';
 import type {
   AssetDto,
@@ -195,6 +202,8 @@ export class VolcengineAssetService {
       const ex = err as {
         response?: { status?: number; data?: unknown };
         message?: string;
+        code?: string;
+        stack?: string;
       };
       const status = ex.response?.status ?? 502;
       const data = ex.response?.data as
@@ -213,7 +222,10 @@ export class VolcengineAssetService {
         ex.message ||
         '代理资产 API 请求失败';
       this.logger.error(
-        `[volc-asset] ${path} failed (${status}): ${message}`,
+        `[volc-asset] ${path} failed (${status}): ${message} ` +
+          `[diag url=${url} code=${ex.code ?? '?'} httpAgent=${(http.globalAgent as { constructor: { name: string } }).constructor.name} ` +
+          `httpsAgent=${(https.globalAgent as { constructor: { name: string } }).constructor.name}]\n` +
+          `${(ex.stack ?? '').split('\n').slice(0, 8).join('\n')}`,
       );
       // 401 映射到 503 避免前端全局登出逻辑被误触发 (跟老 executor 同款)
       throw new HttpException(
