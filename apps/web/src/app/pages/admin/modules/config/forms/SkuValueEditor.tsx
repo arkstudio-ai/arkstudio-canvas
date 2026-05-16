@@ -49,6 +49,10 @@ export const KNOWN_SKU_PREFIXES: SkuPrefix[] = [
   { prefix: 'glm', provider: 'DashScope · 文本' },
   { prefix: 'speech-', provider: 'DashScope · TTS' },
   { prefix: 'fun-music', provider: 'DashScope · 音乐' },
+  // Volcengine 火山方舟 — longer prefix first so 'doubao-seedance-2-0-260128'
+  // detects as `doubao-seedance-` rather than falling through to `seedance-`.
+  { prefix: 'doubao-seedance-', provider: 'Volcengine · Seedance 视频' },
+  { prefix: 'seedance-', provider: 'Volcengine · Seedance 视频 (裸前缀)' },
 ];
 
 /** First prefix that `value` starts with (case-insensitive); null if none. */
