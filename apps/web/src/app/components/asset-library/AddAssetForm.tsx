@@ -95,7 +95,11 @@ export const AddAssetForm: React.FC<AddAssetFormProps> = ({
         />
       </div>
       <div style={formNoteStyle}>
-        ⚠ URL 必须公网可达. localhost / 内网 / 局域网地址火山服务器拉不到.
+        ⚠ URL 必须公网可达 — 火山服务器要在线拉这个文件.
+        <br />
+        常用来源:GitHub raw 链接 · 图床 (sm.ms / imgbb) · OSS / TOS / COS 控制台手传后拿可访问 URL.
+        <br />
+        ⏳ 本地直接上传暂未支持（P2 排期，要等接 tunnel 或对象存储桥接）.
       </div>
       <div style={formActionsStyle}>
         <button type="button" style={secondaryBtnStyle} onClick={onCancel}>
