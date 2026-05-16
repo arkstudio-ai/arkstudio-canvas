@@ -172,6 +172,12 @@ export const NetworkSection: React.FC = () => {
               <em style={emTagStyle}>(无)</em> — axios 走直连
             </code>
           )}
+          {view.globalAgent && (
+            <code style={effectiveLineStyle}>
+              http.globalAgent={view.globalAgent.http} · https.globalAgent=
+              {view.globalAgent.https}
+            </code>
+          )}
           <button
             type="button"
             style={{ ...buttonAccentStyle, marginTop: 8 }}

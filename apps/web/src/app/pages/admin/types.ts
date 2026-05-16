@@ -326,6 +326,13 @@ export interface NetworkSettingsView {
     httpProxy: string | null;
     httpsProxy: string | null;
   };
+  /** Constructor name of http(s).globalAgent right now. Triages
+   *  "protocol mismatch" without a backend restart — `HttpProxyAgent`
+   *  / `HttpsProxyAgent` for proxied, `Agent` for direct. */
+  globalAgent?: {
+    http: string;
+    https: string;
+  };
 }
 
 export interface NetworkSettingsUpdate {

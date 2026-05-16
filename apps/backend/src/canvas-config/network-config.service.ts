@@ -70,11 +70,6 @@ export class NetworkConfigService implements OnModuleInit {
   private httpProxyCache: CachedValue<string | null> | null = null;
   private httpsProxyCache: CachedValue<string | null> | null = null;
   private disabledCache: CachedValue<boolean> | null = null;
-  // Mirrored snapshot of what's currently glued onto http.globalAgent /
-  // https.globalAgent — used by `getViewPayload` so the admin UI shows
-  // what's actually in effect (not what's in the DB at read time).
-  private appliedHttpProxy: string | null = null;
-  private appliedHttpsProxy: string | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -123,11 +118,25 @@ export class NetworkConfigService implements OnModuleInit {
     httpProxy: string;
     httpsProxy: string;
     disabled: boolean;
-    /** Snapshot of what's actually wired into globalAgent right now —
-     *  diagnostic, so admin sees what every outbound call will use. */
+    /**
+     * What `process.env.HTTP(S)_PROXY` ACTUALLY contains at view time.
+     * Reads env directly so admin can spot shell-leaked values that
+     * NetworkConfigService didn't put there (e.g. shell `export
+     * HTTPS_PROXY=socks5://...` that survived our unsetProxyEnv).
+     */
     effective: {
       httpProxy: string | null;
       httpsProxy: string | null;
+    };
+    /**
+     * What's wired into http(s).globalAgent right now. Constructor
+     * name disambiguates HttpProxyAgent vs HttpsProxyAgent vs plain
+     * Agent. Used to triage "protocol mismatch" without a backend
+     * restart.
+     */
+    globalAgent: {
+      http: string;
+      https: string;
     };
   }> {
     const [httpProxy, httpsProxy, disabled] = await Promise.all([
@@ -140,8 +149,14 @@ export class NetworkConfigService implements OnModuleInit {
       httpsProxy: httpsProxy ?? '',
       disabled,
       effective: {
-        httpProxy: this.appliedHttpProxy,
-        httpsProxy: this.appliedHttpsProxy,
+        httpProxy: process.env.HTTP_PROXY ?? process.env.http_proxy ?? null,
+        httpsProxy: process.env.HTTPS_PROXY ?? process.env.https_proxy ?? null,
+      },
+      globalAgent: {
+        http: (http.globalAgent as { constructor: { name: string } })
+          .constructor.name,
+        https: (https.globalAgent as { constructor: { name: string } })
+          .constructor.name,
       },
     };
   }
@@ -236,14 +251,17 @@ export class NetworkConfigService implements OnModuleInit {
       this.getDisabled(),
     ]);
 
+    // Tear down whatever's currently on globalAgent before installing
+    // the new one — otherwise axios's keep-alive pool can hand out a
+    // stale socket from the OLD agent (the classic "protocol mismatch"
+    // / ERR_ASSERTION case when the previous agent was for a different
+    // protocol or proxy mode).
+    this.destroyExistingGlobalAgents();
+
     if (disabled || (!httpProxy && !httpsProxy)) {
       this.installDirectAgents();
       this.unsetProxyEnv();
-      this.appliedHttpProxy = null;
-      this.appliedHttpsProxy = null;
-      this.logger.log(
-        `[network-config] proxy ${disabled ? 'disabled (force direct)' : 'unset'} — globalAgent reset to direct`,
-      );
+      this.logSnapshot('direct', disabled);
       return;
     }
 
@@ -260,12 +278,42 @@ export class NetworkConfigService implements OnModuleInit {
       process.env.https_proxy = httpsEffective;
     }
 
-    this.appliedHttpProxy = httpEffective ?? null;
-    this.appliedHttpsProxy = httpsEffective ?? null;
+    this.logSnapshot('proxied', false);
+  }
+
+  /**
+   * Diagnostic log — prints exactly what's wired into globalAgent +
+   * what's actually in process.env right now. Helpful when "protocol
+   * mismatch" reappears: a single grep tells you whether the agents
+   * + env match the admin UI's expectation.
+   */
+  private logSnapshot(mode: 'direct' | 'proxied', disabled: boolean): void {
+    const httpName = (http.globalAgent as { constructor: { name: string } })
+      .constructor.name;
+    const httpsName = (https.globalAgent as { constructor: { name: string } })
+      .constructor.name;
+    const httpProto = (http.globalAgent as { protocol?: string }).protocol;
+    const httpsProto = (https.globalAgent as { protocol?: string }).protocol;
     this.logger.log(
-      `[network-config] proxy applied globally: http=${this.maskProxy(httpEffective)} ` +
-        `https=${this.maskProxy(httpsEffective)} (wired to globalAgent + env)`,
+      `[network-config] applied mode=${mode}${disabled ? ' (force direct)' : ''} ` +
+        `http.globalAgent=${httpName}/${httpProto} ` +
+        `https.globalAgent=${httpsName}/${httpsProto} ` +
+        `env={HTTP_PROXY:${process.env.HTTP_PROXY ? this.maskProxy(process.env.HTTP_PROXY) : '(unset)'},` +
+        `HTTPS_PROXY:${process.env.HTTPS_PROXY ? this.maskProxy(process.env.HTTPS_PROXY) : '(unset)'}}`,
     );
+  }
+
+  private destroyExistingGlobalAgents(): void {
+    try {
+      (http.globalAgent as { destroy?: () => void }).destroy?.();
+    } catch {
+      /* ignore — globalAgent might already be torn down */
+    }
+    try {
+      (https.globalAgent as { destroy?: () => void }).destroy?.();
+    } catch {
+      /* ignore */
+    }
   }
 
   private installProxyAgents(
