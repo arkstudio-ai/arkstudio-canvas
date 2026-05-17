@@ -62,14 +62,17 @@ export interface CreateAssetInput {
  * configured? Used by AddAssetForm to decide whether to expose the
  * "本地上传" radio option. Reads the public oss-settings endpoint
  * (same one /admin/system uses); we only care about the `ready` flag.
+ *
+ * apiClient 的 response interceptor 已经把 `{success,code,data}` 自动剥
+ * 成 data, 所以这里 res.data 已经是 OssSettingsView, 直接读 .ready;
+ * 不要再 res.data.data.ready (那会拿到 undefined → 永远 false, 实测撞过).
  */
 export async function getOssReady(): Promise<boolean> {
   try {
-    const res = await apiClient.get<{
-      success: boolean;
-      data: { ready: boolean };
-    }>('/api/canvas-flow/oss-settings');
-    return Boolean(res.data?.data?.ready);
+    const res = await apiClient.get<{ ready: boolean }>(
+      '/api/canvas-flow/oss-settings',
+    );
+    return Boolean(res.data?.ready);
   } catch {
     return false;
   }
