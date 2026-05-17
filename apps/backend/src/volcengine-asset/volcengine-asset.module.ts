@@ -1,6 +1,14 @@
 import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { CanvasConfigModule } from '../canvas-config/canvas-config.module';
+// UploadModule gives access to OssUploadService — needed so CreateAsset
+// can transparently stage a local `/static/uploads/...` URL to the
+// admin-configured bucket before handing the public URL to Volcengine
+// (which can't reach localhost from its server-side fetch).
+import { UploadModule } from '../upload/upload.module';
+// StorageModule provides LocalStorageService — used to detect whether
+// an incoming CreateAsset URL is a local /static/uploads path.
+import { StorageModule } from '../storage/storage.module';
 import { VolcengineAssetController } from './volcengine-asset.controller';
 import { VolcengineAssetService } from './volcengine-asset.service';
 
@@ -17,7 +25,7 @@ import { VolcengineAssetService } from './volcengine-asset.service';
  * any `asset://` URI.
  */
 @Module({
-  imports: [HttpModule, CanvasConfigModule],
+  imports: [HttpModule, CanvasConfigModule, UploadModule, StorageModule],
   controllers: [VolcengineAssetController],
   providers: [VolcengineAssetService],
   exports: [VolcengineAssetService],

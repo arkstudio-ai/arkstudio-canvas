@@ -9,6 +9,8 @@ const http = require('http') as typeof import('http');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const https = require('https') as typeof import('https');
 import { VolcengineConfigService } from '../canvas-config/volcengine-config.service';
+import { OssUploadService } from '../upload/oss-upload.service';
+import { LocalStorageService } from '../storage/local-storage.service';
 import type {
   AssetDto,
   AssetStatus,
@@ -48,6 +50,8 @@ export class VolcengineAssetService {
   constructor(
     private readonly httpService: HttpService,
     private readonly volcengineConfig: VolcengineConfigService,
+    private readonly ossUpload: OssUploadService,
+    private readonly localStorage: LocalStorageService,
   ) {}
 
   // ============================================================
@@ -55,11 +59,18 @@ export class VolcengineAssetService {
   // ============================================================
 
   async create(input: CreateAssetDto): Promise<AssetDto> {
+    // Volcengine CreateAsset 是 server-side fetch: 它自己从给定 URL 拉素材.
+    // localhost / /static/uploads 路径它够不到, 必须先 stage 到公网 OSS / TOS.
+    // 跟 volcengine-video provider 那条 stageLocalInputs 同口径, 这里收口
+    // 让前端可以直接传 /static/uploads/... URL (前端只关心上传, 不需要懂
+    // OSS staging).
+    const publicUrl = await this.stageLocalIfNeeded(input.url);
     this.logger.log(
-      `[volc-asset:create] type=${input.assetType} url=${input.url.slice(0, 80)}`,
+      `[volc-asset:create] type=${input.assetType} url=${publicUrl.slice(0, 80)}` +
+        (publicUrl !== input.url ? ' (staged from local)' : ''),
     );
     const body = {
-      URL: input.url,
+      URL: publicUrl,
       AssetType: input.assetType,
       ...(input.name ? { Name: input.name } : {}),
     };
@@ -82,12 +93,51 @@ export class VolcengineAssetService {
     return this.toAssetDto({
       ...r,
       // CreateAsset 立即返回时上游通常省略 URL/Name；保留我们已知的入参
+      // (用 publicUrl 而不是原始 input.url, 保证 list/get 拉回来时跟首次
+      // 返回的形态一致, 避免出现两份 URL).
       Id: id,
-      URL: (r.URL as string) ?? input.url,
+      URL: (r.URL as string) ?? publicUrl,
       Name: (r.Name as string) ?? input.name,
       AssetType: (r.AssetType as string) ?? input.assetType,
       Status: (r.Status as string) ?? 'Processing',
     });
+  }
+
+  /**
+   * Detect a local `/static/uploads/...` (relative or loopback absolute)
+   * URL and stage it to the admin-configured OSS / TOS bucket. Returns
+   * the public URL on success, the original on no-op (already public).
+   *
+   * Throws 400 if the URL is local but OSS isn't configured — same
+   * pointer-to-admin error volcengine-video uses, keeps the user
+   * experience consistent across the two callers.
+   */
+  private async stageLocalIfNeeded(url: string): Promise<string> {
+    if (!this.localStorage.isLocalUrl(url)) return url;
+    const ossReady = await this.ossUpload.isReady();
+    if (!ossReady) {
+      throw new HttpException(
+        {
+          errorMessage:
+            '本地文件需要先配置对象存储 — 火山方舟服务端要去拉这个 URL, ' +
+            '它够不到 localhost. 请去 /admin/system → 对象存储 (OSS / TOS) ' +
+            '配一个 bucket, 或改成直接粘公网 URL.',
+        },
+        400,
+      );
+    }
+    const result = await this.ossUpload.stageLocalToOss(url);
+    if (!result) {
+      throw new HttpException(
+        {
+          errorMessage:
+            'OSS staging 失败: 凭据可能被 admin 中途清掉或上传出错, ' +
+            '请刷新 /admin/system 检查 OSS / TOS 配置.',
+        },
+        500,
+      );
+    }
+    return result.publicUrl;
   }
 
   async get(assetId: string): Promise<AssetDto> {

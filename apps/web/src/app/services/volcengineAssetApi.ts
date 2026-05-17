@@ -46,11 +46,33 @@ export interface ListAssetsResult {
 }
 
 export interface CreateAssetInput {
-  /** Public-internet-reachable URL. Local backend URLs WON'T work — Volcengine
-   *  servers need to fetch the file. */
+  /**
+   * Volcengine 服务端会 server-side fetch 这个 URL. 公网 URL 直接传;
+   * 本地 `/static/uploads/<key>` URL 也能传 — backend 在 CreateAsset
+   * 前会自动 stage 到 admin 配的 OSS / TOS, 再用得到的公网 URL 上报.
+   * 没配 OSS 又传本地 URL → backend 400 + 中文报错让用户去 /admin/system.
+   */
   url: string;
   assetType: AssetType;
   name?: string;
+}
+
+/**
+ * Cheap probe — does this deployment have an OSS / TOS bucket
+ * configured? Used by AddAssetForm to decide whether to expose the
+ * "本地上传" radio option. Reads the public oss-settings endpoint
+ * (same one /admin/system uses); we only care about the `ready` flag.
+ */
+export async function getOssReady(): Promise<boolean> {
+  try {
+    const res = await apiClient.get<{
+      success: boolean;
+      data: { ready: boolean };
+    }>('/api/canvas-flow/oss-settings');
+    return Boolean(res.data?.data?.ready);
+  } catch {
+    return false;
+  }
 }
 
 const BASE = '/api/volcengine/assets';
