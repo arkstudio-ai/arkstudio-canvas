@@ -76,6 +76,16 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
+  # differentialPackage:false 关掉增量更新分支. 开着的话 uninstaller 启动时
+  # 会算 base + patch 两份 checksum, 任何一份对不上就报 "Installer integrity
+  # check has failed" (实测用户机上撞过). 当前没在用 electron-updater 增量,
+  # 全量覆盖更可控.
+  differentialPackage: false
+  # deleteAppDataOnUninstall:false 显式声明卸载不删 userData. 默认值就是
+  # 这样, 写出来防以后跟着模板抄到 true. 保留 SQLite + 配置 + 引用素材,
+  # 用户重装能无缝继续; 真要全清得用户手动删
+  # %APPDATA%\canvas-flow-desktop\.
+  deleteAppDataOnUninstall: false
 
 # 隐式默认会把 dependencies (devDependencies 不会) 复制到 app.asar/node_modules
 # 里。我们已经在 files 段显式控制，加上禁用 npmRebuild，足够干净。
