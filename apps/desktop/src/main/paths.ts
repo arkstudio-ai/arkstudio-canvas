@@ -36,6 +36,13 @@ export interface DesktopPaths {
   backendBundleDir: string;
   /** Compiled seed entry; spawned with `--if-empty` to seed default node definitions on a fresh install. */
   seedScript: string;
+  /**
+   * Compiled add-only patch script; spawned with `--apply` after seed
+   * on every launch to back-port new model entries (e.g. Seedance added
+   * after the user first installed) into the existing SQLite without
+   * touching any field admin已 edit过的. Safe to no-op when up to date.
+   */
+  modelPatchScript: string;
 }
 
 export function resolveDesktopPaths(): DesktopPaths {
@@ -70,5 +77,12 @@ export function resolveDesktopPaths(): DesktopPaths {
     prismaCli: path.join(backendBundleDir, 'node_modules', 'prisma', 'build', 'index.js'),
     backendBundleDir,
     seedScript: path.join(backendBundleDir, 'dist', 'prisma', 'seed-canvas-config.js'),
+    modelPatchScript: path.join(
+      backendBundleDir,
+      'dist',
+      'prisma',
+      'patches',
+      'sync-default-models.js',
+    ),
   };
 }

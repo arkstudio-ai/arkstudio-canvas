@@ -18,6 +18,7 @@ import { loadOrCreateSecrets } from './secrets.js';
 import { startBackend, type BackendHandle } from './backend.js';
 import { ensureSchema } from './bootstrap-db.js';
 import { ensureSeed } from './bootstrap-seed.js';
+import { ensureModelPatch } from './bootstrap-patch.js';
 import { createMainWindow } from './window.js';
 import {
   type DesktopSettings,
@@ -111,6 +112,17 @@ async function bootstrap() {
     if (!isDev) {
       await ensureSchema({ paths });
       await ensureSeed({ paths });
+      // patch 每次启动都跑, 把后来加进 default-node-definitions 的新模型
+      // back-port 到老用户的 SQLite. best-effort — 失败只 log warn,
+      // 不阻塞启动 (seed 失败才是 fatal).
+      try {
+        await ensureModelPatch({ paths });
+      } catch (err) {
+        log.warn(
+          '[main] model-patch failed (continuing anyway):',
+          (err as Error).message,
+        );
+      }
     }
 
     backend = await startBackend({

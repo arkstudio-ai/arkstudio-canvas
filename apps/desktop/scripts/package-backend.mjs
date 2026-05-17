@@ -90,6 +90,10 @@ run(
     '--resolveJsonModule',
     '--outDir', PKG_DIST_REL,
     'prisma/seed-canvas-config.ts',
+    // 也编 patch 脚本 — 桌面端每次启动会 spawn 这个 --apply,
+    // 把后来加进 default-node-definitions 的新模型 (e.g. Seedance)
+    // back-port 到老用户的 SQLite, 不动 admin 已编辑过的字段.
+    'prisma/patches/sync-default-models.ts',
   ],
 );
 
@@ -164,6 +168,7 @@ const required = [
   // apps/backend/, 所以这些文件落在 dist/prisma 而不是 dist 顶层:
   path.join(OUT_DIR, 'dist', 'prisma', 'seed-canvas-config.js'),
   path.join(OUT_DIR, 'dist', 'prisma', 'default-node-definitions.js'),
+  path.join(OUT_DIR, 'dist', 'prisma', 'patches', 'sync-default-models.js'),
   path.join(OUT_DIR, 'dist', 'src', 'bootstrap-env.js'),
   path.join(OUT_DIR, 'prisma', 'schema.prisma'),
   path.join(OUT_DIR, 'node_modules', 'prisma', 'build', 'index.js'),
