@@ -1,5 +1,10 @@
 # compiled output
 /dist
+# Isolated dist used by apps/desktop/scripts/package-backend.mjs so the
+# packaging pipeline doesn't fight dev's nest start --watch (both would
+# otherwise write to /dist, and nest-cli's deleteOutDir clobbers the
+# dev backend mid-build → "Cannot find module './app.module'" crash).
+/.dist-package
 /node_modules
 /build
 

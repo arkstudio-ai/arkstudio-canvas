@@ -53,14 +53,31 @@ fs.mkdirSync(path.dirname(OUT_DIR), { recursive: true });
 //   .prisma/client/ 一起复制过去.
 run('pnpm', ['--filter', 'canvas-flow-backend', 'exec', 'prisma', 'generate']);
 
-// Step 3: nest build → apps/backend/dist
-run('pnpm', ['--filter', 'canvas-flow-backend', 'build']);
+// Step 3: tsc → apps/backend/.dist-package (isolated from dev's /dist).
+//
+// 历史包袱: nest-cli 的 deleteOutDir 会在 build 起跳那瞬间把 /dist 整个干掉.
+// 如果用户同时在跑 `pnpm dev:desktop` (内含 nest start --watch), dev backend
+// 已经载到 main.js 然后 require './app.module', 我们这边一波 deleteOutDir
+// 把 app.module.js 抹掉, 下一次 dev 触发重启就 MODULE_NOT_FOUND 当场崩.
+//
+// 改成: 走纯 tsc + 自定义 outDir, 把 packaging 产物隔离到 .dist-package/,
+// dev 的 /dist 完全不动. 后面 Step 4b 再把 .dist-package 内容拷到 OUT_DIR/dist.
+const PKG_DIST_REL = '.dist-package';
+const BACKEND_DIR = path.join(MONOREPO_ROOT, 'apps', 'backend');
+const PKG_DIST_ABS = path.join(BACKEND_DIR, PKG_DIST_REL);
+rmrf(PKG_DIST_ABS);
 
-// Step 3b: 独立 tsc 把 prisma/seed-canvas-config.ts 编到 dist/.
-//   nest build 只覆盖 src/, prisma/ 下的种子脚本要单独编译.
-//   桌面端首次启动会用 ELECTRON_RUN_AS_NODE 跑这个 .js, 把默认节点目录
-//   + token/style globalConfig 灌进 SQLite. 与 docker-entrypoint.sh 复用
-//   同一份产物 (apps/backend/Dockerfile 也做同样的事).
+run('pnpm', [
+  '--filter', 'canvas-flow-backend', 'exec', 'tsc',
+  '-p', 'tsconfig.build.json',
+  '--outDir', PKG_DIST_REL,
+]);
+
+// Step 3b: prisma/seed-canvas-config.ts 单独 tsc 到 .dist-package.
+//   src/ 编译由 step 3 的 tsconfig.build.json 管, prisma/ 不在 include 里,
+//   要单独编. 桌面端首次启动会 ELECTRON_RUN_AS_NODE 跑这个 .js, 灌默认
+//   节点目录 + token/style globalConfig 进 SQLite. docker-entrypoint.sh
+//   复用同一份产物 (apps/backend/Dockerfile 也做同样的事).
 run(
   'pnpm',
   [
@@ -71,7 +88,7 @@ run(
     '--esModuleInterop',
     '--skipLibCheck',
     '--resolveJsonModule',
-    '--outDir', 'dist',
+    '--outDir', PKG_DIST_REL,
     'prisma/seed-canvas-config.ts',
   ],
 );
@@ -92,6 +109,14 @@ run(
 //   hoisted 布局把所有 prod 依赖直接平铺到 node_modules/<pkg>, 无 .pnpm/ 虚拟仓,
 //   无 symlink, npm classic 风格. 体积略升 (peer deps 可能重复), 但稳.
 run('pnpm', ['--filter', 'canvas-flow-backend', 'deploy', '--legacy', '--prod', '--config.node-linker=hoisted', OUT_DIR]);
+
+// Step 4b: 把 .dist-package 内容拷到 deployed bundle 的 dist/.
+//   pnpm deploy 按 package.json#files 把 src 的 dist/ (dev 残留, 可能没,
+//   可能 stale) 复制过去 — 不是我们想要的产物. 这里强制用 .dist-package
+//   覆盖, 保证 OUT_DIR/dist 是这次 packaging tsc 出的干净版本.
+const deployedDistDir = path.join(OUT_DIR, 'dist');
+rmrf(deployedDistDir);
+fs.cpSync(PKG_DIST_ABS, deployedDistDir, { recursive: true });
 
 // Step 5: 在 deployed bundle 内部再跑一次 prisma generate.
 //   pnpm deploy 跑的是 fresh install, 不会自动跑 prisma generate,
