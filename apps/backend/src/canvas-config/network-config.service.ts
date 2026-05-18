@@ -145,14 +145,27 @@ export class NetworkConfigService implements OnModuleInit {
       this.getHttpsProxy(),
       this.getDisabled(),
     ]);
+    // effective.* 是 diagnostic 显示, 来自 process.env, 可能带
+    // `user:pass@host` 形式的 inline 凭据 (proxy basic auth) — 经
+    // maskProxy 脱敏成 `http://***:***@host` 再返. 上面的 httpProxy /
+    // httpsProxy 是 DB 草稿 (admin 表单的初始值), 不能 mask, 否则
+    // 用户编辑后提交的就是 *** 字符串.
+    const rawHttpEffective =
+      process.env.HTTP_PROXY ?? process.env.http_proxy ?? null;
+    const rawHttpsEffective =
+      process.env.HTTPS_PROXY ?? process.env.https_proxy ?? null;
+    const rawAllEffective =
+      process.env.ALL_PROXY ?? process.env.all_proxy ?? null;
     return {
       httpProxy: httpProxy ?? '',
       httpsProxy: httpsProxy ?? '',
       disabled,
       effective: {
-        httpProxy: process.env.HTTP_PROXY ?? process.env.http_proxy ?? null,
-        httpsProxy: process.env.HTTPS_PROXY ?? process.env.https_proxy ?? null,
-        allProxy: process.env.ALL_PROXY ?? process.env.all_proxy ?? null,
+        httpProxy: rawHttpEffective ? this.maskProxy(rawHttpEffective) : null,
+        httpsProxy: rawHttpsEffective
+          ? this.maskProxy(rawHttpsEffective)
+          : null,
+        allProxy: rawAllEffective ? this.maskProxy(rawAllEffective) : null,
       },
       globalAgent: {
         http: (http.globalAgent as { constructor: { name: string } })
