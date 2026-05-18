@@ -130,6 +130,19 @@ async function bootstrap() {
       encryptionKey: secrets.encryptionKey,
       devMode: isDev,
       devPort: DEV_BACKEND_PORT,
+      // backend 子进程在 startBackend resolve 后崩了, 主进程要给一个真
+      // 错误对话框 — 不然窗口在, 所有 API 调用静默失败, 用户以为是 app
+      // 卡死. 弹完直接 exit, 没 backend 渲染层什么都干不了.
+      onUnexpectedExit: ({ code, signal }) => {
+        log.error(`[main] backend child unexpectedly exited code=${code} signal=${signal}`);
+        dialog.showErrorBox(
+          'Canvas Flow 后端崩溃',
+          `后端子进程意外退出 (code=${code}, signal=${signal}).\n\n` +
+            `日志位于 ${path.join(paths.userData, 'logs', 'main.log')}\n\n` +
+            `点击确定退出 app, 重新打开会重启 backend.`,
+        );
+        app.exit(1);
+      },
     });
   } catch (err) {
     // Show a real dialog so a packaged user isn't left staring at a hung dock

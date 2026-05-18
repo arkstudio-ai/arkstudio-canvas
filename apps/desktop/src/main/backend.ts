@@ -62,6 +62,16 @@ export interface StartBackendOptions {
   devMode: boolean;
   /** Dev mode reads this from env / default 18500. Prod ignores it (we allocate dynamically). */
   devPort?: number;
+  /**
+   * Called when the backend child exits UNEXPECTEDLY (after startBackend
+   * resolved successfully, before we called stop()). Useful to pop a
+   * "backend crashed" dialog from the main process — without this the
+   * Electron window stays on screen but every API call fails silently,
+   * which looks identical to "app frozen" from the user side.
+   *
+   * Dev mode doesn't fire this (we don't own the dev backend process).
+   */
+  onUnexpectedExit?: (info: { code: number | null; signal: string | null }) => void;
 }
 
 export async function startBackend(opts: StartBackendOptions): Promise<BackendHandle> {
@@ -107,8 +117,14 @@ export async function startBackend(opts: StartBackendOptions): Promise<BackendHa
     log.warn('[backend:stderr]', chunk.toString().trimEnd());
   });
 
+  // intentionalStop: 用 stopGracefully 主动关时 = true, 单独的 exit
+  // 就不再触发 onUnexpectedExit (那是用户 quit, 不是崩).
+  let intentionalStop = false;
   child.on('exit', (code, signal) => {
     log.warn(`[backend] child exited code=${code} signal=${signal}`);
+    if (!intentionalStop && opts.onUnexpectedExit) {
+      opts.onUnexpectedExit({ code, signal });
+    }
   });
 
   // Block until the backend reports healthy. If it never does we propagate the
@@ -117,13 +133,17 @@ export async function startBackend(opts: StartBackendOptions): Promise<BackendHa
   try {
     await waitForHealth(baseUrl, 30_000);
   } catch (err) {
+    intentionalStop = true; // 是我们主动 kill 的, 别再触发 unexpected exit dialog
     child.kill('SIGTERM');
     throw err;
   }
 
   return {
     baseUrl,
-    stop: () => stopGracefully(child, 5_000),
+    stop: () => {
+      intentionalStop = true;
+      return stopGracefully(child, 5_000);
+    },
   };
 }
 
