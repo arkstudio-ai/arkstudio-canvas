@@ -2,7 +2,7 @@
 
 # Canvas Flow
 
-**节点式 AI 创作画布 · 中文优先 · 开源自部署**
+**节点式 AI 创作画布 · 中文优先 · 桌面端 + 开源自部署**
 
 把 AI 生成做成一张可拖拽的画布 —— 文本 / 图片 / 视频 / 音频节点连成一条 pipeline，一键运行，结果就地预览。
 
@@ -10,7 +10,7 @@
 [![Made with DashScope][bailian-shield]][bailian-link]
 [![Issues][issues-shield]][issues-link]
 
-[部署指南](docs/deployment.md) · [开发指南](docs/development.md) · [模型接入](MODEL_INTEGRATION.md) · [问题反馈][issues-link]
+[桌面端](docs/desktop.md) · [部署指南](docs/deployment.md) · [开发指南](docs/development.md) · [模型接入](MODEL_INTEGRATION.md) · [问题反馈][issues-link]
 
 </div>
 
@@ -27,7 +27,7 @@
 
 |  | Canvas Flow | TapNow / LibTV / RHTV |
 |---|---|---|
-| 形态 | **开源自部署**（AGPL-3.0） | 闭源 SaaS |
+| 形态 | **桌面端单文件 (.dmg / .exe) + 开源自部署 (Docker)**（AGPL-3.0） | 闭源 SaaS |
 | 模型源 | 阿里云**百炼第一方支持**，Provider 可平滑接 OpenAI 协议 / 其他源 | 各自整合 30 ~ 170 个云端模型 |
 | 配置 | 节点 / 模型 / Provider 凭据全部 **DB 驱动**，admin UI 改完即生效 | 后台对运营开放，对二开者闭合 |
 | 商用 | 允许商业部署 + Fork（遵守 AGPL 即可），适合做行业版 / 私有部署 | 订阅制 9～432 USD/月 |
@@ -50,6 +50,7 @@
 ## 关键特性
 
 - 🎨 **节点画布编辑器** —— 拖拽 / 连线 / 编组 / 框选 / 跨节点 `@图片1` 引用，基于自研 [`@canvas-flow/core`](packages/core)
+- 🖥️ **桌面端单文件** —— Electron 把 backend + web + SQLite 全打进 .dmg / .exe, 双击装上就跑, 零依赖, [完整指南](docs/desktop.md)
 - 🛠 **DB 即权威源** —— 节点定义 / 模型清单 / Provider 凭据 / 存储设置全部存 SQLite 单文件，admin 改完下一次请求就生效，无需改代码或重启
 - 🔌 **Provider 抽象** —— 已接百炼（DashScope）+ OpenAI 兼容协议（chat / image，可指向 OpenRouter / vLLM / DeepSeek / 自建网关）；`src/providers/` 是 SPI 风格，加新源只需新增一个文件
 - 💾 **本地存储 · ComfyUI 思路** —— 上传 / 模型生成结果直接落服务端磁盘，零云端凭据；i2i / i2v 工作流需要公网 URL 时由 dashscope provider 自动经百炼临时桶中转
@@ -61,7 +62,22 @@
 
 ## Quick Start
 
-只需要 Docker：
+两种形态选一种 — 个人单机选桌面端, 团队 / 服务器部署选 Docker.
+
+### 桌面端 (推荐个人 / 离线场景)
+
+去 [Releases](https://github.com/arkstudio-ai/arkstudio-canvas/releases) 下载对应平台的安装包:
+
+| 平台 | 文件 |
+|---|---|
+| macOS Apple Silicon | `Canvas Flow-<version>-arm64.dmg` |
+| macOS Intel | `Canvas Flow-<version>.dmg` |
+| Windows 10/11 x64 | `Canvas Flow Setup <version>.exe` |
+
+> 当前阶段未签名, 首次打开 macOS 要右键 → 打开 / Windows 要点 "更多信息 → 仍要运行".
+> 完整安装 / 升级 / 卸载 / 排错 → [🖥️ 桌面端指南](docs/desktop.md).
+
+### Docker 自部署 (推荐团队 / 服务器)
 
 ```bash
 git clone https://github.com/arkstudio-ai/arkstudio-canvas.git canvas-flow && cd canvas-flow
@@ -96,11 +112,12 @@ docker compose up -d --build
 
 | 你想干啥 | 看哪份 |
 |---|---|
+| **个人 / 离线一键装桌面包** | [🖥️ 桌面端指南](docs/desktop.md) |
 | **跑起来给团队用** | [📦 部署指南](docs/deployment.md) |
 | **拉源码改代码** | [💻 开发指南](docs/development.md) |
 | **接新模型 / 接 OpenAI 协议 / 加新存储** | [🔌 模型接入指南](MODEL_INTEGRATION.md) |
 | **理解分层 · 桌面端 vs 自部署端** | [🧱 架构分层](docs/architecture.md) |
-| 看某个子项目细节 | [`apps/backend/README.md`](apps/backend/README.md) · [`apps/web/README.md`](apps/web/README.md) · [`packages/core/README.md`](packages/core/README.md) |
+| 看某个子项目细节 | [`apps/backend/README.md`](apps/backend/README.md) · [`apps/web/README.md`](apps/web/README.md) · [`apps/desktop/README.md`](apps/desktop/README.md) · [`packages/core/README.md`](packages/core/README.md) |
 
 ## 路线图
 
