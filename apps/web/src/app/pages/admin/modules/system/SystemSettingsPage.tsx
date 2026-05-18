@@ -1414,19 +1414,25 @@ const tabBarStyle: React.CSSProperties = {
 const tabStyle: React.CSSProperties = {
   background: 'transparent',
   border: 'none',
+  // 没 active 的 tab 不带自己的下边线, 也不 marginBottom:-1 上拉.
+  // 这样 tabBar 那条 1px 灰线在每个 tab 下方都正常贯穿, 不被
+  // transparent border 刮掉一段 — 跟用户报告的 "tabs 没点击过下方
+  // 没有白色底边" 对得上.
   borderBottom: '2px solid transparent',
   color: tokens.textMuted,
   fontSize: 12,
   padding: '8px 14px',
   cursor: 'pointer',
   fontWeight: 500,
-  marginBottom: -1,
 };
 
 const tabActiveStyle: React.CSSProperties = {
   ...tabStyle,
   color: tokens.textPrimary,
   borderBottomColor: tokens.accent,
+  // 上拉 1px 让 accent border 跟 tabBar 的 1px 灰线 (border) 重合,
+  // 视觉上是 "选中的 tab 用 accent 色顶替了那段灰线".
+  marginBottom: -1,
 };
 
 const tabBodyStyle: React.CSSProperties = {
