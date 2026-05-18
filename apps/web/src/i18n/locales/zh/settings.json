@@ -31,7 +31,90 @@
     "audio": "音频",
     "text": "文本",
     "chat": "对话",
-    "total": "总计"
+    "total": "总计",
+    "unknown": "未分类"
+  },
+  "usage": {
+    "page": {
+      "title": "概览",
+      "rangeToday": "今天",
+      "rangeWeek": "近 7 天",
+      "rangeMonth": "近 30 天",
+      "kpiCount": "调用次数",
+      "kpiSuccessFail": "成功 / 失败",
+      "kpiRunning": "进行中",
+      "byKindTitle": "按类型",
+      "byModelTitle": "按模型",
+      "emptyInRange": "该时间范围内暂无调用",
+      "thModel": "模型",
+      "thKind": "类型",
+      "thCount": "总调用",
+      "thCompleted": "成功",
+      "thFailed": "失败",
+      "thSuccessRate": "成功率",
+      "thUnit": "计价指标",
+      "unitImageCount": "{{count}} 张",
+      "unitSecondsShort": "{{count}} 秒"
+    },
+    "kindCard": {
+      "tokensLabel": "Tokens (in / out)",
+      "videoDurationLabel": "输出视频时长",
+      "imageCountLabel": "生成张数",
+      "audioDurationLabel": "合成音频时长",
+      "callsSuffix": "次调用",
+      "successRate": "{{rate}}% 成功",
+      "imageCountValue": "{{count}} 张"
+    }
+  },
+  "logs": {
+    "page": {
+      "title": "日志",
+      "refreshTitle": "刷新",
+      "refresh": "刷新",
+      "statusAll": "全部状态",
+      "phaseAll": "全部 phase",
+      "modelNamePlaceholder": "modelName (例如 wan2.7)",
+      "modelSkuPlaceholder": "modelSku (例如 wan2.7-r2v)",
+      "emptyMatch": "无匹配记录",
+      "thId": "ID",
+      "thTime": "时间",
+      "thModel": "模型",
+      "thKind": "类型",
+      "thStatus": "状态",
+      "thPhase": "phase",
+      "thLatency": "耗时",
+      "thUnit": "计价指标",
+      "thError": "错误",
+      "paginationSummary": "共 {{total}} 条 · 第 {{page}} / {{totalPages}} 页",
+      "prevPage": "上一页",
+      "nextPage": "下一页"
+    },
+    "row": {
+      "phaseSubmitting": "提交中",
+      "phaseSubmitted": "已提交",
+      "phasePolling": "轮询中",
+      "phaseCompleted": "完成",
+      "phaseFailed": "失败",
+      "unitImage": "{{count}} 张"
+    },
+    "drawer": {
+      "title": "执行详情",
+      "closeTitle": "关闭",
+      "basicInfo": "基本信息",
+      "fieldStatus": "状态",
+      "fieldPhase": "phase",
+      "fieldModelSku": "模型 SKU",
+      "fieldModeId": "modeId",
+      "fieldLatency": "耗时",
+      "fieldTokens": "Tokens (in/out)",
+      "fieldExternalTaskId": "externalTaskId",
+      "fieldErrorMsg": "errorMsg",
+      "timelineTitle": "Phase 时间线 ({{count}})",
+      "noEvents": "无事件",
+      "requestPayload": "Request Payload",
+      "responsePayload": "Response Payload",
+      "toastLoadFailed": "加载详情失败"
+    }
   },
   "system": {
     "pageTitle": "系统设置",

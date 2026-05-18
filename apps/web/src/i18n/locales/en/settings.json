@@ -31,7 +31,90 @@
     "audio": "Audio",
     "text": "Text",
     "chat": "Chat",
-    "total": "Total"
+    "total": "Total",
+    "unknown": "Unclassified"
+  },
+  "usage": {
+    "page": {
+      "title": "Overview",
+      "rangeToday": "Today",
+      "rangeWeek": "Last 7 days",
+      "rangeMonth": "Last 30 days",
+      "kpiCount": "Calls",
+      "kpiSuccessFail": "Success / Failed",
+      "kpiRunning": "Running",
+      "byKindTitle": "By kind",
+      "byModelTitle": "By model",
+      "emptyInRange": "No calls in this time range",
+      "thModel": "Model",
+      "thKind": "Kind",
+      "thCount": "Calls",
+      "thCompleted": "Success",
+      "thFailed": "Failed",
+      "thSuccessRate": "Success rate",
+      "thUnit": "Billable unit",
+      "unitImageCount": "{{count}} images",
+      "unitSecondsShort": "{{count}}s"
+    },
+    "kindCard": {
+      "tokensLabel": "Tokens (in / out)",
+      "videoDurationLabel": "Output video duration",
+      "imageCountLabel": "Images generated",
+      "audioDurationLabel": "Output audio duration",
+      "callsSuffix": "calls",
+      "successRate": "{{rate}}% success",
+      "imageCountValue": "{{count}} images"
+    }
+  },
+  "logs": {
+    "page": {
+      "title": "Logs",
+      "refreshTitle": "Refresh",
+      "refresh": "Refresh",
+      "statusAll": "All statuses",
+      "phaseAll": "All phases",
+      "modelNamePlaceholder": "modelName (e.g. wan2.7)",
+      "modelSkuPlaceholder": "modelSku (e.g. wan2.7-r2v)",
+      "emptyMatch": "No matching records",
+      "thId": "ID",
+      "thTime": "Time",
+      "thModel": "Model",
+      "thKind": "Kind",
+      "thStatus": "Status",
+      "thPhase": "Phase",
+      "thLatency": "Latency",
+      "thUnit": "Billable unit",
+      "thError": "Error",
+      "paginationSummary": "{{total}} total · page {{page}} / {{totalPages}}",
+      "prevPage": "Prev",
+      "nextPage": "Next"
+    },
+    "row": {
+      "phaseSubmitting": "Submitting",
+      "phaseSubmitted": "Submitted",
+      "phasePolling": "Polling",
+      "phaseCompleted": "Completed",
+      "phaseFailed": "Failed",
+      "unitImage": "{{count}} img"
+    },
+    "drawer": {
+      "title": "Execution detail",
+      "closeTitle": "Close",
+      "basicInfo": "Basic info",
+      "fieldStatus": "Status",
+      "fieldPhase": "Phase",
+      "fieldModelSku": "Model SKU",
+      "fieldModeId": "modeId",
+      "fieldLatency": "Latency",
+      "fieldTokens": "Tokens (in/out)",
+      "fieldExternalTaskId": "externalTaskId",
+      "fieldErrorMsg": "errorMsg",
+      "timelineTitle": "Phase timeline ({{count}})",
+      "noEvents": "No events",
+      "requestPayload": "Request Payload",
+      "responsePayload": "Response Payload",
+      "toastLoadFailed": "Failed to load detail"
+    }
   },
   "system": {
     "pageTitle": "System",
