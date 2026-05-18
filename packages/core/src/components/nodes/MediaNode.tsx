@@ -1,6 +1,6 @@
 
 import React, { useRef, useState } from 'react';
-import { Video, Image as ImageIcon, Music } from 'lucide-react';
+import { Video, Image as ImageIcon, Music, Upload } from 'lucide-react';
 import { NodeContentProps } from '../../types/schema';
 import { MediaViewerModal } from '../MediaViewerModal';
 import '../../styles/canvas.css';
@@ -78,6 +78,55 @@ const AssetPlaceholder: React.FC<{ uri: string; kind: 'image' | 'video' | 'audio
   );
 };
 
+// AI-generated 节点 save 完会带 taskId; 手动上传 (file picker / 拖放)
+// 不带. asset:// 是火山素材占位, 替换也没意义. 仅这两类之外才有 "替换"
+// 按钮 — 让用户能在原 manual-upload 节点上换一张图, 不用删了重连.
+function isManualUpload(data: any, isAsset: boolean): boolean {
+  if (isAsset) return false;
+  if (data?.taskId) return false;
+  return !!(data?.src || data?.output);
+}
+
+/** 右上角圆角小绿按钮 → 触发隐藏 file picker → onChange 走 _uploadRequest
+ *  通道 (app 层 useFlow.handleNodeDataChange 拦下文件做上传 + 落 src).
+ *  accept 跟当前节点的 mime 类型对齐, 减小用户误选其它格式. */
+const ReplaceButton: React.FC<{
+  accept: string;
+  onPick: (file: File) => void;
+}> = ({ accept, onPick }) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <button
+        type="button"
+        className="cf-media-node-replace-btn"
+        onClick={(e) => {
+          e.stopPropagation();
+          inputRef.current?.click();
+        }}
+        // 拦 ReactFlow 拖动 — 不然按住按钮拖会被当成拖节点.
+        onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        title="替换为本地上传"
+      >
+        <Upload size={11} />
+        <span>替换</span>
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onPick(f);
+          if (inputRef.current) inputRef.current.value = '';
+        }}
+      />
+    </>
+  );
+};
+
 // Image Node
 export const ImageNode: React.FC<NodeContentProps> = ({ data, isConnected, onChange }) => {
   
@@ -129,6 +178,12 @@ export const ImageNode: React.FC<NodeContentProps> = ({ data, isConnected, onCha
             style={{ display: 'block', cursor: 'zoom-in' }}
           />
         ) : null}
+        {isManualUpload(data, isAsset) && (
+          <ReplaceButton
+            accept="image/*"
+            onPick={(file) => onChange({ _uploadRequest: file, _uploadTargetKind: 'image' })}
+          />
+        )}
       </div>
 
       <MediaViewerModal
@@ -142,7 +197,11 @@ export const ImageNode: React.FC<NodeContentProps> = ({ data, isConnected, onCha
 };
 
 // Video Node
-export const VideoNode: React.FC<NodeContentProps> = ({ data, isConnected, onChange }) => {
+export const VideoNode: React.FC<NodeContentProps> = ({
+  data,
+  isConnected,
+  onChange,
+}) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -195,20 +254,26 @@ export const VideoNode: React.FC<NodeContentProps> = ({ data, isConnected, onCha
             }}
           />
         ) : null}
+        {isManualUpload(data, isAsset) && (
+          <ReplaceButton
+            accept="video/*"
+            onPick={(file) => onChange({ _uploadRequest: file, _uploadTargetKind: 'video' })}
+          />
+        )}
       </div>
 
-      <MediaViewerModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        src={mediaSrc} 
-        type="video" 
+      <MediaViewerModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        src={mediaSrc}
+        type="video"
       />
     </>
   );
 };
 
 // Audio Node
-export const AudioNode: React.FC<NodeContentProps> = ({ data, isConnected }) => {
+export const AudioNode: React.FC<NodeContentProps> = ({ data, isConnected, onChange }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const rawSrc = (data.src || data.output) as string | undefined;
@@ -249,13 +314,19 @@ export const AudioNode: React.FC<NodeContentProps> = ({ data, isConnected }) => 
             }}
           />
         ) : null}
+        {isManualUpload(data, isAsset) && (
+          <ReplaceButton
+            accept="audio/*"
+            onPick={(file) => onChange({ _uploadRequest: file, _uploadTargetKind: 'audio' })}
+          />
+        )}
       </div>
 
-      <MediaViewerModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        src={mediaSrc} 
-        type="audio" 
+      <MediaViewerModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        src={mediaSrc}
+        type="audio"
       />
     </>
   );
