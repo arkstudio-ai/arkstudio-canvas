@@ -797,6 +797,15 @@ export function useFlow(
            if (nodeType === 'video') flowRef.current.setNodeVideo(nodeId, url);
            else if (nodeType === 'audio') flowRef.current.setNodeAudio(nodeId, url);
            else flowRef.current.setNodeImage(nodeId, url);
+           // 立刻把 fileName/fileType/fileSize 也打到本地 node.data,
+           // 跟下面 queueOperation 里 DB save 保持一致. 没这步的话,
+           // MediaNode 的 isManualUpload(检查 fileName) 在保存到 DB
+           // 之前会拿不到 fileName → 刚上传完节点上看不到 "替换" 按钮.
+           flowRef.current.markNodeAsUploaded(nodeId, {
+             fileName: fileToUpload.name,
+             fileType: fileToUpload.type,
+             fileSize: fileToUpload.size,
+           });
          }
 
          queueOperation(async () => {
