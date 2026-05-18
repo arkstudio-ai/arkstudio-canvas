@@ -227,7 +227,7 @@ export const DEFAULT_NODE_DEFINITIONS: DefaultNodeDefinition[] = [
         // routes on family.startsWith('gpt-image-') + non-empty image
         // inputs, so gpt-image-1 / 1.5 added via admin pick this up too.
         allowedUpstreamTypes: ['text', 'image'],
-        defaultParams: { aspectRatio: 'auto', quality: 'medium', resolution: '2k' },
+        defaultParams: { aspectRatio: 'auto', quality: 'medium', resolution: '2k', n: 1 },
         paramsSchema: [
           {
             key: 'aspectRatio',
@@ -268,6 +268,21 @@ export const DEFAULT_NODE_DEFINITIONS: DefaultNodeDefinition[] = [
               { label: '1k', value: '1k' },
               { label: '2k', value: '2k' },
               { label: '4k', value: '4k' },
+            ],
+          },
+          {
+            // gpt-image-2 backend (openai-compat-image) clampN 接 1-10,
+            // 这里给跟 wan2.7 同款 1/2/3/4 一致, 跨模型 UX 对齐. 想跑
+            // 更多张直接走 admin 改 schema 加 6/8/10 option.
+            key: 'n',
+            label: '生成数量',
+            type: 'select',
+            defaultValue: 1,
+            options: [
+              { label: '1 张', value: 1 },
+              { label: '2 张', value: 2 },
+              { label: '3 张', value: 3 },
+              { label: '4 张', value: 4 },
             ],
           },
         ],
