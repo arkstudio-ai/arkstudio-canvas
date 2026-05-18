@@ -40,7 +40,11 @@ export const AddAssetForm: React.FC<AddAssetFormProps> = ({
   onCancel,
   onCreated,
 }) => {
+  // 初始 'url' 作为兜底 — OSS 探活返回前默认安全可见. 探活完后 ready→true
+  // 才翻成 'local' (用户体验上更符合 "我装好了, 默认让我上传本地" 的预期).
+  // 用户手动 toggle 过就尊重用户选择, 不在切换中.
   const [mode, setMode] = useState<Mode>('url');
+  const [modeManuallyChosen, setModeManuallyChosen] = useState(false);
   const [url, setUrl] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [assetType, setAssetType] = useState<AssetType>('Image');
@@ -53,12 +57,25 @@ export const AddAssetForm: React.FC<AddAssetFormProps> = ({
     let cancelled = false;
     void (async () => {
       const ready = await getOssReady();
-      if (!cancelled) setOssReady(ready);
+      if (cancelled) return;
+      setOssReady(ready);
+      // OSS 在 → 默认 local; 用户已手选过则不动.
+      if (ready && !modeManuallyChosen) {
+        setMode('local');
+      }
     })();
     return () => {
       cancelled = true;
     };
+    // modeManuallyChosen 不在 deps: 探活只触发一次, 不该因为用户后续点
+    // toggle 重新触发.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const pickMode = (next: Mode) => {
+    setMode(next);
+    setModeManuallyChosen(true);
+  };
 
   const localDisabled = ossReady === false;
 
@@ -108,7 +125,7 @@ export const AddAssetForm: React.FC<AddAssetFormProps> = ({
               name="add-asset-mode"
               value="url"
               checked={mode === 'url'}
-              onChange={() => setMode('url')}
+              onChange={() => pickMode('url')}
               disabled={submitting}
             />
             <span>公网 URL</span>
@@ -126,7 +143,7 @@ export const AddAssetForm: React.FC<AddAssetFormProps> = ({
               name="add-asset-mode"
               value="local"
               checked={mode === 'local'}
-              onChange={() => setMode('local')}
+              onChange={() => pickMode('local')}
               disabled={submitting || localDisabled}
             />
             <span>本地文件</span>
