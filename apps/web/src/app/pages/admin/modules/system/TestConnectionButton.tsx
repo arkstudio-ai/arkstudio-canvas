@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CheckCircle2, Plug, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import type { TFunction } from 'i18next';
 import {
   testOpenaiSettings,
   testProviderSettings,
@@ -39,6 +41,7 @@ export const TestConnectionButton: React.FC<{
   /** 父级 saving 中时禁掉, 避免和保存 race. */
   disabled?: boolean;
 }> = ({ providerId, baseUrlDraft, apiKeyDraft, hasSavedKey, disabled }) => {
+  const { t } = useTranslation();
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<TestConnectionResult | null>(null);
 
@@ -46,14 +49,14 @@ export const TestConnectionButton: React.FC<{
   const draftKey = apiKeyDraft.trim();
   // 给按钮加一个 title 解释"这次要用谁的 key", 减少惊讶
   const title = (() => {
-    const base =
-      draftBase ? `Base URL: 草稿 ${draftBase}` : 'Base URL: 使用已保存值';
-    const key =
-      draftKey
-        ? `API Key: 输入框里的草稿`
-        : hasSavedKey
-          ? 'API Key: 使用已保存值'
-          : '⚠ 输入框为空且未保存过, 点了会失败';
+    const base = draftBase
+      ? t('settings:system.testConnection.titleBaseDraft', { url: draftBase })
+      : t('settings:system.testConnection.titleBaseSaved');
+    const key = draftKey
+      ? t('settings:system.testConnection.titleKeyDraft')
+      : hasSavedKey
+        ? t('settings:system.testConnection.titleKeySaved')
+        : t('settings:system.testConnection.titleKeyMissing');
     return `${base}\n${key}`;
   })();
 
@@ -71,12 +74,17 @@ export const TestConnectionButton: React.FC<{
       // toast 用同一条 message; 既然 inline pill 也展示了, toast 主要是提供
       // "我点了一下, 后端回应了"的反馈节奏感, 所以不重复展太多信息.
       if (r.ok) {
-        toast.success(`${providerLabel(providerId)} 连接正常 · ${r.latencyMs}ms`);
+        toast.success(
+          t('settings:system.testConnection.toastSuccess', {
+            provider: providerLabel(providerId),
+            ms: r.latencyMs,
+          }),
+        );
       } else {
-        toast.error(r.message ?? '探活失败');
+        toast.error(r.message ?? t('settings:system.testConnection.toastProbeFailed'));
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '请求失败';
+      const msg = err instanceof Error ? err.message : t('settings:system.testConnection.toastRequestFailed');
       setResult({
         ok: false,
         status: null,
@@ -104,14 +112,16 @@ export const TestConnectionButton: React.FC<{
         title={title}
       >
         <Plug size={11} style={iconStyle} />
-        {testing ? '测试中…' : '测试连接'}
+        {testing
+          ? t('settings:system.testConnection.buttonRunning')
+          : t('settings:system.testConnection.buttonIdle')}
       </button>
-      {result && <ResultPill result={result} />}
+      {result && <ResultPill result={result} t={t} />}
     </div>
   );
 };
 
-const ResultPill: React.FC<{ result: TestConnectionResult }> = ({ result }) => {
+const ResultPill: React.FC<{ result: TestConnectionResult; t: TFunction }> = ({ result, t }) => {
   const ok = result.ok;
   return (
     <span
@@ -126,15 +136,15 @@ const ResultPill: React.FC<{ result: TestConnectionResult }> = ({ result }) => {
         <CheckCircle2 size={11} style={iconStyle} />
       : <XCircle size={11} style={iconStyle} />}
       <span>
-        {ok ? 'OK' : 'FAIL'}
+        {ok
+          ? t('settings:system.testConnection.okPill')
+          : t('settings:system.testConnection.failPill')}
         {result.status ? ` · ${result.status}` : ''}
         {' · '}
         {result.latencyMs}ms
       </span>
       {/* 调用源标签: 看出来这次到底用的是 draft 还是 DB 的值 */}
-      <span style={sourceStyle}>
-        {sourceLabel(result.source)}
-      </span>
+      <span style={sourceStyle}>{sourceLabel(result.source, t)}</span>
       {result.message && <span style={msgStyle}>{result.message}</span>}
     </span>
   );
@@ -150,13 +160,19 @@ function providerLabel(id: 'dashscope' | 'openai'): string {
  *   - both saved → "DB"
  *   - mixed       → "Base草稿/Key DB" 之类, 不省, 让用户清楚他验的是哪份
  */
-function sourceLabel(s: TestConnectionResult['source']): string {
+function sourceLabel(s: TestConnectionResult['source'], t: TFunction): string {
   if (s.baseUrl === s.apiKey) {
-    return s.baseUrl === 'draft' ? '草稿' : 'DB';
+    return s.baseUrl === 'draft'
+      ? t('settings:system.testConnection.sourceDraft')
+      : t('settings:system.testConnection.sourceDB');
   }
-  const base = s.baseUrl === 'draft' ? '草稿' : 'DB';
-  const key = s.apiKey === 'draft' ? '草稿' : 'DB';
-  return `Base ${base}/Key ${key}`;
+  const base = s.baseUrl === 'draft'
+    ? t('settings:system.testConnection.sourceDraft')
+    : t('settings:system.testConnection.sourceDB');
+  const key = s.apiKey === 'draft'
+    ? t('settings:system.testConnection.sourceDraft')
+    : t('settings:system.testConnection.sourceDB');
+  return t('settings:system.testConnection.sourceMixed', { base, key });
 }
 
 const wrapStyle: React.CSSProperties = {

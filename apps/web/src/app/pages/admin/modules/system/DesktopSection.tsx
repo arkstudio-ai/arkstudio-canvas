@@ -13,6 +13,7 @@
 // "桌面端独占" disabled state explaining why the toggles are inert.
 
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Monitor } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -43,6 +44,7 @@ declare global {
 }
 
 export const DesktopSection: React.FC = () => {
+  const { t } = useTranslation();
   const [settings, setSettings] = useState<DesktopSettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [restartHint, setRestartHint] = useState(false);
@@ -57,10 +59,10 @@ export const DesktopSection: React.FC = () => {
       .then(setSettings)
       .catch((err) => {
         toast.error(
-          err instanceof Error ? err.message : '加载桌面设置失败',
+          err instanceof Error ? err.message : t('settings:system.desktop.toastLoadFailed'),
         );
       });
-  }, [bridge]);
+  }, [bridge, t]);
 
   const toggleGpu = async (next: boolean) => {
     if (!bridge) return;
@@ -71,9 +73,9 @@ export const DesktopSection: React.FC = () => {
       });
       setSettings(updated);
       setRestartHint(true);
-      toast.success('已保存,重启后生效');
+      toast.success(t('settings:system.desktop.toastSaved'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '保存失败');
+      toast.error(err instanceof Error ? err.message : t('settings:common.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -86,24 +88,19 @@ export const DesktopSection: React.FC = () => {
           size={11}
           style={{ verticalAlign: 'middle', marginRight: 6 }}
         />
-        桌面
+        {t('settings:system.desktop.title')}
       </h3>
       <div style={sectionBodyStyle}>
         {!isElectron ? (
-          <div style={hintStyle}>
-            本区块仅在桌面端 (Electron) 生效. 当前你正通过浏览器访问 /admin/system,
-            桌面专属设置在这里无法生效 — 请在桌面端打开同一个 admin 页面修改.
-          </div>
+          <div style={hintStyle}>{t('settings:system.desktop.browserOnlyHint')}</div>
         ) : !settings ? (
-          <div style={hintStyle}>加载中…</div>
+          <div style={hintStyle}>{t('settings:common.loading')}</div>
         ) : (
           <>
-            <div style={hintStyle}>
-              桌面专属设置,影响 Chromium 启动行为. 改动需要重启 Canvas Flow 才能生效.
-            </div>
+            <div style={hintStyle}>{t('settings:system.desktop.intro')}</div>
 
             <div style={fieldRowStyle}>
-              <span style={fieldLabelStyle}>GPU 硬件加速</span>
+              <span style={fieldLabelStyle}>{t('settings:system.desktop.gpuLabel')}</span>
               <label style={toggleWrapStyle}>
                 <input
                   type="checkbox"
@@ -112,19 +109,12 @@ export const DesktopSection: React.FC = () => {
                   onChange={(e) => void toggleGpu(e.target.checked)}
                   style={{ accentColor: tokens.accent }}
                 />
-                <span style={toggleLabelStyle}>
-                  开 (默认): 强制硬件 raster + 跳过 Chromium GPU blocklist,
-                  画布拖动/缩放更顺. 关: 走 Chromium 自带 GPU 检测,
-                  老显卡 / 集显 / 虚拟机里偶尔更稳但通常更慢.
-                </span>
+                <span style={toggleLabelStyle}>{t('settings:system.desktop.gpuHint')}</span>
               </label>
             </div>
 
             {restartHint && (
-              <div style={restartBoxStyle}>
-                ⚠ 改动需要 <strong>重启 Canvas Flow</strong> 才生效
-                (Chromium command-line switches 只在进程启动时被消费一次).
-              </div>
+              <div style={restartBoxStyle}>{t('settings:system.desktop.restartHint')}</div>
             )}
           </>
         )}

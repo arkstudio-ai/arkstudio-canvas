@@ -8,6 +8,7 @@
 // 用户回来这里配置. Volcengine 卡片那条 hint 也指这.
 
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Database } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -28,23 +29,23 @@ import {
   tokens,
 } from '../config/styles';
 
-const PROVIDER_LABELS: Record<OssProvider, string> = {
-  'aliyun-oss': '阿里云 OSS',
-  'volcengine-tos': '火山引擎 TOS',
+const PROVIDER_LABEL_KEYS: Record<OssProvider, string> = {
+  'aliyun-oss': 'settings:system.oss.providerAliyun',
+  'volcengine-tos': 'settings:system.oss.providerVolcengine',
 };
 
-const PROVIDER_HINTS: Record<OssProvider, { region: string; sample: string }> = {
-  'aliyun-oss': {
-    region: '示例: oss-cn-beijing / oss-cn-hangzhou',
-    sample: 'https://<bucket>.<region>.aliyuncs.com',
-  },
-  'volcengine-tos': {
-    region: '示例: cn-beijing / cn-guangzhou',
-    sample: 'https://<bucket>.tos-<region>.volces.com',
-  },
+const REGION_HINT_KEYS: Record<OssProvider, string> = {
+  'aliyun-oss': 'settings:system.oss.regionHintAliyun',
+  'volcengine-tos': 'settings:system.oss.regionHintVolcengine',
+};
+
+const SAMPLE_URL_KEYS: Record<OssProvider, string> = {
+  'aliyun-oss': 'settings:system.oss.publicBaseUrlSampleAliyun',
+  'volcengine-tos': 'settings:system.oss.publicBaseUrlSampleVolcengine',
 };
 
 export const OssSection: React.FC = () => {
+  const { t } = useTranslation();
   const [view, setView] = useState<OssSettingsView | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -71,7 +72,7 @@ export const OssSection: React.FC = () => {
         publicBaseUrl: v.publicBaseUrl,
       });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '加载 OSS 设置失败');
+      toast.error(err instanceof Error ? err.message : t('settings:system.oss.toastLoadFailed'));
     } finally {
       setLoading(false);
     }
@@ -90,9 +91,9 @@ export const OssSection: React.FC = () => {
         setDrafts((d) => ({ ...d, accessKeyId: '' }));
       if (patch.accessKeySecret !== undefined)
         setDrafts((d) => ({ ...d, accessKeySecret: '' }));
-      toast.success('已保存');
+      toast.success(t('settings:common.saved'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '保存失败');
+      toast.error(err instanceof Error ? err.message : t('settings:common.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -103,33 +104,31 @@ export const OssSection: React.FC = () => {
       <section style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
           <Database size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-          对象存储 (OSS / TOS)
+          {t('settings:system.oss.title')}
         </h3>
         <div style={sectionBodyStyle}>
-          <div style={emptyStyle}>{loading ? '加载中…' : '加载失败'}</div>
+          <div style={emptyStyle}>{loading ? t('settings:common.loading') : t('settings:common.loadFailed')}</div>
         </div>
       </section>
     );
   }
 
   const provider = view.provider;
-  const hints = provider ? PROVIDER_HINTS[provider] : null;
+  const sampleUrl = provider
+    ? t(SAMPLE_URL_KEYS[provider])
+    : t('settings:system.oss.publicBaseUrlSampleFallback');
 
   return (
     <section style={sectionStyle}>
       <h3 style={sectionTitleStyle}>
         <Database size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-        对象存储 (OSS / TOS)
+        {t('settings:system.oss.title')}
       </h3>
       <div style={sectionBodyStyle}>
-        <div style={hintStyle}>
-          阿里 OSS 或火山 TOS 二选一. <strong style={{ color: tokens.warn }}>
-          未配置时, 火山方舟 Seedance 仅能跑纯文本 (t2v); 任何"图生视频 / 视频参考"模式
-          都会因为本地 URL 不可达而失败.</strong> 配置后凭据 aes-256-gcm 加密落库.
-        </div>
+        <div style={hintStyle}>{t('settings:system.oss.hint')}</div>
 
         <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>Provider</span>
+          <span style={fieldLabelStyle}>{t('settings:system.oss.providerLabel')}</span>
           <select
             style={{ ...inputMonoStyle, width: '100%' }}
             value={provider ?? ''}
@@ -139,22 +138,20 @@ export const OssSection: React.FC = () => {
             }}
             disabled={saving}
           >
-            <option value="">(未配置 — 禁用 OSS staging)</option>
-            <option value="aliyun-oss">阿里云 OSS (ali-oss)</option>
-            <option value="volcengine-tos">火山引擎 TOS</option>
+            <option value="">{t('settings:system.oss.providerNoneOption')}</option>
+            <option value="aliyun-oss">{t('settings:system.oss.providerAliyun')}</option>
+            <option value="volcengine-tos">{t('settings:system.oss.providerVolcengine')}</option>
           </select>
         </div>
 
         {provider && (
           <>
             <div style={fieldRowStyle}>
-              <span style={fieldLabelStyle}>Access Key ID</span>
+              <span style={fieldLabelStyle}>{t('settings:system.oss.accessKeyIdLabel')}</span>
               <input
                 style={inputMonoStyle}
                 type="text"
-                placeholder={
-                  view.accessKeyIdMask ?? '从 RAM 子账号控制台获取'
-                }
+                placeholder={view.accessKeyIdMask ?? t('settings:system.oss.accessKeyIdPlaceholder')}
                 value={drafts.accessKeyId}
                 onChange={(e) =>
                   setDrafts((d) => ({ ...d, accessKeyId: e.target.value }))
@@ -167,12 +164,14 @@ export const OssSection: React.FC = () => {
               />
             </div>
             <div style={fieldRowStyle}>
-              <span style={fieldLabelStyle}>Access Key Secret</span>
+              <span style={fieldLabelStyle}>{t('settings:system.oss.accessKeySecretLabel')}</span>
               <input
                 style={inputMonoStyle}
                 type="password"
                 placeholder={
-                  view.accessKeySecretConfigured ? '••••••••(已配置)' : '密钥串'
+                  view.accessKeySecretConfigured
+                    ? t('settings:system.oss.accessKeySecretPlaceholderConfigured')
+                    : t('settings:system.oss.accessKeySecretPlaceholderEmpty')
                 }
                 value={drafts.accessKeySecret}
                 onChange={(e) =>
@@ -186,10 +185,10 @@ export const OssSection: React.FC = () => {
               />
             </div>
             <div style={fieldRowStyle}>
-              <span style={fieldLabelStyle}>Bucket</span>
+              <span style={fieldLabelStyle}>{t('settings:system.oss.bucketLabel')}</span>
               <input
                 style={inputMonoStyle}
-                placeholder="my-canvas-flow-assets"
+                placeholder={t('settings:system.oss.bucketPlaceholder')}
                 value={drafts.bucket}
                 onChange={(e) =>
                   setDrafts((d) => ({ ...d, bucket: e.target.value }))
@@ -202,10 +201,10 @@ export const OssSection: React.FC = () => {
               />
             </div>
             <div style={fieldRowStyle}>
-              <span style={fieldLabelStyle}>Region</span>
+              <span style={fieldLabelStyle}>{t('settings:system.oss.regionLabel')}</span>
               <input
                 style={inputMonoStyle}
-                placeholder={hints?.region}
+                placeholder={t(REGION_HINT_KEYS[provider])}
                 value={drafts.region}
                 onChange={(e) =>
                   setDrafts((d) => ({ ...d, region: e.target.value }))
@@ -218,10 +217,10 @@ export const OssSection: React.FC = () => {
               />
             </div>
             <div style={fieldRowStyle}>
-              <span style={fieldLabelStyle}>Endpoint</span>
+              <span style={fieldLabelStyle}>{t('settings:system.oss.endpointLabel')}</span>
               <input
                 style={inputMonoStyle}
-                placeholder="自定义域名 / VPC 内网 endpoint, 留空走默认"
+                placeholder={t('settings:system.oss.endpointPlaceholder')}
                 value={drafts.endpoint}
                 onChange={(e) =>
                   setDrafts((d) => ({ ...d, endpoint: e.target.value }))
@@ -234,10 +233,10 @@ export const OssSection: React.FC = () => {
               />
             </div>
             <div style={fieldRowStyle}>
-              <span style={fieldLabelStyle}>Public Base URL</span>
+              <span style={fieldLabelStyle}>{t('settings:system.oss.publicBaseUrlLabel')}</span>
               <input
                 style={inputMonoStyle}
-                placeholder={`CDN 域名前缀, 留空走 ${hints?.sample ?? 'bucket 默认 URL'}`}
+                placeholder={t('settings:system.oss.publicBaseUrlPlaceholder', { sample: sampleUrl })}
                 value={drafts.publicBaseUrl}
                 onChange={(e) =>
                   setDrafts((d) => ({ ...d, publicBaseUrl: e.target.value }))
@@ -262,23 +261,16 @@ export const OssSection: React.FC = () => {
                 color: view.ready ? '#5eead4' : '#fbbf24',
               }}
             >
-              {view.ready ? (
-                <>
-                  ✅ {PROVIDER_LABELS[provider]} 配置完整,
-                  Volcengine Seedance i2v / r2v 可用
-                </>
-              ) : (
-                <>
-                  ⚠ 缺少 AK / SK / bucket / region 中的某项, 还不能开始 staging
-                </>
-              )}
+              {view.ready
+                ? t('settings:system.oss.readyMessage', { provider: t(PROVIDER_LABEL_KEYS[provider]) })
+                : t('settings:system.oss.notReadyMessage')}
               <button
                 type="button"
                 style={{ ...buttonAccentStyle, marginLeft: 12 }}
                 onClick={() => void load()}
                 disabled={loading}
               >
-                刷新
+                {t('settings:common.refresh')}
               </button>
             </div>
           </>

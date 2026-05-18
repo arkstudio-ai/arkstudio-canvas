@@ -6,7 +6,7 @@
 //
 // UX rationale
 //   - Shell-exported HTTPS_PROXY (typical for 翻墙 users) breaks DashScope
-//     / Volcengine which need direct connect to 国内 IDC. The "禁用代理"
+//     / Volcengine which need direct connect to 国内 IDC. The "force direct"
 //     big-red-button is the simplest one-click recovery.
 //   - admin-set strings override DB; empty strings clear DB; checkbox
 //     overrides both (force direct).
@@ -15,6 +15,7 @@
 //     correct from this end, must be upstream" without ssh-ing in.
 
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Network } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -33,6 +34,7 @@ import {
 } from '../config/styles';
 
 export const NetworkSection: React.FC = () => {
+  const { t } = useTranslation();
   const [view, setView] = useState<NetworkSettingsView | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -47,7 +49,7 @@ export const NetworkSection: React.FC = () => {
       setHttpDraft(v.httpProxy);
       setHttpsDraft(v.httpsProxy);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '加载网络设置失败');
+      toast.error(err instanceof Error ? err.message : t('settings:system.network.toastLoadFailed'));
     } finally {
       setLoading(false);
     }
@@ -68,9 +70,9 @@ export const NetworkSection: React.FC = () => {
       setView(v);
       setHttpDraft(v.httpProxy);
       setHttpsDraft(v.httpsProxy);
-      toast.success('已保存');
+      toast.success(t('settings:common.saved'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '保存失败');
+      toast.error(err instanceof Error ? err.message : t('settings:common.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -81,10 +83,10 @@ export const NetworkSection: React.FC = () => {
       <section style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
           <Network size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-          网络代理
+          {t('settings:system.network.title')}
         </h3>
         <div style={sectionBodyStyle}>
-          <div style={emptyStyle}>{loading ? '加载中…' : '加载失败'}</div>
+          <div style={emptyStyle}>{loading ? t('settings:common.loading') : t('settings:common.loadFailed')}</div>
         </div>
       </section>
     );
@@ -97,17 +99,14 @@ export const NetworkSection: React.FC = () => {
     <section style={sectionStyle}>
       <h3 style={sectionTitleStyle}>
         <Network size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-        网络代理
+        {t('settings:system.network.title')}
       </h3>
       <div style={sectionBodyStyle}>
-        <div style={hintStyle}>
-          backend axios 请求走的代理。国内厂商 (DashScope / Volcengine) 直连最快,
-          建议禁用代理; OpenAI 等海外服务才需要走翻墙代理. 保存后立刻生效, 无需重启.
-        </div>
+        <div style={hintStyle}>{t('settings:system.network.hint')}</div>
 
         {/* 禁用代理 toggle — 优先级最高 */}
         <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>强制直连</span>
+          <span style={fieldLabelStyle}>{t('settings:system.network.disabledLabel')}</span>
           <label style={toggleWrapStyle}>
             <input
               type="checkbox"
@@ -117,17 +116,16 @@ export const NetworkSection: React.FC = () => {
               style={{ accentColor: tokens.accent }}
             />
             <span style={{ fontSize: 12, color: tokens.textSecondary }}>
-              开启后 backend 启动 / 即时 unset HTTP_PROXY · HTTPS_PROXY，
-              覆盖下方两个字段
+              {t('settings:system.network.disabledHint')}
             </span>
           </label>
         </div>
 
         <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>HTTP Proxy</span>
+          <span style={fieldLabelStyle}>{t('settings:system.network.httpProxyLabel')}</span>
           <input
             style={{ ...inputMonoStyle, opacity: view.disabled ? 0.45 : 1 }}
-            placeholder="http://host:port (例如 http://127.0.0.1:7890)"
+            placeholder={t('settings:system.network.proxyPlaceholder')}
             value={httpDraft}
             disabled={view.disabled || saving}
             onChange={(e) => setHttpDraft(e.target.value)}
@@ -139,10 +137,10 @@ export const NetworkSection: React.FC = () => {
         </div>
 
         <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>HTTPS Proxy</span>
+          <span style={fieldLabelStyle}>{t('settings:system.network.httpsProxyLabel')}</span>
           <input
             style={{ ...inputMonoStyle, opacity: view.disabled ? 0.45 : 1 }}
-            placeholder="http://host:port (大多数情况和 HTTP Proxy 写同一个)"
+            placeholder={t('settings:system.network.proxyPlaceholder')}
             value={httpsDraft}
             disabled={view.disabled || saving}
             onChange={(e) => setHttpsDraft(e.target.value)}
@@ -155,30 +153,30 @@ export const NetworkSection: React.FC = () => {
 
         {/* Effective snapshot — 让 admin 看到当前真实生效的 env, 而不止 DB 草稿 */}
         <div style={effectiveBoxStyle}>
-          <div style={effectiveTitleStyle}>当前 process.env 实际生效</div>
+          <div style={effectiveTitleStyle}>{t('settings:system.network.effectiveLabel')}</div>
           {showEffective ? (
             <>
               <code style={effectiveLineStyle}>
                 HTTP_PROXY=
-                {view.effective.httpProxy ?? <em style={emTagStyle}>(未设)</em>}
+                {view.effective.httpProxy ?? <em style={emTagStyle}>—</em>}
               </code>
               <code style={effectiveLineStyle}>
                 HTTPS_PROXY=
-                {view.effective.httpsProxy ?? <em style={emTagStyle}>(未设)</em>}
+                {view.effective.httpsProxy ?? <em style={emTagStyle}>—</em>}
               </code>
               <code style={effectiveLineStyle}>
                 ALL_PROXY=
-                {view.effective.allProxy ?? <em style={emTagStyle}>(未设)</em>}
+                {view.effective.allProxy ?? <em style={emTagStyle}>—</em>}
               </code>
             </>
           ) : (
             <code style={effectiveLineStyle}>
-              <em style={emTagStyle}>(无)</em> — axios 走直连
+              <em style={emTagStyle}>{t('settings:system.network.effectiveNone')}</em>
             </code>
           )}
           {view.globalAgent && (
             <code style={effectiveLineStyle}>
-              http.globalAgent={view.globalAgent.http} · https.globalAgent=
+              {t('settings:system.network.agentLabel')}: http={view.globalAgent.http} · https=
               {view.globalAgent.https}
             </code>
           )}
@@ -188,7 +186,7 @@ export const NetworkSection: React.FC = () => {
             onClick={() => void load()}
             disabled={loading}
           >
-            刷新
+            {t('settings:common.refresh')}
           </button>
         </div>
       </div>
@@ -235,3 +233,4 @@ const emTagStyle: React.CSSProperties = {
   color: tokens.textSecondary,
   opacity: 0.7,
 };
+
