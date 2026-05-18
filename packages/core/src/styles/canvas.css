@@ -539,6 +539,9 @@
  * data-alternates-cap="3" 这样标记, JS 在渲染时控制具体 N. CSS 这里只
  * 管样式. n=10 的话视觉跟 n=4 一样 (cap 3), 不撑画布.
  */
+/* z-index 1 给背景卡, 主图(.cf-media-node-content) 显式 z-index 2
+ * 盖在上面. inset:0 + transform + 显式 z-index 三者会创建独立 stacking
+ * context, 不显式 z-index 主图会被某层背景卡盖住(看到大片 #1a1a1a). */
 .cf-media-node-stack-card {
   position: absolute;
   inset: 0;
@@ -547,48 +550,59 @@
   border: 1px solid #2a2a2a;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   pointer-events: none;
+  z-index: 1;
 }
 /* 第 1 张背景卡: 右偏 + 下偏 + 略缩 + 略转, 形成"扇出"感. 跟竞品截图
  * 一致 — 用 transform 而非 margin, 不影响节点容器尺寸. */
 .cf-media-node-stack-card[data-depth='1'] {
   transform: translate(8px, 6px) scale(0.985);
-  z-index: 0;
 }
 .cf-media-node-stack-card[data-depth='2'] {
   transform: translate(15px, 12px) scale(0.97);
-  z-index: -1;
 }
 .cf-media-node-stack-card[data-depth='3'] {
   transform: translate(21px, 17px) scale(0.955);
-  z-index: -2;
 }
+
 
 /* picker modal 内的 grid / scroll 布局.
  * grid: ≤4 张, 2x2 一屏装下; scroll: >4 张, 横向滚动, 跟 macOS 翻照片
  * 同款体感. 都 max-height/width 限制, 避免占满屏幕.
  */
+/* picker 模态容器: 限制最大尺寸 + 自身不滚动 (滚动留给 grid/scroll
+ * 子元素), 不然 overflow:hidden 会把超出的 cell 直接裁掉 — 之前用户
+ * 报"图显示不全"就是这里. */
 .cf-alternates-container {
   position: relative;
   background: #0a0a0a;
   border-radius: 12px;
   padding: 48px 24px 24px;
-  max-width: min(90vw, 900px);
+  width: min(90vw, 900px);
   max-height: 90vh;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
+/* 2x2 grid: 每个 cell 高度上限避免单图撑爆容器 + 整 grid 可纵向滚动. */
 .cf-alternates-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
-  max-height: calc(90vh - 80px);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px; /* scrollbar 不贴 cell 右边缘 */
 }
+/* 横滚: 一行高度固定, 横向 auto scroll. */
 .cf-alternates-scroll {
   display: flex;
   gap: 16px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  max-height: calc(90vh - 80px);
   scroll-snap-type: x mandatory;
+  padding-bottom: 4px;
 }
 .cf-alternates-scroll .cf-alternates-cell {
   flex: 0 0 auto;
@@ -602,27 +616,35 @@
   cursor: pointer;
   overflow: hidden;
   transition: border-color 120ms ease, transform 120ms ease;
+  /* 关键: cell 自身不允许撑高超过 grid 单元格 — object-fit 控制图片
+   * 在 cell 内显示. */
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .cf-alternates-cell:hover {
   border-color: rgba(255, 255, 255, 0.25);
   transform: scale(1.01);
 }
+/* 2x2 grid 模式: 图最大不超过 cell 实际高度 (容器 70vh 拆 2 行 ≈ 35vh)
+ * 同时不超过 80% 容器宽度. object-fit:contain 保比例. */
 .cf-alternates-media {
-  width: 100%;
-  height: 100%;
-  max-height: 60vh;
+  max-width: 100%;
+  max-height: min(40vh, 380px);
   object-fit: contain;
   display: block;
   border-radius: 8px;
 }
+/* 横滚模式: 单图占容器一半高度, 单宽不超 40vw. */
 .cf-alternates-scroll .cf-alternates-media {
   width: auto;
-  height: 60vh;
-  max-width: 50vw;
+  height: min(50vh, 480px);
+  max-width: 40vw;
 }
 .cf-alternates-audio-placeholder {
   width: 200px;
-  height: 60vh;
+  height: 200px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -664,6 +686,9 @@
   height: 100%;
   object-fit: cover; /* 视频等媒体：铺满容器（略裁切）*/
   display: block;
+  /* 显式 z-index 2 > 背景卡 z-index 1 — 不写主图会被 stack 覆盖. */
+  position: relative;
+  z-index: 2;
 }
 
 /* 静态图片：按节点框完整适配（留白边），与设计稿/上传预览一致 */

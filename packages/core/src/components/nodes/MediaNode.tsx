@@ -268,14 +268,16 @@ export const ImageNode: React.FC<NodeContentProps> = ({ data, isConnected, onCha
         src={mediaSrc}
         type="image"
       />
-      <AlternatesPicker
-        isOpen={isPickerOpen}
-        onClose={() => setIsPickerOpen(false)}
-        alternates={alternates}
-        currentSrc={rawSrc}
-        onPick={(src) => onChange({ src })}
-        type="image"
-      />
+      {isPickerOpen && (
+        <AlternatesPicker
+          isOpen={isPickerOpen}
+          onClose={() => setIsPickerOpen(false)}
+          alternates={alternates}
+          currentSrc={rawSrc}
+          onPick={(src) => onChange({ src })}
+          type="image"
+        />
+      )}
     </>
   );
 };
@@ -365,14 +367,16 @@ export const VideoNode: React.FC<NodeContentProps> = ({
         src={mediaSrc}
         type="video"
       />
-      <AlternatesPicker
-        isOpen={isPickerOpen}
-        onClose={() => setIsPickerOpen(false)}
-        alternates={alternates}
-        currentSrc={rawSrc}
-        onPick={(src) => onChange({ src })}
-        type="video"
-      />
+      {isPickerOpen && (
+        <AlternatesPicker
+          isOpen={isPickerOpen}
+          onClose={() => setIsPickerOpen(false)}
+          alternates={alternates}
+          currentSrc={rawSrc}
+          onPick={(src) => onChange({ src })}
+          type="video"
+        />
+      )}
     </>
   );
 };
@@ -446,14 +450,16 @@ export const AudioNode: React.FC<NodeContentProps> = ({ data, isConnected, onCha
         src={mediaSrc}
         type="audio"
       />
-      <AlternatesPicker
-        isOpen={isPickerOpen}
-        onClose={() => setIsPickerOpen(false)}
-        alternates={alternates}
-        currentSrc={rawSrc}
-        onPick={(src) => onChange({ src })}
-        type="audio"
-      />
+      {isPickerOpen && (
+        <AlternatesPicker
+          isOpen={isPickerOpen}
+          onClose={() => setIsPickerOpen(false)}
+          alternates={alternates}
+          currentSrc={rawSrc}
+          onPick={(src) => onChange({ src })}
+          type="audio"
+        />
+      )}
     </>
   );
 };
