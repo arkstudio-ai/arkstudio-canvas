@@ -82,13 +82,13 @@ export function GroupSaveDialog({ open, onClose, onConfirm, saving }: GroupSaveD
   const handleUploadCover = async (file: File) => {
     setUploading(true);
     try {
-      const res: any = await api.uploadFile(file);
-      let url = '';
-      if (typeof res === 'string') url = res;
-      else if (typeof res?.data?.file_url === 'string') url = res.data.file_url;
-      else if (typeof res?.data === 'string') url = res.data;
-
-      if (url && url.startsWith('http')) {
+      // api.uploadFile 返回 `/static/uploads/<key>` 相对 URL.
+      // dev (Vite proxy) / desktop (electron webRequest 转发) / 生产
+      // (nginx) 都把这条路径解析到 backend, 所以前端拿 string 直接喂
+      // <img src> / 落库都可以. 历史代码这里还会 url.startsWith('http')
+      // 校验, 把相对路径当成"没上传成功"误报 — 已经移除.
+      const url = await api.uploadFile(file);
+      if (url) {
         setCover(url);
         toast.success('封面已上传');
       } else {

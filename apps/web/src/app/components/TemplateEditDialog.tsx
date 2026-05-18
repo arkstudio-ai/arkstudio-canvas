@@ -69,13 +69,11 @@ export function TemplateEditDialog({ asset, onClose, onSave }: TemplateEditDialo
   const handleUploadCover = async (file: File) => {
     setUploading(true);
     try {
-      const res: any = await api.uploadFile(file);
-      let url = '';
-      if (typeof res === 'string') url = res;
-      else if (typeof res?.data?.file_url === 'string') url = res.data.file_url;
-      else if (typeof res?.data === 'string') url = res.data;
-
-      if (url && url.startsWith('http')) {
+      // 同 GroupSaveDialog 注释: api.uploadFile 现在返 string ('/static/
+      // uploads/<key>'); 历史的 url.startsWith('http') 把相对路径误判失败,
+      // 移除.
+      const url = await api.uploadFile(file);
+      if (url) {
         setCover(url);
         toast.success('封面已上传');
       } else {
