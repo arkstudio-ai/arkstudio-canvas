@@ -1,0 +1,58 @@
+{
+  "nav": {
+    "usage": "概览",
+    "logs": "日志",
+    "config": "配置",
+    "system": "系统设置"
+  },
+  "common": {
+    "save": "保存",
+    "saving": "保存中…",
+    "resetDefault": "重置默认",
+    "run": "执行",
+    "loading": "加载中…"
+  },
+  "system": {
+    "source": {
+      "title": "Source · License",
+      "hint": "本服务以 {{license}} 协议开源。按 AGPL §13，部署方需要让访问者拿到对应版本的源码。"
+    },
+    "history": {
+      "title": "生成历史保留",
+      "hint": "无定时任务：每次新生成会顺手清理一次。下方两个阈值任一为 0 = 禁用该维度。",
+      "maxAgeDays": "最大保留天数",
+      "maxPerKind": "每个 kind 最多条数",
+      "manualPrune": "立即清理",
+      "pruning": "清理中…",
+      "lastPrune": "上次：{{at}} · 删除 {{count}} 条",
+      "lastPruneNever": "上次：未运行（自后端启动）",
+      "resetAgeTitle": "回退到内置默认 {{count}} 天",
+      "resetPerKindTitle": "回退到内置默认 {{count}} 条/kind"
+    },
+    "storage": {
+      "title": "本地存储",
+      "hint": "上传 / 生成结果都落到下面的 data dir，由 /static/uploads/<key> 对外服务。生产建议挂独立卷以方便备份。i2i / i2v 由后端自动中转到 DashScope 临时桶，无需额外配置。"
+    },
+    "providers": {
+      "dashscope": {
+        "timeoutsHint": "按 model kind 配置 submit 调用超时。Polling 固定 10s 不暴露。留空 = 默认；保存值 ≥ 1s。",
+        "baseUrlHint": "DashScope (百炼) 网关地址。默认 https://dashscope.aliyuncs.com，国际版用 https://dashscope-intl.aliyuncs.com。",
+        "apiKeyHint": "落库前 AES-256-GCM 加密，页面只显示掩码（如 sk-1de...0252），修改约 30 秒内生效。"
+      },
+      "openai": {
+        "timeoutsHint": "默认值略宽（DALL-E 3 / GPT-image 偶发 60s+）。video / audio 暂无 provider，配置仍保留。留空 = 默认；保存值 ≥ 1s。",
+        "baseUrlHint": "任意 OpenAI Chat Completions / Images Generations 协议网关（OpenAI / OpenRouter / Together / Groq / vLLM 等）。须包含 /v1，末尾不带斜线。",
+        "apiKeyHint": "落库前 AES-256-GCM 加密，页面只显示掩码。配置后才能在「配置」页把 openai-chat/<model> · openai-image/<model> 加进 models 列表。"
+      },
+      "volcengine": {
+        "timeoutsHint": "目前仅 video 生效（Seedance 2.0 / 2.0 Fast）。chat / image / audio 字段保留待接入。Polling 固定 10s。",
+        "baseUrlHint": "Volcengine 火山方舟 Seedance 网关。默认 https://ark.cn-beijing.volces.com/api/v3。自建代理路径布局一致即可切换。不要带 /contents/... 后缀。",
+        "apiKeyHint": "Bearer Token（官方填 ARK_API_KEY；私有代理填代理 key）。落库前 AES-256-GCM 加密。",
+        "ossWarning": "Seedance 视频 i2v / r2v 模式还需要在下方配置「对象存储 (OSS / TOS)」，否则本地上传的图片无法被火山服务器拉到，只能跑 t2v。"
+      }
+    }
+  },
+  "config": {
+    "importConfirm": "当前画布配置有未保存的改动，导入将覆盖。继续吗？"
+  }
+}

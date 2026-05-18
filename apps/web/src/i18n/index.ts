@@ -17,6 +17,8 @@ import { initReactI18next } from 'react-i18next';
 
 import zhCommon from './locales/zh/common.json';
 import enCommon from './locales/en/common.json';
+import zhSettings from './locales/zh/settings.json';
+import enSettings from './locales/en/settings.json';
 
 export const SUPPORTED_LANGUAGES = ['zh', 'en'] as const;
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
@@ -36,11 +38,11 @@ void i18n
       lookupLocalStorage: 'cf.lang',
     },
     resources: {
-      zh: { common: zhCommon },
-      en: { common: enCommon },
+      zh: { common: zhCommon, settings: zhSettings },
+      en: { common: enCommon, settings: enSettings },
     },
     defaultNS: 'common',
-    ns: ['common'],
+    ns: ['common', 'settings'],
   });
 
 export default i18n;

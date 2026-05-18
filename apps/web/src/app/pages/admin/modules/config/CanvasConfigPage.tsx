@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, RefreshCw, Save, RotateCcw, Download, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -38,6 +39,7 @@ import type { ConfigExportEnvelope, ImportConfigResponse } from '../../types';
  * risk path; in-app nav is acceptable to leave unguarded for now.
  */
 export const CanvasConfigPage: React.FC = () => {
+  const { t } = useTranslation();
   const editor = useConfigEditor();
   const [activeNodeType, setActiveNodeType] = useState<string | null>(null);
   const [openModelValue, setOpenModelValue] = useState<string | null>(null);
@@ -85,9 +87,7 @@ export const CanvasConfigPage: React.FC = () => {
 
   const handleImportClick = () => {
     if (editor.isDirty) {
-      const ok = window.confirm(
-        '当前画布配置有未保存的改动，导入将覆盖现有 DB 配置。继续吗？\n（你的"未保存改动"会被丢弃；服务器上的旧版本可被新文件 replace。）',
-      );
+      const ok = window.confirm(t('settings:config.importConfirm'));
       if (!ok) return;
     }
     resetImportState();

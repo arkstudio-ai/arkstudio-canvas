@@ -115,7 +115,7 @@ export const SettingsOverlay: React.FC = () => {
                   }}
                 >
                   <Icon size={15} />
-                  <span>{m.label}</span>
+                  <span>{t(m.labelKey)}</span>
                 </button>
               );
             })}

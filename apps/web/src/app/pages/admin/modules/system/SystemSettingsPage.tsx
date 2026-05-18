@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Database,
   Eye,
@@ -130,16 +131,17 @@ const Header: React.FC = () => (
  * Values are baked at build time (vite `define`) so they reflect the
  * artifact actually served, not whatever the runtime DB might claim.
  */
-const SourceLicenseSection: React.FC = () => (
+const SourceLicenseSection: React.FC = () => {
+  const { t } = useTranslation();
+  return (
   <section style={sectionStyle}>
     <h3 style={sectionTitleStyle}>
       <Github size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-      Source · License
+      {t('settings:system.source.title')}
     </h3>
     <div style={sectionBodyStyle}>
       <p style={hintStyle}>
-        本服务以 <strong>{__ARK_LICENSE_NAME__}</strong> 协议开源；按 AGPL §13
-        网络互动条款，部署方需要让访问者能拿到对应版本的源代码。
+        {t('settings:system.source.hint', { license: __ARK_LICENSE_NAME__ })}
       </p>
       <div style={statusGridStyle}>
         <StatusCard
@@ -186,7 +188,8 @@ const SourceLicenseSection: React.FC = () => (
       </div>
     </div>
   </section>
-);
+  );
+};
 
 const sourceLinkStyle: React.CSSProperties = {
   display: 'inline-flex',
@@ -217,6 +220,7 @@ const HISTORY_KINDS: { kind: HistoryKind; label: string }[] = [
  * also explicitly type 0 to disable the knob entirely.
  */
 const HistoryRetentionSection: React.FC = () => {
+  const { t } = useTranslation();
   const [view, setView] = useState<HistorySettingsView | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -282,10 +286,10 @@ const HistoryRetentionSection: React.FC = () => {
       <section style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
           <History size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-          生成历史保留
+          {t('settings:system.history.title')}
         </h3>
         <div style={sectionBodyStyle}>
-          <div style={emptyStyle}>{loading ? '加载中…' : '加载失败'}</div>
+          <div style={emptyStyle}>{loading ? t('common:common.loading') : '加载失败'}</div>
         </div>
       </section>
     );
@@ -308,13 +312,10 @@ const HistoryRetentionSection: React.FC = () => {
     <section style={sectionStyle}>
       <h3 style={sectionTitleStyle}>
         <History size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-        生成历史保留
+        {t('settings:system.history.title')}
       </h3>
       <div style={sectionBodyStyle}>
-        <p style={hintStyle}>
-          开源版不跑定时任务：每次新生成会顺手做一次节流清理（10 分钟内最多触发一次），
-          也可以从下面的「立即清理」按钮强制触发。两个阈值任一保存为 0 表示禁用该维度。
-        </p>
+        <p style={hintStyle}>{t('settings:system.history.hint')}</p>
 
         {/* Counts overview */}
         <div style={countsRowStyle}>
@@ -326,7 +327,7 @@ const HistoryRetentionSection: React.FC = () => {
 
         {/* Knobs */}
         <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>最大保留天数</span>
+          <span style={fieldLabelStyle}>{t('settings:system.history.maxAgeDays')}</span>
           <input
             value={ageDraft}
             onChange={(e) => setAgeDraft(e.target.value)}
@@ -342,7 +343,7 @@ const HistoryRetentionSection: React.FC = () => {
             style={ageDirty ? buttonAccentStyle : buttonStyle}
             disabled={!ageDirty || saving}
           >
-            保存
+            {t('settings:common.save')}
           </button>
           {view.maxAgeDaysConfigured && (
             <button
@@ -350,15 +351,15 @@ const HistoryRetentionSection: React.FC = () => {
               onClick={() => apply({ maxAgeDays: -1 })}
               style={buttonGhostStyle}
               disabled={saving}
-              title={`清除 DB 配置，回退到内置默认 ${view.maxAgeDaysDefault} 天`}
+              title={t('settings:system.history.resetAgeTitle', { count: view.maxAgeDaysDefault })}
             >
-              重置默认
+              {t('settings:common.resetDefault')}
             </button>
           )}
         </div>
 
         <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>每个 kind 最多条数</span>
+          <span style={fieldLabelStyle}>{t('settings:system.history.maxPerKind')}</span>
           <input
             value={perKindDraft}
             onChange={(e) => setPerKindDraft(e.target.value)}
@@ -374,7 +375,7 @@ const HistoryRetentionSection: React.FC = () => {
             style={perKindDirty ? buttonAccentStyle : buttonStyle}
             disabled={!perKindDirty || saving}
           >
-            保存
+            {t('settings:common.save')}
           </button>
           {view.maxPerKindConfigured && (
             <button
@@ -382,16 +383,16 @@ const HistoryRetentionSection: React.FC = () => {
               onClick={() => apply({ maxPerKind: -1 })}
               style={buttonGhostStyle}
               disabled={saving}
-              title={`清除 DB 配置，回退到内置默认 ${view.maxPerKindDefault} 条/kind`}
+              title={t('settings:system.history.resetPerKindTitle', { count: view.maxPerKindDefault })}
             >
-              重置默认
+              {t('settings:common.resetDefault')}
             </button>
           )}
         </div>
 
         {/* Manual prune */}
         <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>立即清理</span>
+          <span style={fieldLabelStyle}>{t('settings:system.history.manualPrune')}</span>
           <button
             type="button"
             onClick={() => void runPrune()}
@@ -399,12 +400,15 @@ const HistoryRetentionSection: React.FC = () => {
             disabled={pruning || saving}
           >
             <Trash2 size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-            {pruning ? '清理中…' : '执行'}
+            {pruning ? t('settings:system.history.pruning') : t('settings:common.run')}
           </button>
           <span style={lastPruneStyle}>
             {view.lastPruneAt
-              ? `上次：${new Date(view.lastPruneAt).toLocaleString()} · 删除 ${view.lastPruneDeleted} 条`
-              : '上次：未运行（自后端启动）'}
+              ? t('settings:system.history.lastPrune', {
+                  at: new Date(view.lastPruneAt).toLocaleString(),
+                  count: view.lastPruneDeleted,
+                })
+              : t('settings:system.history.lastPruneNever')}
           </span>
         </div>
       </div>
@@ -433,6 +437,7 @@ const HistoryRetentionSection: React.FC = () => {
  * configuration needed here.
  */
 const StorageSection: React.FC = () => {
+  const { t } = useTranslation();
   const [view, setView] = useState<StorageSettingsView | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -526,17 +531,10 @@ const StorageSection: React.FC = () => {
     <section style={sectionStyle}>
       <h3 style={sectionTitleStyle}>
         <HardDrive size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-        本地存储
+        {t('settings:system.storage.title')}
       </h3>
       <div style={sectionBodyStyle}>
-        <p style={hintStyle}>
-          所有上传文件、模型生成结果都直接写入下方 <code>data dir</code>，由 backend 的{' '}
-          <code>/static/uploads/&lt;key&gt;</code> 路由对外提供。生产部署请把这个路径放到一个
-          独立挂载卷（<code>docker-compose.yml</code> 已经默认这么做），<code>docker compose down</code> 不会丢数据。
-          <br />
-          需要让阿里云模型读取本地图片做 i2i / i2v？后端会在 submit 之前自动把对应文件再上传到
-          DashScope 临时桶（<code>oss://</code>，48h 失效），这里无需任何额外配置。
-        </p>
+        <p style={hintStyle}>{t('settings:system.storage.hint')}</p>
 
         {/* Status overview */}
         <div style={statusGridStyle}>
@@ -585,7 +583,7 @@ const StorageSection: React.FC = () => {
             style={dataDirDirty ? buttonAccentStyle : buttonStyle}
             disabled={!dataDirDirty || saving}
           >
-            保存
+            {t('settings:common.save')}
           </button>
           {view.dataDirSource === 'db' && (
             <button
@@ -628,7 +626,7 @@ const StorageSection: React.FC = () => {
             style={maxFileSizeDirty ? buttonAccentStyle : buttonStyle}
             disabled={!maxFileSizeDirty || saving}
           >
-            保存
+            {t('settings:common.save')}
           </button>
           {view.maxFileSizeConfigured && (
             <button
@@ -713,10 +711,12 @@ interface ProviderCard {
   scopeChips: { sku: string; modality: 'chat' | 'image' | 'video' | 'audio' }[];
   /** 超时档位 + 文案。video/audio 两档保留即使没 provider，让 schema 一致。 */
   timeoutKinds: { kind: ProviderKind; label: string; hint: string }[];
-  /** 各档说明 callout 的文字。 */
-  timeoutsHint: string;
-  baseUrlHint: React.ReactNode;
-  apiKeyHint: React.ReactNode;
+  // 文案都改成 i18n key (settings:system.providers.<id>.*); 渲染时 t() 拿.
+  timeoutsHintKey: string;
+  baseUrlHintKey: string;
+  apiKeyHintKey: string;
+  /** 可选的二段警告 (Volcengine OSS 依赖), 红字渲染. */
+  apiKeyWarningKey?: string;
   load: () => Promise<ProviderConfigView>;
   save: (patch: ProviderConfigPatch) => Promise<ProviderConfigView>;
   /** 只在确认清除 apiKey 时弹的话术；默认是通用文案。 */
@@ -759,20 +759,9 @@ const PROVIDER_CARDS: ProviderCard[] = [
       { kind: 'video', label: 'Video', hint: '异步视频 submit；polling 固定 10s 不暴露' },
       { kind: 'audio', label: 'Audio', hint: 'TTS / FunMusic / 音色复刻 submit' },
     ],
-    timeoutsHint:
-      '按 model kind 分别设置 submit 调用超时。Polling（image/video）固定 10s 不暴露 — polling 是轻 GET，过长意味着是 bug，不是 tuning knob。留空 = 用内置默认；保存值 ≥ 1s。',
-    baseUrlHint: (
-      <>
-        DashScope (Bailian) 网关地址。留空回退到默认 <code>https://dashscope.aliyuncs.com</code>。
-        国际版账号请改 <code>https://dashscope-intl.aliyuncs.com</code>。
-      </>
-    ),
-    apiKeyHint: (
-      <>
-        落库前用 <code>ENCRYPTION_KEY</code> 做 aes-256-gcm 加密；页面只显示掩码（如{' '}
-        <code>sk-1de...0252</code>），永不回传明文。修改约 30 秒内对所有 model 调用生效。
-      </>
-    ),
+    timeoutsHintKey: 'settings:system.providers.dashscope.timeoutsHint',
+    baseUrlHintKey: 'settings:system.providers.dashscope.baseUrlHint',
+    apiKeyHintKey: 'settings:system.providers.dashscope.apiKeyHint',
     load: getProviderSettings,
     save: updateProviderSettings,
     clearKeyConfirm:
@@ -792,23 +781,9 @@ const PROVIDER_CARDS: ProviderCard[] = [
       { kind: 'video', label: 'Video', hint: '当前 OpenAI 无标准视频接口；保留以兼容未来扩展' },
       { kind: 'audio', label: 'Audio', hint: '/audio/speech TTS（暂未接入 provider，预留 schema）' },
     ],
-    timeoutsHint:
-      'DALL-E 3 / GPT-image-1 偶发 60s+，所以默认值比 DashScope 略宽。video / audio 两档暂时无对应 provider，配置仍保留以便未来加入。留空 = 用内置默认；保存值 ≥ 1s。',
-    baseUrlHint: (
-      <>
-        支持任何 <strong>OpenAI Chat Completions / Images Generations</strong> 协议的网关：
-        <code>OpenAI</code> · <code>OpenRouter</code> · <code>Together</code> ·{' '}
-        <code>Groq</code> · 自建 <code>vLLM</code>。约定 base URL <strong>包含 <code>/v1</code> 且末尾不含斜线</strong>（保存时自动剪掉）。OpenRouter 用{' '}
-        <code>https://openrouter.ai/api/v1</code>，自建 vLLM 用 <code>http://your-host:8000/v1</code>。
-      </>
-    ),
-    apiKeyHint: (
-      <>
-        落库前用 <code>ENCRYPTION_KEY</code> 做 aes-256-gcm 加密；页面只显示掩码（如{' '}
-        <code>sk-1de...0252</code>），永不回传明文。配置后才能在 <code>/admin/config</code> 把
-        <code>openai-chat/&lt;model&gt;</code>、<code>openai-image/&lt;model&gt;</code> 加进节点 models 列表。
-      </>
-    ),
+    timeoutsHintKey: 'settings:system.providers.openai.timeoutsHint',
+    baseUrlHintKey: 'settings:system.providers.openai.baseUrlHint',
+    apiKeyHintKey: 'settings:system.providers.openai.apiKeyHint',
     load: getOpenaiSettings,
     save: updateOpenaiSettings,
     clearKeyConfirm:
@@ -843,32 +818,10 @@ const PROVIDER_CARDS: ProviderCard[] = [
         hint: '当前未接入；预留位。',
       },
     ],
-    timeoutsHint:
-      '当前仅 video 落库（Seedance 2.0 / 2.0 Fast）。chat / image / audio 字段写入也会被静默忽略，等对应 provider 接入再启用。Polling 固定 10s 不暴露。',
-    baseUrlHint: (
-      <>
-        Volcengine（火山方舟）Seedance Video API 网关。默认指向官方{' '}
-        <code>https://ark.cn-beijing.volces.com/api/v3</code>。
-        如果你部署了自建/私有代理且 path layout 与官方一致
-        （<code>/contents/generations/tasks</code> +{' '}
-        <code>/open/CreateAsset</code>），可改成你的代理地址，0 代码切换。
-        <strong>不要</strong>带 <code>/contents/...</code> 后缀，
-        provider 会自己拼。
-      </>
-    ),
-    apiKeyHint: (
-      <>
-        Bearer Token。官方填你的 <code>ARK_API_KEY</code>；私有代理填代理 key。
-        落库前用 <code>ENCRYPTION_KEY</code> 做 aes-256-gcm 加密；页面只显示
-        掩码。配置后才能使用 <code>doubao-seedance-*</code> SKU。
-        <br />
-        <br />
-        <strong style={{ color: tokens.warn }}>
-          注意：Seedance 视频生成的 i2v / r2v 模式还要额外配「对象存储 (OSS / TOS)」
-          (下面那个 section)，否则本地上传的图片无法被火山服务器拉到，只能跑纯文本 t2v。
-        </strong>
-      </>
-    ),
+    timeoutsHintKey: 'settings:system.providers.volcengine.timeoutsHint',
+    baseUrlHintKey: 'settings:system.providers.volcengine.baseUrlHint',
+    apiKeyHintKey: 'settings:system.providers.volcengine.apiKeyHint',
+    apiKeyWarningKey: 'settings:system.providers.volcengine.ossWarning',
     load: getVolcengineSettings,
     save: updateVolcengineSettings,
     clearKeyConfirm:
@@ -1059,6 +1012,7 @@ const ProviderTabBody: React.FC<{
   setShowKey,
   apply,
 }) => {
+  const { t } = useTranslation();
   const baseUrlDirty = baseUrlDraft.trim() !== (view.baseUrlConfigured ? view.baseUrl : '');
   const apiKeyDirty = apiKeyDraft.trim().length > 0;
 
@@ -1073,7 +1027,7 @@ const ProviderTabBody: React.FC<{
           <Link2 size={12} />
           <span>Base URL</span>
         </div>
-        <p style={hintStyle}>{card.baseUrlHint}</p>
+        <p style={hintStyle}>{t(card.baseUrlHintKey)}</p>
         <div style={fieldRowStyle}>
           <span style={fieldLabelStyle}>Base URL</span>
           <input
@@ -1089,7 +1043,7 @@ const ProviderTabBody: React.FC<{
             style={baseUrlDirty ? buttonAccentStyle : buttonStyle}
             disabled={!baseUrlDirty || saving}
           >
-            保存
+            {t('settings:common.save')}
           </button>
           {view.baseUrlConfigured && (
             <button
@@ -1111,7 +1065,12 @@ const ProviderTabBody: React.FC<{
           <KeyRound size={12} />
           <span>API Key</span>
         </div>
-        <p style={hintStyle}>{card.apiKeyHint}</p>
+        <p style={hintStyle}>{t(card.apiKeyHintKey)}</p>
+        {card.apiKeyWarningKey && (
+          <p style={{ ...hintStyle, color: tokens.warn, marginTop: 6 }}>
+            {t(card.apiKeyWarningKey)}
+          </p>
+        )}
         <div style={fieldRowStyle}>
           <span style={fieldLabelStyle}>API Key</span>
           <div style={apiKeyInputWrapStyle}>
@@ -1144,7 +1103,7 @@ const ProviderTabBody: React.FC<{
             style={apiKeyDirty ? buttonAccentStyle : buttonStyle}
             disabled={!apiKeyDirty || saving}
           >
-            保存
+            {t('settings:common.save')}
           </button>
           {view.apiKeyConfigured && (
             <button
@@ -1186,7 +1145,7 @@ const ProviderTabBody: React.FC<{
           <Timer size={12} />
           <span>超时设置 (秒)</span>
         </div>
-        <p style={hintStyle}>{card.timeoutsHint}</p>
+        <p style={hintStyle}>{t(card.timeoutsHintKey)}</p>
         <TimeoutsTable
           view={view}
           kinds={card.timeoutKinds}
@@ -1233,6 +1192,7 @@ const TimeoutsTable: React.FC<{
   saving: boolean;
   apply: (timeouts: Partial<Record<ProviderKind, number>>) => void;
 }> = ({ view, kinds, saving, apply }) => {
+  const { t } = useTranslation();
   const [drafts, setDrafts] = useState<Record<ProviderKind, string>>({
     chat: '',
     image: '',
@@ -1286,7 +1246,7 @@ const TimeoutsTable: React.FC<{
               style={dirty ? buttonAccentStyle : buttonStyle}
               disabled={!dirty || saving}
             >
-              保存
+              {t('settings:common.save')}
             </button>
             {entry.configured ? (
               <button

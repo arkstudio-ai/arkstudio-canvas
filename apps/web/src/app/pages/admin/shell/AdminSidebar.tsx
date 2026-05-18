@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft } from 'lucide-react';
 import type { AdminModule } from '../types';
 
@@ -26,6 +27,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   backTo = '/canvas',
   basePath = '/admin',
 }) => {
+  const { t } = useTranslation();
   const join = (p: string) =>
     `${basePath.replace(/\/$/, '')}/${p.replace(/^\//, '')}`;
   return (
@@ -47,7 +49,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               style={({ isActive }) => navItemStyle(isActive)}
             >
               <Icon size={16} />
-              <span>{m.label}</span>
+              <span>{t(m.labelKey)}</span>
             </NavLink>
           );
         })}

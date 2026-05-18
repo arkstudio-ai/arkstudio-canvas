@@ -13,8 +13,8 @@ import type { LucideIcon } from 'lucide-react';
 export interface AdminModule {
   /** Stable id; used for route key & nav active highlight. */
   id: string;
-  /** Sidebar label. */
-  label: string;
+  /** i18next key (in `settings` namespace) for the sidebar nav label. */
+  labelKey: string;
   /** Sidebar icon. */
   icon: LucideIcon;
   /** Sub-path under `/admin/`, no leading slash. e.g. `'logs'` -> `/admin/logs` */

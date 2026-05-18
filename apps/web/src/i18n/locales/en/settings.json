@@ -1,0 +1,58 @@
+{
+  "nav": {
+    "usage": "Overview",
+    "logs": "Logs",
+    "config": "Config",
+    "system": "System"
+  },
+  "common": {
+    "save": "Save",
+    "saving": "Saving…",
+    "resetDefault": "Reset",
+    "run": "Run",
+    "loading": "Loading…"
+  },
+  "system": {
+    "source": {
+      "title": "Source · License",
+      "hint": "This service is open-sourced under {{license}}. AGPL §13 requires operators to provide visitors with the matching source code."
+    },
+    "history": {
+      "title": "Generation history retention",
+      "hint": "No cron — every new generation triggers an opportunistic prune. Saving 0 in either knob below disables that dimension.",
+      "maxAgeDays": "Max age (days)",
+      "maxPerKind": "Max rows per kind",
+      "manualPrune": "Prune now",
+      "pruning": "Pruning…",
+      "lastPrune": "Last: {{at}} · {{count}} deleted",
+      "lastPruneNever": "Last: never (since backend start)",
+      "resetAgeTitle": "Revert to built-in default {{count}} days",
+      "resetPerKindTitle": "Revert to built-in default {{count}} rows/kind"
+    },
+    "storage": {
+      "title": "Local storage",
+      "hint": "Uploads and generation results land in the data dir below, served at /static/uploads/<key>. Mount it as a dedicated volume in production for easy backup. i2i / i2v auto-stage through DashScope's temp bucket — no extra setup."
+    },
+    "providers": {
+      "dashscope": {
+        "timeoutsHint": "Submit timeout per model kind. Polling is fixed at 10s. Empty = default; saved value ≥ 1s.",
+        "baseUrlHint": "DashScope (Bailian) gateway. Default https://dashscope.aliyuncs.com; international accounts use https://dashscope-intl.aliyuncs.com.",
+        "apiKeyHint": "Encrypted at rest (AES-256-GCM). UI shows masked form only (e.g. sk-1de...0252). Edits take effect within ~30 seconds."
+      },
+      "openai": {
+        "timeoutsHint": "Defaults are slightly wider (DALL-E 3 / GPT-image occasionally exceed 60 s). No video / audio provider yet — fields kept for forward-compat. Empty = default; saved value ≥ 1s.",
+        "baseUrlHint": "Any OpenAI Chat Completions / Images Generations gateway (OpenAI / OpenRouter / Together / Groq / vLLM). Must include /v1, no trailing slash.",
+        "apiKeyHint": "Encrypted at rest (AES-256-GCM). UI shows masked form only. Once configured, openai-chat/<model> and openai-image/<model> become addable under Config."
+      },
+      "volcengine": {
+        "timeoutsHint": "Only video active today (Seedance 2.0 / 2.0 Fast). chat / image / audio fields kept for forward-compat. Polling is fixed at 10s.",
+        "baseUrlHint": "Volcengine Ark Seedance gateway. Default https://ark.cn-beijing.volces.com/api/v3. Private proxies with matching path layout slot in too. Don't include /contents/... — provider appends it.",
+        "apiKeyHint": "Bearer token (use ARK_API_KEY for the official endpoint, proxy key for self-hosted). Encrypted at rest with AES-256-GCM.",
+        "ossWarning": "Seedance i2v / r2v also needs Object Storage (OSS / TOS) configured below — without it, locally uploaded images can't be fetched by Volcengine servers and only t2v works."
+      }
+    }
+  },
+  "config": {
+    "importConfirm": "Current canvas config has unsaved changes — import will overwrite. Continue?"
+  }
+}
