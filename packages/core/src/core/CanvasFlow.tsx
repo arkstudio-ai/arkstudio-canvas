@@ -131,19 +131,6 @@ export interface CanvasFlowHandle {
   setNodeText(nodeId: string, text: string): void;
   setNodeTitle(nodeId: string, title: string): void;
   setNodeOutput(nodeId: string, outputData: any): void;
-  /**
-   * 打个 "通过 file picker 手动上传" 的标记到 node.data, 让 MediaNode
-   * 渲染时能区分 manual upload vs AI generated (替换按钮只对 manual
-   * 显示). meta 从原 File 对象拿就行 (useFlow 已经拿到了).
-   *
-   * 之所以单独一个 API 而不是塞进 setNodeImage 的可选参数: AI 生成
-   * 也调 setNodeImage, 不能让 caller 误传 meta 导致 AI 节点上长出
-   * 替换按钮.
-   */
-  markNodeAsUploaded(
-    nodeId: string,
-    meta: { fileName: string; fileType: string; fileSize: number },
-  ): void;
   
   // 通用内容设置 API (保留，用于特殊场景)
   setNodeContent(nodeId: string, content: { src?: string; text?: string; outputData?: any }): void;
@@ -444,22 +431,7 @@ export const CanvasFlow = React.forwardRef<CanvasFlowHandle, CanvasFlowProps>((p
         updateMediaData(nodeId, { src });
       }
     },
-
-    markNodeAsUploaded: (
-      nodeId: string,
-      meta: { fileName: string; fileType: string; fileSize: number },
-    ) => {
-      // 任何媒体节点都接 (image/video/audio).
-      const validTypes = ['image', 'video', 'audio'];
-      if (validateNodeType(nodeId, validTypes, 'markNodeAsUploaded')) {
-        updateMediaData(nodeId, {
-          fileName: meta.fileName,
-          fileType: meta.fileType,
-          fileSize: meta.fileSize,
-        });
-      }
-    },
-
+    
     setNodeText: (nodeId: string, text: string) => {
       if (validateNodeType(nodeId, 'text', 'setNodeText')) {
         updateMediaData(nodeId, { text });
