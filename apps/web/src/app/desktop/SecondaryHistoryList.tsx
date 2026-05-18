@@ -169,29 +169,39 @@ export const SecondaryHistoryList: React.FC = () => {
                   e.currentTarget.style.background = 'transparent';
                 }}
               >
-                {item.thumbnail ? (
-                  // backend 把 video 历史的 thumbnail 字段直接塞了 .mp4
-                  // src — 真生成 poster frame 需要 ffmpeg, 当前没接, 所以
-                  // 前端这里 video 走 <video preload=metadata> 拿第一帧
-                  // 当封面 (浏览器原生支持). image 仍走 <img>.
-                  item.nodeType === 'video' ? (
-                    <video
-                      src={item.thumbnail}
-                      muted
-                      preload="metadata"
-                      // 拦下点击 — 整行的 onClick 走 handleClick, 不让
-                      // video 自带的 click-to-play 抢焦点.
-                      onClick={(e) => e.preventDefault()}
-                      style={thumbStyle}
-                    />
+                <div style={thumbWrapStyle}>
+                  {item.thumbnail ? (
+                    // backend 把 video 历史的 thumbnail 字段直接塞了 .mp4
+                    // src — 真生成 poster frame 需要 ffmpeg, 当前没接, 所以
+                    // 前端这里 video 走 <video preload=metadata> 拿第一帧
+                    // 当封面 (浏览器原生支持). image 仍走 <img>.
+                    item.nodeType === 'video' ? (
+                      <video
+                        src={item.thumbnail}
+                        muted
+                        preload="metadata"
+                        // 拦下点击 — 整行的 onClick 走 handleClick, 不让
+                        // video 自带的 click-to-play 抢焦点.
+                        onClick={(e) => e.preventDefault()}
+                        style={thumbStyle}
+                      />
+                    ) : (
+                      <img src={item.thumbnail} alt="" style={thumbStyle} />
+                    )
                   ) : (
-                    <img src={item.thumbnail} alt="" style={thumbStyle} />
-                  )
-                ) : (
-                  <div style={iconBoxStyle}>
-                    <Icon size={16} />
-                  </div>
-                )}
+                    <div style={iconBoxStyle}>
+                      <Icon size={16} />
+                    </div>
+                  )}
+                  {/* 多图生成 +N badge — backend 返了 alternatesCount,
+                      老节点 / 单图 = 1, 不显示. 视觉跟节点上的 stack
+                      呼应, 让用户在历史列表也能一眼分辨 "这条是多图". */}
+                  {item.alternatesCount > 1 && (
+                    <span style={alternatesBadgeStyle}>
+                      +{item.alternatesCount - 1}
+                    </span>
+                  )}
+                </div>
                 <div style={textColStyle}>
                   <span style={titleStyle}>{display}</span>
                   <span style={metaStyle}>
@@ -261,6 +271,13 @@ const rowStyle: React.CSSProperties = {
   transition: 'background 0.15s',
 };
 
+const thumbWrapStyle: React.CSSProperties = {
+  position: 'relative',
+  flexShrink: 0,
+  width: 36,
+  height: 36,
+};
+
 const thumbStyle: React.CSSProperties = {
   width: 36,
   height: 36,
@@ -280,6 +297,21 @@ const iconBoxStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   flexShrink: 0,
+};
+
+const alternatesBadgeStyle: React.CSSProperties = {
+  position: 'absolute',
+  right: -4,
+  bottom: -4,
+  background: 'rgba(52, 211, 153, 0.95)',
+  color: '#0a0a0a',
+  fontSize: 9,
+  fontWeight: 600,
+  borderRadius: 8,
+  padding: '0 5px',
+  height: 14,
+  lineHeight: '14px',
+  pointerEvents: 'none',
 };
 
 const textColStyle: React.CSSProperties = {

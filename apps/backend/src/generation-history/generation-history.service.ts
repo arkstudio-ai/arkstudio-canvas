@@ -44,10 +44,14 @@ export class GenerationHistoryService {
       ];
     }
 
-    const [total, items] = await Promise.all([
+    const [total, rows] = await Promise.all([
       this.prisma.generationHistory.count({ where }),
       this.prisma.generationHistory.findMany({
         where,
+        // outputData 是为了能算 alternates 数 (多图生成时 backend 把全部
+        // mirror URL 塞 outputData.alternates), 列表渲染 "+N" badge. 没
+        // 直接 select 一个 count 字段是因为 alternates 在 Json 列里, Prisma
+        // 不能在 SELECT 里抽 JSON 字段, 拉全字段在 JS 里算更直接.
         select: {
           id: true,
           nodeType: true,
@@ -57,12 +61,26 @@ export class GenerationHistoryService {
           width: true,
           height: true,
           createdAt: true,
+          outputData: true,
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
       }),
     ]);
+
+    const items = rows.map((r) => {
+      const od = r.outputData as { alternates?: unknown } | null;
+      const alternates = od && Array.isArray(od.alternates) ? od.alternates : [];
+      // 单图 / 老节点 alternates 为空, count 直接置 1 — 前端 "+N" badge
+      // 阈值是 count > 1, 这样老数据 0 badge, 多图数据出 badge.
+      const alternatesCount = alternates.length > 1 ? alternates.length : 1;
+      // 别把 outputData 整个返出去 (raw provider response 可能很大),
+      // 前端列表不要它.
+      const { outputData: _omit, ...rest } = r;
+      void _omit;
+      return { ...rest, alternatesCount };
+    });
 
     return {
       items,

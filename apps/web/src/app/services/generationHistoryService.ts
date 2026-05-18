@@ -20,6 +20,8 @@ export interface HistoryListItem {
   createdAt: string;
   width: number;
   height: number;
+  /** 多图生成时 = backend 那次跑出的全部张数 (含主图). 单图 / 老节点 = 1. */
+  alternatesCount: number;
 }
 
 export interface QueryHistoryParams {
