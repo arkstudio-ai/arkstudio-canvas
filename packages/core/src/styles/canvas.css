@@ -528,6 +528,109 @@
   background: #0a0a0a;
 }
 
+/* --- 多图节点 stack overlay ---
+ * 主图 (cf-media-node-content) 在 cf-media-node-container 内正常铺满,
+ * 这些占位卡是 absolute 定位到右上方 + 下方, 模仿 "卡牌叠放" 的视觉.
+ * 不渲染真图, 纯空卡 + box-shadow, 0 图像加载开销. 永远画在主图下方
+ * (z-index 1, 主图默认 auto), 加 pointer-events:none 让点击穿透到主图
+ * 容器, 由容器自己处理"开 picker" 的 click.
+ *
+ * 数量按 alternates 数 - 1 决定 (n-1), 但上限 3 张占位 — 节点用
+ * data-alternates-cap="3" 这样标记, JS 在渲染时控制具体 N. CSS 这里只
+ * 管样式. n=10 的话视觉跟 n=4 一样 (cap 3), 不撑画布.
+ */
+.cf-media-node-stack-card {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+/* 第 1 张背景卡: 右偏 + 下偏 + 略缩 + 略转, 形成"扇出"感. 跟竞品截图
+ * 一致 — 用 transform 而非 margin, 不影响节点容器尺寸. */
+.cf-media-node-stack-card[data-depth='1'] {
+  transform: translate(8px, 6px) scale(0.985);
+  z-index: 0;
+}
+.cf-media-node-stack-card[data-depth='2'] {
+  transform: translate(15px, 12px) scale(0.97);
+  z-index: -1;
+}
+.cf-media-node-stack-card[data-depth='3'] {
+  transform: translate(21px, 17px) scale(0.955);
+  z-index: -2;
+}
+
+/* picker modal 内的 grid / scroll 布局.
+ * grid: ≤4 张, 2x2 一屏装下; scroll: >4 张, 横向滚动, 跟 macOS 翻照片
+ * 同款体感. 都 max-height/width 限制, 避免占满屏幕.
+ */
+.cf-alternates-container {
+  position: relative;
+  background: #0a0a0a;
+  border-radius: 12px;
+  padding: 48px 24px 24px;
+  max-width: min(90vw, 900px);
+  max-height: 90vh;
+  overflow: hidden;
+}
+.cf-alternates-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  max-height: calc(90vh - 80px);
+}
+.cf-alternates-scroll {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-height: calc(90vh - 80px);
+  scroll-snap-type: x mandatory;
+}
+.cf-alternates-scroll .cf-alternates-cell {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+.cf-alternates-cell {
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 120ms ease, transform 120ms ease;
+}
+.cf-alternates-cell:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: scale(1.01);
+}
+.cf-alternates-media {
+  width: 100%;
+  height: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  display: block;
+  border-radius: 8px;
+}
+.cf-alternates-scroll .cf-alternates-media {
+  width: auto;
+  height: 60vh;
+  max-width: 50vw;
+}
+.cf-alternates-audio-placeholder {
+  width: 200px;
+  height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  background: #1a1a1a;
+  border-radius: 8px;
+}
+
 /* 手动上传节点右上角的 "替换" 按钮. 跟竞品截图同款绿色 chip.
  * pointer-events:auto 因为容器有时 set pointer-events:none 在 hover
  * 状态外, 这里要保持可点 (双击查看 modal 由容器拦, button click 优先).

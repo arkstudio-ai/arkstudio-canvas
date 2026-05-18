@@ -1,9 +1,64 @@
 
 import React, { useRef, useState } from 'react';
-import { Video, Image as ImageIcon, Music, Upload } from 'lucide-react';
+import { Video, Image as ImageIcon, Music, Upload, Layers } from 'lucide-react';
 import { NodeContentProps } from '../../types/schema';
 import { MediaViewerModal } from '../MediaViewerModal';
+import { AlternatesPicker } from '../AlternatesPicker';
 import '../../styles/canvas.css';
+
+/**
+ * 多图生成 (n>1) 时, 节点 data.alternates 是 mirror 后 URL 数组. 返
+ * stack overlay 要叠的卡片数 — 按 (alternates.length - 1) 算, 上限 3
+ * 张 (再多卡片堆得画布乱). 没 alternates 或 ≤1 张则返 0.
+ */
+const STACK_VISUAL_CAP = 3;
+function getStackDepth(alternates: unknown): number {
+  if (!Array.isArray(alternates)) return 0;
+  return Math.min(Math.max(alternates.length - 1, 0), STACK_VISUAL_CAP);
+}
+
+/** 渲染叠在主图后面的占位卡 (空白, 纯 box-shadow 模拟 "卡牌堆"). */
+const StackOverlay: React.FC<{ depth: number }> = ({ depth }) => {
+  if (depth <= 0) return null;
+  const cards = [];
+  for (let i = depth; i >= 1; i--) {
+    cards.push(
+      <div
+        key={i}
+        className="cf-media-node-stack-card"
+        data-depth={i}
+        aria-hidden
+      />,
+    );
+  }
+  return <>{cards}</>;
+};
+
+/**
+ * 多图节点右上角的小按钮 — alternates.length > 1 才出. 跟 ReplaceButton
+ * 同位置同尺寸, 用 Layers icon + "N 张" 标签. 点 → 触发 picker 模态.
+ * 拦 mousedown 防止 ReactFlow 把它当成拖节点的起点.
+ */
+const StackPickerButton: React.FC<{
+  count: number;
+  onOpen: () => void;
+}> = ({ count, onOpen }) => (
+  <button
+    type="button"
+    className="cf-media-node-replace-btn"
+    style={{ left: 8, right: 'auto' }}
+    onClick={(e) => {
+      e.stopPropagation();
+      onOpen();
+    }}
+    onMouseDown={(e) => e.stopPropagation()}
+    onPointerDown={(e) => e.stopPropagation()}
+    title={`本次生成 ${count} 张, 点开换主图`}
+  >
+    <Layers size={11} />
+    <span>{count} 张</span>
+  </button>
+);
 
 // 把后端返回的相对路径 (e.g. `/static/uploads/abc.png`) 解析到当前 backend
 // origin. 仅在桌面端 / 任意 file:// 加载场景下生效 —— 浏览器把相对路径
@@ -135,14 +190,22 @@ const ReplaceButton: React.FC<{
 
 // Image Node
 export const ImageNode: React.FC<NodeContentProps> = ({ data, isConnected, onChange }) => {
-  
+
   const imgRef = useRef<HTMLImageElement>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
 
   const rawSrc = (data.src || data.output) as string | undefined;
   const isAsset = isAssetUri(rawSrc);
   const mediaSrc = resolveMediaUrl(rawSrc);
   const showContent = Boolean(mediaSrc || isConnected);
+  // alternates 是 backend 多图生成时落进 data 的 mirror 后 URL 数组,
+  // 包含主图. n=1 / 老节点没字段, stackDepth=0 → 全部 UI 都不出.
+  const alternates = Array.isArray(data.alternates)
+    ? (data.alternates as Array<{ src: string }>)
+    : [];
+  const stackDepth = getStackDepth(alternates);
+  const hasAlternates = alternates.length > 1;
 
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
@@ -172,6 +235,7 @@ export const ImageNode: React.FC<NodeContentProps> = ({ data, isConnected, onCha
         onDoubleClick={() => mediaSrc && !isAsset && setIsModalOpen(true)}
         title={isAsset ? '火山方舟素材 — 用于下游视频生成' : '双击查看大图'}
       >
+        <StackOverlay depth={stackDepth} />
         {isAsset && rawSrc ? (
           <AssetPlaceholder uri={rawSrc} kind="image" />
         ) : mediaSrc ? (
@@ -190,12 +254,26 @@ export const ImageNode: React.FC<NodeContentProps> = ({ data, isConnected, onCha
             onPick={(file) => onChange({ _uploadRequest: file, _uploadTargetKind: 'image' })}
           />
         )}
+        {hasAlternates && !isAsset && (
+          <StackPickerButton
+            count={alternates.length}
+            onOpen={() => setIsPickerOpen(true)}
+          />
+        )}
       </div>
 
       <MediaViewerModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         src={mediaSrc}
+        type="image"
+      />
+      <AlternatesPicker
+        isOpen={isPickerOpen}
+        onClose={() => setIsPickerOpen(false)}
+        alternates={alternates}
+        currentSrc={rawSrc}
+        onPick={(src) => onChange({ src })}
         type="image"
       />
     </>
@@ -210,11 +288,17 @@ export const VideoNode: React.FC<NodeContentProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
 
   const rawSrc = (data.src || data.output) as string | undefined;
   const isAsset = isAssetUri(rawSrc);
   const mediaSrc = resolveMediaUrl(rawSrc);
   const showContent = isConnected || Boolean(mediaSrc);
+  const alternates = Array.isArray(data.alternates)
+    ? (data.alternates as Array<{ src: string }>)
+    : [];
+  const stackDepth = getStackDepth(alternates);
+  const hasAlternates = alternates.length > 1;
 
   const handleVideoLoad = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
@@ -242,6 +326,7 @@ export const VideoNode: React.FC<NodeContentProps> = ({
         className="cf-media-node-container"
         title={isAsset ? '火山方舟视频素材 — 用于下游视频生成' : '双击全屏预览'}
       >
+        <StackOverlay depth={stackDepth} />
         {isAsset && rawSrc ? (
           <AssetPlaceholder uri={rawSrc} kind="video" />
         ) : mediaSrc ? (
@@ -266,12 +351,26 @@ export const VideoNode: React.FC<NodeContentProps> = ({
             onPick={(file) => onChange({ _uploadRequest: file, _uploadTargetKind: 'video' })}
           />
         )}
+        {hasAlternates && !isAsset && (
+          <StackPickerButton
+            count={alternates.length}
+            onOpen={() => setIsPickerOpen(true)}
+          />
+        )}
       </div>
 
       <MediaViewerModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         src={mediaSrc}
+        type="video"
+      />
+      <AlternatesPicker
+        isOpen={isPickerOpen}
+        onClose={() => setIsPickerOpen(false)}
+        alternates={alternates}
+        currentSrc={rawSrc}
+        onPick={(src) => onChange({ src })}
         type="video"
       />
     </>
@@ -281,11 +380,17 @@ export const VideoNode: React.FC<NodeContentProps> = ({
 // Audio Node
 export const AudioNode: React.FC<NodeContentProps> = ({ data, isConnected, onChange }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
 
   const rawSrc = (data.src || data.output) as string | undefined;
   const isAsset = isAssetUri(rawSrc);
   const mediaSrc = resolveMediaUrl(rawSrc);
   const showContent = isConnected || Boolean(mediaSrc);
+  const alternates = Array.isArray(data.alternates)
+    ? (data.alternates as Array<{ src: string }>)
+    : [];
+  const stackDepth = getStackDepth(alternates);
+  const hasAlternates = alternates.length > 1;
 
   if (!showContent) {
     return (
@@ -308,6 +413,7 @@ export const AudioNode: React.FC<NodeContentProps> = ({ data, isConnected, onCha
           alignItems: 'center',
         }}
       >
+        <StackOverlay depth={stackDepth} />
         {isAsset && rawSrc ? (
           <AssetPlaceholder uri={rawSrc} kind="audio" />
         ) : mediaSrc ? (
@@ -326,12 +432,26 @@ export const AudioNode: React.FC<NodeContentProps> = ({ data, isConnected, onCha
             onPick={(file) => onChange({ _uploadRequest: file, _uploadTargetKind: 'audio' })}
           />
         )}
+        {hasAlternates && !isAsset && (
+          <StackPickerButton
+            count={alternates.length}
+            onOpen={() => setIsPickerOpen(true)}
+          />
+        )}
       </div>
 
       <MediaViewerModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         src={mediaSrc}
+        type="audio"
+      />
+      <AlternatesPicker
+        isOpen={isPickerOpen}
+        onClose={() => setIsPickerOpen(false)}
+        alternates={alternates}
+        currentSrc={rawSrc}
+        onPick={(src) => onChange({ src })}
         type="audio"
       />
     </>
