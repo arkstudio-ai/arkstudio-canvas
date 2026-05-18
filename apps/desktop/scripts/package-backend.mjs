@@ -97,22 +97,34 @@ run(
   ],
 );
 
-// Step 4: pnpm deploy --legacy --prod --config.node-linker=hoisted
+// Step 4: pnpm deploy --legacy --prod, hoisted via env
+//
 //   pnpm@10 默认要求 workspace 启用 inject-workspace-packages 才能 deploy;
 //   --legacy 退回 pnpm@9 的自包含行为, 这正是桌面打包想要的形态.
 //   --prod 意味着 devDependencies 不会进, 节省 ~200MB.
 //   注意: prisma 已经从 devDeps 升到 deps, 因此 prisma CLI 会被打进去,
 //   桌面端首启的 prisma db push 能跑.
 //
-//   --config.node-linker=hoisted: 跨平台关键. pnpm 默认在 node_modules/.pnpm/
-//   下铺虚拟仓 + 顶层 symlink. Windows 上有两个致命问题:
+//   hoisted node-linker 是跨平台关键. pnpm 默认在 node_modules/.pnpm/ 下
+//   铺虚拟仓 + 顶层 symlink. Windows 上有两个致命问题:
 //     1. mac 上建的 symlink 经 zip 传到 Win 全部变成断链 (EPERM on stat)
 //     2. .pnpm/<pkg>@<ver>_<peer-deps-hash>/node_modules/<actual> 嵌套层级
 //        加上 peer-deps hash 后缀, 单一路径 ~150 字符, 叠上 Win install 路径
 //        通常超过 MAX_PATH=260
 //   hoisted 布局把所有 prod 依赖直接平铺到 node_modules/<pkg>, 无 .pnpm/ 虚拟仓,
 //   无 symlink, npm classic 风格. 体积略升 (peer deps 可能重复), 但稳.
-run('pnpm', ['--filter', 'canvas-flow-backend', 'deploy', '--legacy', '--prod', '--config.node-linker=hoisted', OUT_DIR]);
+//
+//   ⚠ 关键: 用 NPM_CONFIG_NODE_LINKER env 而非 `--config.node-linker=hoisted`
+//   CLI flag. 后者是 pnpm "global config" 写入, 不仅作用于 deploy 这个子
+//   命令的 OUT_DIR, 还会在 source workspace (apps/backend/node_modules/) 上
+//   re-link 一波 — symlink 全变实体目录, 旁边没 .pnpm sibling, 下次 dev
+//   backend 起来 require('https-proxy-agent') 就 MODULE_NOT_FOUND 崩.
+//   env-only 形态只作用于这个 spawn 子进程的 deploy 操作, 不污染源.
+run(
+  'pnpm',
+  ['--filter', 'canvas-flow-backend', 'deploy', '--legacy', '--prod', OUT_DIR],
+  { env: { NPM_CONFIG_NODE_LINKER: 'hoisted' } },
+);
 
 // Step 4b: 把 .dist-package 内容拷到 deployed bundle 的 dist/.
 //   pnpm deploy 按 package.json#files 把 src 的 dist/ (dev 残留, 可能没,
