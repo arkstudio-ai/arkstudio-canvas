@@ -224,6 +224,75 @@
     }
   },
   "config": {
-    "importConfirm": "Current canvas config has unsaved changes — import will overwrite. Continue?"
+    "importConfirm": "Current canvas config has unsaved changes — import will overwrite. Continue?",
+    "page": {
+      "title": "Config",
+      "unsavedBadge": "Unsaved",
+      "notLoaded": "Config not loaded",
+      "emptyNode": "Pick a node type above",
+      "exportTitle": "Export the current node / model catalog as shareable JSON",
+      "exportLabel": "Export",
+      "importTitle": "Import a node / model catalog from JSON (full replace; preview first, then confirm)",
+      "importLabel": "Import",
+      "undo": "Undo",
+      "addNodeTitle": "Add a new node type",
+      "addNodePrompt": "New node type (ASCII, unique):",
+      "addNodeDuplicate": "Node type \"{{type}}\" already exists",
+      "dupValueAlert": "Another model already uses value \"{{value}}\" — pick a different one",
+      "toastExported": "Exported v{{version}}",
+      "toastExportFailed": "Export failed",
+      "toastPreviewFailed": "Preview failed: {{error}}",
+      "toastPreviewFailedFallback": "Preview failed: file parse or server validation error",
+      "toastImported": "Imported v{{version}} · {{added}} added / {{updated}} updated / {{deleted}} deleted",
+      "toastImportFailed": "Import failed"
+    },
+    "modelGrid": {
+      "addModel": "Add model",
+      "empty": "No models for this node yet",
+      "confirmRemove": "Delete model \"{{value}}\"?",
+      "add": "Add",
+      "cancel": "Cancel",
+      "configure": "Configure",
+      "removeTitle": "Delete",
+      "valuePlaceholder": "value (prefix decides routing: openai-image/… / wan2.* / qwen-* …)",
+      "valueTitle": "The prefix tells the backend which provider to dispatch to — see the drawer for details"
+    },
+    "drawer": {
+      "unnamed": "(unnamed)",
+      "closeTitle": "Close",
+      "basicInfo": "Basic info",
+      "valueHint": "After you rename `value`, existing canvas nodes that referenced the old value will show as \"Unknown model\" until reselected. To switch vendor (prefix), use \"delete + add\" instead.",
+      "defaultModePlaceholder": "(unset — falls back to modes[0])"
+    },
+    "nodeCard": {
+      "metaTitle": "Node metadata · {{type}}",
+      "defaultParamsTitle": "defaultParams · node level",
+      "defaultDataTitle": "defaultData"
+    },
+    "providerCard": {
+      "title": "Provider settings · DashScope (Bailian)",
+      "hint": "Source of truth lives in DB table global_configs; the apiKey is encrypted with ENCRYPTION_KEY (AES-256-GCM) before storage. Changes take effect within ~30 seconds for every model call (the provider has a short cache). Empty input = no change; use the dedicated clear buttons to drop a value.",
+      "statusDefault": "default",
+      "statusDB": "DB",
+      "baseUrlPlaceholder": "default {{url}}",
+      "apiKeyPlaceholderConfigured": "Current: {{mask}} · enter a new value to overwrite",
+      "apiKeyPlaceholderEmpty": "Not configured · enter sk-... and save",
+      "baseUrlResetTitle": "Clear DB value, revert to default URL",
+      "apiKeyClearTitle": "Remove the apiKey row from DB",
+      "clearKeyConfirm": "Clear the API Key? Every model call will fail until you configure it again.",
+      "timeoutsTitle": "Timeouts (seconds)",
+      "timeoutsCaveat": "submit calls only; polling stays fixed at 10s",
+      "timeoutPlaceholder": "new value (1+)",
+      "timeoutResetTitle": "Clear DB value, revert to built-in default",
+      "dbBadge": "DB",
+      "defaultBadge": "default {{seconds}}s",
+      "kinds": {
+        "chatHint": "Sync chat calls (qwen / deepseek / glm)",
+        "imageHint": "Async image submit; polling fixed at 10s",
+        "videoHint": "Async video submit; polling fixed at 10s",
+        "audioHint": "TTS / FunMusic / voice clone submit"
+      },
+      "toastLoadFailed": "Failed to load provider settings"
+    }
   }
 }

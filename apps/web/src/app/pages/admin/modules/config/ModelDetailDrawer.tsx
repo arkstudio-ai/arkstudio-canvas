@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 import {
   fieldLabelStyle,
@@ -58,6 +59,7 @@ export const ModelDetailDrawer: React.FC<ModelDetailDrawerProps> = ({
   onClose,
   onChange,
 }) => {
+  const { t } = useTranslation();
   if (!open) return null;
   const modeIds = (model.modes ?? []).map((m) => m.id).filter(Boolean);
 
@@ -67,17 +69,17 @@ export const ModelDetailDrawer: React.FC<ModelDetailDrawerProps> = ({
       <aside style={drawerStyle}>
         <header style={headerStyle}>
           <div>
-            <div style={titleStyle}>{model.label || model.value || '(未命名)'}</div>
+            <div style={titleStyle}>{model.label || model.value || t('settings:config.drawer.unnamed')}</div>
             <div style={subtitleStyle}>
               {nodeType} · <code>{model.value}</code>
             </div>
           </div>
-          <button type="button" onClick={onClose} style={closeBtnStyle} title="关闭">
+          <button type="button" onClick={onClose} style={closeBtnStyle} title={t('settings:config.drawer.closeTitle')}>
             <X size={16} />
           </button>
         </header>
 
-        <Section label="基本信息">
+        <Section label={t('settings:config.drawer.basicInfo')}>
           <div style={fieldRowStyle}>
             <span style={fieldLabelStyle}>value</span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
@@ -86,8 +88,7 @@ export const ModelDetailDrawer: React.FC<ModelDetailDrawerProps> = ({
                 onChange={(v) => onChange({ value: v })}
               />
               <span style={valueHintStyle}>
-                修改 value 后，画布上引用此模型的旧节点会显示为「未知模型」直到重新选择。
-                如需切换 vendor（前缀），请改用「删除 + 新增」流程。
+                {t('settings:config.drawer.valueHint')}
               </span>
             </div>
           </div>
@@ -159,7 +160,7 @@ export const ModelDetailDrawer: React.FC<ModelDetailDrawerProps> = ({
                 onChange={(e) => onChange({ defaultModeId: e.target.value || undefined })}
                 style={inputStyle as React.CSSProperties}
               >
-                <option value="">(未指定，取 modes[0])</option>
+                <option value="">{t('settings:config.drawer.defaultModePlaceholder')}</option>
                 {modeIds.map((id) => (
                   <option key={id} value={id}>
                     {id}

@@ -224,6 +224,75 @@
     }
   },
   "config": {
-    "importConfirm": "当前画布配置有未保存的改动，导入将覆盖。继续吗？"
+    "importConfirm": "当前画布配置有未保存的改动，导入将覆盖。继续吗？",
+    "page": {
+      "title": "配置",
+      "unsavedBadge": "未保存",
+      "notLoaded": "配置未加载",
+      "emptyNode": "请在上方选择一个节点类型",
+      "exportTitle": "把当前节点 / 模型目录导出为可分享的 JSON",
+      "exportLabel": "导出",
+      "importTitle": "从 JSON 文件导入节点 / 模型目录（replace 全量，先预览再确认）",
+      "importLabel": "导入",
+      "undo": "撤销",
+      "addNodeTitle": "新增节点类型",
+      "addNodePrompt": "新节点 type (英文，唯一)：",
+      "addNodeDuplicate": "节点 type \"{{type}}\" 已存在",
+      "dupValueAlert": "已有同名 value \"{{value}}\"，请改一个",
+      "toastExported": "已导出 v{{version}}",
+      "toastExportFailed": "导出失败",
+      "toastPreviewFailed": "预览失败：{{error}}",
+      "toastPreviewFailedFallback": "预览失败：文件解析或服务器校验出错",
+      "toastImported": "已导入 v{{version}} · {{added}} 增 / {{updated}} 改 / {{deleted}} 删",
+      "toastImportFailed": "导入失败"
+    },
+    "modelGrid": {
+      "addModel": "新增模型",
+      "empty": "该节点暂无模型",
+      "confirmRemove": "确认删除模型 \"{{value}}\"?",
+      "add": "添加",
+      "cancel": "取消",
+      "configure": "配置",
+      "removeTitle": "删除",
+      "valuePlaceholder": "value（前缀决定路由：openai-image/… / wan2.* / qwen-* …）",
+      "valueTitle": "前缀决定 backend 把请求送给哪个 provider，详见配置抽屉里的说明"
+    },
+    "drawer": {
+      "unnamed": "(未命名)",
+      "closeTitle": "关闭",
+      "basicInfo": "基本信息",
+      "valueHint": "修改 value 后，画布上引用此模型的旧节点会显示为「未知模型」直到重新选择。如需切换 vendor（前缀），请改用「删除 + 新增」流程。",
+      "defaultModePlaceholder": "(未指定，取 modes[0])"
+    },
+    "nodeCard": {
+      "metaTitle": "节点元数据 · {{type}}",
+      "defaultParamsTitle": "defaultParams · 节点级",
+      "defaultDataTitle": "defaultData"
+    },
+    "providerCard": {
+      "title": "Provider 设置 · DashScope (Bailian)",
+      "hint": "权威值存储于数据库 global_configs；apiKey 落库前会用 ENCRYPTION_KEY 做 aes-256-gcm 加密。修改后约 30 秒内对所有 model 调用生效（provider 内有短缓存）。空输入框 = 不改；清除某项请使用对应的清除按钮。",
+      "statusDefault": "默认",
+      "statusDB": "DB",
+      "baseUrlPlaceholder": "默认 {{url}}",
+      "apiKeyPlaceholderConfigured": "当前: {{mask}} · 输入新值覆盖",
+      "apiKeyPlaceholderEmpty": "尚未配置 · 输入 sk-... 并保存",
+      "baseUrlResetTitle": "清除 DB 配置，回退到默认 URL",
+      "apiKeyClearTitle": "从 DB 删除 apiKey 行",
+      "clearKeyConfirm": "确认清除 API Key? 清除后所有模型调用都会失败，直到重新配置。",
+      "timeoutsTitle": "超时设置 (秒)",
+      "timeoutsCaveat": "仅 submit 调用；polling 固定 10s 不暴露",
+      "timeoutPlaceholder": "新值 (1+)",
+      "timeoutResetTitle": "清除 DB 配置，回退到内置默认",
+      "dbBadge": "DB",
+      "defaultBadge": "默认 {{seconds}}s",
+      "kinds": {
+        "chatHint": "同步对话调用 (qwen / deepseek / glm)",
+        "imageHint": "异步图像 submit；polling 固定 10s 不暴露",
+        "videoHint": "异步视频 submit；polling 固定 10s 不暴露",
+        "audioHint": "TTS / FunMusic / 音色复刻 submit"
+      },
+      "toastLoadFailed": "加载 Provider 设置失败"
+    }
   }
 }

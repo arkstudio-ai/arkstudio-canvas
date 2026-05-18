@@ -79,9 +79,9 @@ export const CanvasConfigPage: React.FC = () => {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success(`已导出 v${envelope.exportedFromVersion}`);
+      toast.success(t('settings:config.page.toastExported', { version: envelope.exportedFromVersion }));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '导出失败');
+      toast.error(e instanceof Error ? e.message : t('settings:config.page.toastExportFailed'));
     }
   };
 
@@ -109,8 +109,8 @@ export const CanvasConfigPage: React.FC = () => {
     } catch (err) {
       toast.error(
         err instanceof Error
-          ? `预览失败：${err.message}`
-          : '预览失败：文件解析或服务器校验出错',
+          ? t('settings:config.page.toastPreviewFailed', { error: err.message })
+          : t('settings:config.page.toastPreviewFailedFallback'),
       );
       setImportDialogOpen(false);
       resetImportState();
@@ -125,7 +125,12 @@ export const CanvasConfigPage: React.FC = () => {
     try {
       const result = await importCanvasConfig(importEnvelope, 'apply');
       toast.success(
-        `已导入 v${result.version} · ${result.summary.nodesAdded} 增 / ${result.summary.nodesUpdated} 改 / ${result.summary.nodesDeleted} 删`,
+        t('settings:config.page.toastImported', {
+          version: result.version,
+          added: result.summary.nodesAdded,
+          updated: result.summary.nodesUpdated,
+          deleted: result.summary.nodesDeleted,
+        }),
       );
       setImportDialogOpen(false);
       resetImportState();
@@ -134,7 +139,7 @@ export const CanvasConfigPage: React.FC = () => {
       // side replace, anything in flight is now stale).
       await editor.load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '导入失败');
+      toast.error(err instanceof Error ? err.message : t('settings:config.page.toastImportFailed'));
     } finally {
       setImportApplying(false);
     }
@@ -196,7 +201,7 @@ export const CanvasConfigPage: React.FC = () => {
           (m: any) => m.value !== openModelValue && m.value === trimmed,
         );
         if (conflict) {
-          alert(`已有同名 value "${trimmed}"，请改一个`);
+          alert(t('settings:config.page.dupValueAlert', { value: trimmed }));
           return;
         }
         nextValue = trimmed;
@@ -237,12 +242,12 @@ export const CanvasConfigPage: React.FC = () => {
   };
 
   const handleAddNode = () => {
-    const type = prompt('新节点 type (英文，唯一)：');
+    const type = prompt(t('settings:config.page.addNodePrompt'));
     if (!type) return;
     const trimmed = type.trim();
     if (!trimmed) return;
     if (editor.draftConfig?.nodeDefinitions.some((n: any) => n.type === trimmed)) {
-      alert(`节点 type "${trimmed}" 已存在`);
+      alert(t('settings:config.page.addNodeDuplicate', { type: trimmed }));
       return;
     }
     editor.setDraft((draft) => {
@@ -265,9 +270,9 @@ export const CanvasConfigPage: React.FC = () => {
     return (
       <div style={pageStyle}>
         <header style={headerStyle}>
-          <h1 style={titleStyle}>配置</h1>
+          <h1 style={titleStyle}>{t('settings:config.page.title')}</h1>
         </header>
-        <div style={emptyStyle}>{editor.loading ? '加载中…' : '配置未加载'}</div>
+        <div style={emptyStyle}>{editor.loading ? t('settings:common.loading') : t('settings:config.page.notLoaded')}</div>
       </div>
     );
   }
@@ -279,10 +284,10 @@ export const CanvasConfigPage: React.FC = () => {
     <div style={pageStyle}>
       <header style={headerStyle}>
         <div>
-          <h1 style={titleStyle}>配置</h1>
+          <h1 style={titleStyle}>{t('settings:config.page.title')}</h1>
           <div style={subTitleStyle}>
             v{editor.serverVersion}
-            {editor.isDirty && <span style={dirtyBadgeStyle}>未保存</span>}
+            {editor.isDirty && <span style={dirtyBadgeStyle}>{t('settings:config.page.unsavedBadge')}</span>}
           </div>
         </div>
         <div style={toolbarStyle}>
@@ -292,25 +297,25 @@ export const CanvasConfigPage: React.FC = () => {
             style={buttonStyle}
             disabled={editor.loading}
           >
-            <RefreshCw size={12} style={{ verticalAlign: 'middle' }} /> 刷新
+            <RefreshCw size={12} style={{ verticalAlign: 'middle' }} /> {t('settings:common.refresh')}
           </button>
           <button
             type="button"
             onClick={handleExport}
             style={buttonStyle}
             disabled={editor.loading}
-            title="把当前节点 / 模型目录导出为可分享的 JSON"
+            title={t('settings:config.page.exportTitle')}
           >
-            <Download size={12} style={{ verticalAlign: 'middle' }} /> 导出
+            <Download size={12} style={{ verticalAlign: 'middle' }} /> {t('settings:config.page.exportLabel')}
           </button>
           <button
             type="button"
             onClick={handleImportClick}
             style={buttonStyle}
             disabled={editor.loading || importing || importApplying}
-            title="从 JSON 文件导入节点 / 模型目录（replace 全量，先预览再确认）"
+            title={t('settings:config.page.importTitle')}
           >
-            <Upload size={12} style={{ verticalAlign: 'middle' }} /> 导入
+            <Upload size={12} style={{ verticalAlign: 'middle' }} /> {t('settings:config.page.importLabel')}
           </button>
           <button
             type="button"
@@ -318,7 +323,7 @@ export const CanvasConfigPage: React.FC = () => {
             style={buttonStyle}
             disabled={!editor.isDirty}
           >
-            <RotateCcw size={12} style={{ verticalAlign: 'middle' }} /> 撤销
+            <RotateCcw size={12} style={{ verticalAlign: 'middle' }} /> {t('settings:config.page.undo')}
           </button>
           <button
             type="button"
@@ -327,7 +332,7 @@ export const CanvasConfigPage: React.FC = () => {
             disabled={!editor.isDirty || editor.saving}
           >
             <Save size={12} style={{ verticalAlign: 'middle' }} />{' '}
-            {editor.saving ? '保存中…' : '保存'}
+            {editor.saving ? t('settings:common.saving') : t('settings:common.save')}
           </button>
           {/* Hidden — opened by handleImportClick above. */}
           <input
@@ -355,7 +360,7 @@ export const CanvasConfigPage: React.FC = () => {
             <span style={tabCountStyle}>{Array.isArray(n.models) ? n.models.length : 0}</span>
           </button>
         ))}
-        <button type="button" onClick={handleAddNode} style={addNodeBtnStyle} title="新增节点类型">
+        <button type="button" onClick={handleAddNode} style={addNodeBtnStyle} title={t('settings:config.page.addNodeTitle')}>
           <Plus size={12} />
         </button>
       </nav>
@@ -370,7 +375,7 @@ export const CanvasConfigPage: React.FC = () => {
             onRemove={handleRemoveModel}
           />
         </>
-      : <div style={emptyStyle}>请在上方选择一个节点类型</div>}
+      : <div style={emptyStyle}>{t('settings:config.page.emptyNode')}</div>}
 
       {openModel && activeNodeType && (
         <ModelDetailDrawer
