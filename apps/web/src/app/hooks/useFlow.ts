@@ -10,6 +10,22 @@ import { compressVideo } from '../utils/compressVideo';
 
 const cloneDefaultConfig = (): CanvasConfig => JSON.parse(JSON.stringify(defaultAppConfig));
 
+/**
+ * 从 DB / 缓存的节点 data 里抽出 setNode{Image,Video,Audio} 的 `meta`
+ * 参数 — 透传 aiGenerated marker 和 alternates 多图备选数组. 任一字段
+ * 都没就返 undefined, setter 走 src-only 路径不污染 mediaMap.
+ */
+function buildMediaMeta(
+  data: { aiGenerated?: unknown; alternates?: unknown },
+): { aiGenerated?: boolean; alternates?: Array<{ src: string }> } | undefined {
+  const aiGenerated = data?.aiGenerated === true ? true : undefined;
+  const alternates = Array.isArray(data?.alternates)
+    ? (data.alternates as Array<{ src: string }>)
+    : undefined;
+  if (aiGenerated === undefined && alternates === undefined) return undefined;
+  return { aiGenerated, alternates };
+}
+
 export function useFlow(
   flowRef: React.RefObject<CanvasFlowHandle | null>,
   externalConfig?: CanvasConfig
@@ -300,9 +316,8 @@ export function useFlow(
           if (data.src) {
             const node = flowRef.current.getNode(nodeId);
             if (node) {
-              // backend saveExecutionResult 写的 aiGenerated marker,
-              // reload 时透传给 mediaMap. 没字段视为手动上传.
-              const meta = data.aiGenerated ? { aiGenerated: true } : undefined;
+              // 透传 aiGenerated + alternates. 没字段视为手动单图.
+              const meta = buildMediaMeta(data);
               if (node.type === 'image') {
                 flowRef.current.setNodeImage(nodeId, data.src, meta);
               } else if (node.type === 'video') {
@@ -616,12 +631,9 @@ export function useFlow(
             // 2. 恢复媒体内容到画布显示
             if (deletedMedia) {
               if (deletedMedia.src) {
-                // 删除前 mediaMap 里有的 aiGenerated 这里也带回去, 不然
-                // 撤销操作后 "替换" 按钮的显隐状态会反转 (AI 节点变成
-                // 像手动一样可替换).
-                const meta = deletedMedia.aiGenerated
-                  ? { aiGenerated: true }
-                  : undefined;
+                // 恢复 aiGenerated + alternates marker, 不然撤销后
+                // 节点视觉 (stack / 替换按钮) 会跟原始状态不一致.
+                const meta = buildMediaMeta(deletedMedia);
                 if (deletedNode.type === 'image') {
                   flowRef.current.setNodeImage(nodeId, deletedMedia.src, meta);
                 } else if (deletedNode.type === 'video') {
@@ -876,12 +888,10 @@ export function useFlow(
       if (mediaContent.src) {
         const node = flowRef.current.getNode(nodeId);
         if (node) {
-          // mediaContent.aiGenerated 来自上游 (SSE 推送 / 应用层主动
-          // change). 不在 handleNodeDataChange 过滤白名单, 走 mediaContent
-          // 流到这里 — 别丢, 透到 mediaMap.
-          const meta = mediaContent.aiGenerated
-            ? { aiGenerated: true }
-            : undefined;
+          // mediaContent.aiGenerated / alternates 来自上游 (SSE 推送 /
+          // 应用层主动 change). 不在 handleNodeDataChange 过滤白名单,
+          // 走 mediaContent 流到这里 — 别丢, 透到 mediaMap.
+          const meta = buildMediaMeta(mediaContent);
           if (node.type === 'image') {
             flowRef.current.setNodeImage(nodeId, mediaContent.src, meta);
           } else if (node.type === 'video') {
@@ -960,13 +970,9 @@ export function useFlow(
             // 恢复画布显示：使用之前保存的媒体内容更新画布
             const node = flowRef.current.getNode(nodeId);
             if (node && previousMedia) {
-              // 恢复媒体源
+              // 恢复媒体源 + aiGenerated + alternates marker.
               if (previousMedia.src !== undefined) {
-                // 保留原 aiGenerated 状态, 不然回滚后 AI 节点变可替换.
-                const meta = (previousMedia as { aiGenerated?: boolean })
-                  .aiGenerated
-                  ? { aiGenerated: true }
-                  : undefined;
+                const meta = buildMediaMeta(previousMedia);
                 if (node.type === 'image') {
                   flowRef.current.setNodeImage(nodeId, previousMedia.src || '', meta);
                 } else if (node.type === 'video') {
