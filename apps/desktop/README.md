@@ -66,20 +66,42 @@ pnpm --filter canvas-flow-desktop dev   # 等 backend 健康后弹窗
 > 注意：dev 模式 backend 用你 `apps/backend/.env` 里的 `DATABASE_URL`，
 > 没设 `bootstrap-env.ts` 会自动兜到 `apps/backend/prisma/dev.db`。
 
-## 打包（阶段 6 实装，目前只是占位）
+## 打包
 
 ```bash
-pnpm --filter canvas-flow-desktop build       # 编译 main + preload
-pnpm --filter canvas-flow-desktop dist:mac    # mac dmg / zip
-pnpm --filter canvas-flow-desktop dist:win    # win nsis exe
+pnpm dist:desktop:mac    # → apps/desktop/release/Canvas Flow-*.dmg (arm64 + x64)
+pnpm dist:desktop:win    # → apps/desktop/release/Canvas Flow Setup *.exe (NSIS)
 ```
 
-打包还没接 `electron-builder.yml`，下个 PR 补：
-- mac codesign + notarization
-- win code signing
-- backend bundle 抽取（`pnpm deploy --prod` 风格）
-- prisma engine 平台二进制 (darwin-arm64, darwin-x64, win32-x64)
-- 自动更新（electron-updater 或 Sparkle）
+底层用 electron-builder, 配置在 `electron-builder.yml`. backend bundle 抽取 + 多平台
+Prisma engine 校验在 `scripts/package-backend.mjs`.
+
+## ⚠️ 安装包未签名 (当前阶段)
+
+mac / win 都没接 codesign — 用户第一次打开会被系统拦, 这是已知, 不是 bug.
+绕开方法:
+
+**macOS** — Gatekeeper 拦 "Canvas Flow 未经过验证":
+1. 右键 (control + 点) `Canvas Flow.app` → 打开 → 再确认 "打开"
+2. 之后正常双击就行
+3. 仍报损坏: 终端 `xattr -cr /Applications/Canvas\ Flow.app` 把 quarantine 属性清掉
+
+**Windows** — SmartScreen 拦 "Windows 已保护你的电脑":
+1. 点 "更多信息" → "仍要运行"
+2. 一些杀毒软件 (360 / 火绒) 会进一步拦; 把 `%LOCALAPPDATA%\Programs\Canvas Flow\`
+   加进白名单
+
+签名后续接 Apple Developer ID + Windows EV 证书时一并补; `electron-builder.yml`
+里相关字段都留好了 stub.
+
+## 已知问题 / 升级路径
+
+- **没有自动更新** — 新版要手动下安装包覆盖装. userData 不动, DB / 设置 / 素材
+  引用都保留. 自动更新 (electron-updater) 在 backlog.
+- **Windows 重装前请彻底清旧装** — 历史 uninstaller 偶发 integrity 校验失败.
+  彻底清: 任务管理器结所有 `Canvas Flow.exe` → 删 `%LOCALAPPDATA%\Programs\Canvas Flow\`
+  整个目录 → regedit 删 `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\`
+  下含 `Canvas Flow` 的 key → 再装新包.
 
 ## 安全模型
 
