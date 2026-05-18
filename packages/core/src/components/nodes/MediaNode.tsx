@@ -78,12 +78,18 @@ const AssetPlaceholder: React.FC<{ uri: string; kind: 'image' | 'video' | 'audio
   );
 };
 
-// AI-generated 节点 save 完会带 taskId; 手动上传 (file picker / 拖放)
-// 不带. asset:// 是火山素材占位, 替换也没意义. 仅这两类之外才有 "替换"
-// 按钮 — 让用户能在原 manual-upload 节点上换一张图, 不用删了重连.
+// 显式 marker 判定: backend saveExecutionResult 给 AI 跑的结果数据
+// 加 aiGenerated:true, reload + SSE 路径透传到 mediaMap (见
+// CanvasFlow.tsx 白名单 + dataAdapter / useFlow 几处 setNodeImage(...,
+// meta)). 没字段视为手动上传 (file picker / 拖放).
+//
+// asset:// 火山素材占位单独排除 — 替换会丢上游引用.
+//
+// 老数据兼容: 上线前生成的 AI 节点 DB 没 aiGenerated → 视为手动 → 可以
+// 被替换. 这是已知 trade-off, 用户重跑一次生成就写上 marker, 之后正确.
 function isManualUpload(data: any, isAsset: boolean): boolean {
   if (isAsset) return false;
-  if (data?.taskId) return false;
+  if (data?.aiGenerated === true) return false;
   return !!(data?.src || data?.output);
 }
 

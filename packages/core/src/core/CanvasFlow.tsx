@@ -125,9 +125,27 @@ export interface CanvasFlowHandle {
   }>;
   
   // 媒体内容设置 API (专用方法 - 类型安全)
-  setNodeImage(nodeId: string, src: string): void;
-  setNodeVideo(nodeId: string, src: string): void;
-  setNodeAudio(nodeId: string, src: string): void;
+  //
+  // 可选 meta.aiGenerated: backend saveExecutionResult 通路写 true,
+  // reload (dataAdapter) / 数据回灌路径透传过来. 不传则保持原值/不动 —
+  // 手动上传 (file picker) 等场景就别传, 节点没 aiGenerated 字段, 视为
+  // 手动. 不要把任何业务字段塞进 meta — 这里只收 "内容来源 marker" 一类
+  // 极小集合, 想加新字段先在 updateMediaData 白名单里挂一席.
+  setNodeImage(
+    nodeId: string,
+    src: string,
+    meta?: { aiGenerated?: boolean },
+  ): void;
+  setNodeVideo(
+    nodeId: string,
+    src: string,
+    meta?: { aiGenerated?: boolean },
+  ): void;
+  setNodeAudio(
+    nodeId: string,
+    src: string,
+    meta?: { aiGenerated?: boolean },
+  ): void;
   setNodeText(nodeId: string, text: string): void;
   setNodeTitle(nodeId: string, title: string): void;
   setNodeOutput(nodeId: string, outputData: any): void;
@@ -290,7 +308,12 @@ export const CanvasFlow = React.forwardRef<CanvasFlowHandle, CanvasFlowProps>((p
       'fileSize',      // 文件大小
       '_uploading',    // 上传中状态
       '_uploadError',  // 上传错误信息
-      
+
+      // 内容来源 marker — backend saveExecutionResult 写入 true,
+      // reload / SSE 回灌路径把它带进 mediaMap. MediaNode 用它判定
+      // "替换" 按钮显不显示 (只对手动上传出按钮). 没这字段的视为手动.
+      'aiGenerated',
+
       // 其他媒体相关字段
       'resourceType',  // 资源类型
     ];
@@ -413,22 +436,40 @@ export const CanvasFlow = React.forwardRef<CanvasFlowHandle, CanvasFlowProps>((p
     // 媒体内容设置 API (专用方法 - 类型安全)
     // 职责：验证类型 + 组装参数 + 调用通用方法
     
-    setNodeImage: (nodeId: string, src: string) => {
+    setNodeImage: (
+      nodeId: string,
+      src: string,
+      meta?: { aiGenerated?: boolean },
+    ) => {
       const validTypes = ['image', 'video', 'audio'];
       if (validateNodeType(nodeId, validTypes, 'setNodeImage')) {
-        updateMediaData(nodeId, { src });
+        const payload: Record<string, unknown> = { src };
+        if (meta?.aiGenerated !== undefined) payload.aiGenerated = meta.aiGenerated;
+        updateMediaData(nodeId, payload);
       }
     },
-    
-    setNodeVideo: (nodeId: string, src: string) => {
+
+    setNodeVideo: (
+      nodeId: string,
+      src: string,
+      meta?: { aiGenerated?: boolean },
+    ) => {
       if (validateNodeType(nodeId, 'video', 'setNodeVideo')) {
-        updateMediaData(nodeId, { src });
+        const payload: Record<string, unknown> = { src };
+        if (meta?.aiGenerated !== undefined) payload.aiGenerated = meta.aiGenerated;
+        updateMediaData(nodeId, payload);
       }
     },
-    
-    setNodeAudio: (nodeId: string, src: string) => {
+
+    setNodeAudio: (
+      nodeId: string,
+      src: string,
+      meta?: { aiGenerated?: boolean },
+    ) => {
       if (validateNodeType(nodeId, 'audio', 'setNodeAudio')) {
-        updateMediaData(nodeId, { src });
+        const payload: Record<string, unknown> = { src };
+        if (meta?.aiGenerated !== undefined) payload.aiGenerated = meta.aiGenerated;
+        updateMediaData(nodeId, payload);
       }
     },
     

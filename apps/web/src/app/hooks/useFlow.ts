@@ -300,12 +300,15 @@ export function useFlow(
           if (data.src) {
             const node = flowRef.current.getNode(nodeId);
             if (node) {
+              // backend saveExecutionResult 写的 aiGenerated marker,
+              // reload 时透传给 mediaMap. 没字段视为手动上传.
+              const meta = data.aiGenerated ? { aiGenerated: true } : undefined;
               if (node.type === 'image') {
-                flowRef.current.setNodeImage(nodeId, data.src);
+                flowRef.current.setNodeImage(nodeId, data.src, meta);
               } else if (node.type === 'video') {
-                flowRef.current.setNodeVideo(nodeId, data.src);
+                flowRef.current.setNodeVideo(nodeId, data.src, meta);
               } else if (node.type === 'audio') {
-                flowRef.current.setNodeAudio(nodeId, data.src);
+                flowRef.current.setNodeAudio(nodeId, data.src, meta);
               }
             }
           }
@@ -613,12 +616,18 @@ export function useFlow(
             // 2. 恢复媒体内容到画布显示
             if (deletedMedia) {
               if (deletedMedia.src) {
+                // 删除前 mediaMap 里有的 aiGenerated 这里也带回去, 不然
+                // 撤销操作后 "替换" 按钮的显隐状态会反转 (AI 节点变成
+                // 像手动一样可替换).
+                const meta = deletedMedia.aiGenerated
+                  ? { aiGenerated: true }
+                  : undefined;
                 if (deletedNode.type === 'image') {
-                  flowRef.current.setNodeImage(nodeId, deletedMedia.src);
+                  flowRef.current.setNodeImage(nodeId, deletedMedia.src, meta);
                 } else if (deletedNode.type === 'video') {
-                  flowRef.current.setNodeVideo(nodeId, deletedMedia.src);
+                  flowRef.current.setNodeVideo(nodeId, deletedMedia.src, meta);
                 } else if (deletedNode.type === 'audio') {
-                  flowRef.current.setNodeAudio(nodeId, deletedMedia.src);
+                  flowRef.current.setNodeAudio(nodeId, deletedMedia.src, meta);
                 }
               }
               if (deletedMedia.text) {
@@ -831,11 +840,16 @@ export function useFlow(
      const mediaContent: any = {};
      
      Object.keys(data).forEach(key => {
-       // 跳过内部字段、UI 状态字段和上传相关字段
-       if (key.startsWith('_') || 
-           key === 'flowId' || 
-           key === 'fileName' || 
-           key === 'fileType' || 
+       // 跳过内部字段、UI 状态字段和上传相关字段.
+       //
+       // 注意 aiGenerated 故意不在排除列表 — 它是 backend
+       // saveExecutionResult 写的 "内容来源" marker, 落 DB + reload + SSE
+       // 都要保留, MediaNode 的 "替换" 按钮判定靠它. fall-through 进
+       // mediaContent, 由下方 setNodeImage(..., {aiGenerated}) 透到 mediaMap.
+       if (key.startsWith('_') ||
+           key === 'flowId' ||
+           key === 'fileName' ||
+           key === 'fileType' ||
            key === 'fileSize' ||
            key === 'isInteracted') {  // ✅ UI 状态字段，不保存到后端
          return;
@@ -862,12 +876,18 @@ export function useFlow(
       if (mediaContent.src) {
         const node = flowRef.current.getNode(nodeId);
         if (node) {
+          // mediaContent.aiGenerated 来自上游 (SSE 推送 / 应用层主动
+          // change). 不在 handleNodeDataChange 过滤白名单, 走 mediaContent
+          // 流到这里 — 别丢, 透到 mediaMap.
+          const meta = mediaContent.aiGenerated
+            ? { aiGenerated: true }
+            : undefined;
           if (node.type === 'image') {
-            flowRef.current.setNodeImage(nodeId, mediaContent.src);
+            flowRef.current.setNodeImage(nodeId, mediaContent.src, meta);
           } else if (node.type === 'video') {
-            flowRef.current.setNodeVideo(nodeId, mediaContent.src);
+            flowRef.current.setNodeVideo(nodeId, mediaContent.src, meta);
           } else if (node.type === 'audio') {
-            flowRef.current.setNodeAudio(nodeId, mediaContent.src);
+            flowRef.current.setNodeAudio(nodeId, mediaContent.src, meta);
           }
         }
       }
@@ -942,12 +962,17 @@ export function useFlow(
             if (node && previousMedia) {
               // 恢复媒体源
               if (previousMedia.src !== undefined) {
+                // 保留原 aiGenerated 状态, 不然回滚后 AI 节点变可替换.
+                const meta = (previousMedia as { aiGenerated?: boolean })
+                  .aiGenerated
+                  ? { aiGenerated: true }
+                  : undefined;
                 if (node.type === 'image') {
-                  flowRef.current.setNodeImage(nodeId, previousMedia.src || '');
+                  flowRef.current.setNodeImage(nodeId, previousMedia.src || '', meta);
                 } else if (node.type === 'video') {
-                  flowRef.current.setNodeVideo(nodeId, previousMedia.src || '');
+                  flowRef.current.setNodeVideo(nodeId, previousMedia.src || '', meta);
                 } else if (node.type === 'audio') {
-                  flowRef.current.setNodeAudio(nodeId, previousMedia.src || '');
+                  flowRef.current.setNodeAudio(nodeId, previousMedia.src || '', meta);
                 }
               }
               // 恢复文本

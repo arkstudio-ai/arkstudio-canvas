@@ -148,7 +148,11 @@ export class ParamsBuilderService {
     apiResult: any,
     executionId: string,
   ): Promise<Record<string, any>> {
-    const resultData: any = { taskId: executionId };
+    // aiGenerated:true 是前端用来判 "这个节点的内容是模型跑出来的, 不是
+    // 用户手动上传的" 的稳定 marker (落库 + reload 回灌 + MediaNode 替换
+    // 按钮的判定都靠它). taskId 也同时写, 但 taskId 没回灌通路, 别拿它
+    // 当 manual/AI 判定依据.
+    const resultData: any = { taskId: executionId, aiGenerated: true };
 
     if (nodeType === 'text') {
       resultData.text = apiResult.text || apiResult.results?.[0]?.text || '';
