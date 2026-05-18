@@ -6,6 +6,7 @@
 
 把 AI 生成做成一张可拖拽的画布 —— 文本 / 图片 / 视频 / 音频节点连成一条 pipeline，一键运行，结果就地预览。
 
+[![CI][ci-shield]][ci-link]
 [![License: AGPL-3.0][license-shield]][license-link]
 [![Made with DashScope][bailian-shield]][bailian-link]
 [![Issues][issues-shield]][issues-link]
@@ -166,6 +167,8 @@ License: [**AGPL-3.0**](LICENSE)。简单说：
 </div>
 
 <!-- Badges -->
+[ci-shield]: https://github.com/arkstudio-ai/arkstudio-canvas/actions/workflows/ci.yml/badge.svg?branch=main
+[ci-link]: https://github.com/arkstudio-ai/arkstudio-canvas/actions/workflows/ci.yml
 [license-shield]: https://img.shields.io/badge/License-AGPLv3-important.svg?logo=gnu
 [license-link]: https://github.com/arkstudio-ai/arkstudio-canvas/blob/main/LICENSE
 [bailian-shield]: https://img.shields.io/badge/Powered%20by-DashScope%20%2F%20Bailian-FF6A00
