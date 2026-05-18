@@ -7,34 +7,6 @@ import { AlternatesPicker } from '../AlternatesPicker';
 import '../../styles/canvas.css';
 
 /**
- * 多图生成 (n>1) 时, 节点 data.alternates 是 mirror 后 URL 数组. 返
- * stack overlay 要叠的卡片数 — 按 (alternates.length - 1) 算, 上限 3
- * 张 (再多卡片堆得画布乱). 没 alternates 或 ≤1 张则返 0.
- */
-const STACK_VISUAL_CAP = 3;
-function getStackDepth(alternates: unknown): number {
-  if (!Array.isArray(alternates)) return 0;
-  return Math.min(Math.max(alternates.length - 1, 0), STACK_VISUAL_CAP);
-}
-
-/** 渲染叠在主图后面的占位卡 (空白, 纯 box-shadow 模拟 "卡牌堆"). */
-const StackOverlay: React.FC<{ depth: number }> = ({ depth }) => {
-  if (depth <= 0) return null;
-  const cards = [];
-  for (let i = depth; i >= 1; i--) {
-    cards.push(
-      <div
-        key={i}
-        className="cf-media-node-stack-card"
-        data-depth={i}
-        aria-hidden
-      />,
-    );
-  }
-  return <>{cards}</>;
-};
-
-/**
  * 多图节点右上角的小按钮 — alternates.length > 1 才出. 跟 ReplaceButton
  * 同位置同尺寸, 用 Layers icon + "N 张" 标签. 点 → 触发 picker 模态.
  * 拦 mousedown 防止 ReactFlow 把它当成拖节点的起点.
@@ -199,12 +171,11 @@ export const ImageNode: React.FC<NodeContentProps> = ({ data, isConnected, onCha
   const isAsset = isAssetUri(rawSrc);
   const mediaSrc = resolveMediaUrl(rawSrc);
   const showContent = Boolean(mediaSrc || isConnected);
-  // alternates 是 backend 多图生成时落进 data 的 mirror 后 URL 数组,
-  // 包含主图. n=1 / 老节点没字段, stackDepth=0 → 全部 UI 都不出.
+  // alternates 是 backend 多图生成时落进 data 的 mirror 后 URL 数组
+  // (含主图). n=1 / 老节点不带这字段, "N 张" chip 不出.
   const alternates = Array.isArray(data.alternates)
     ? (data.alternates as Array<{ src: string }>)
     : [];
-  const stackDepth = getStackDepth(alternates);
   const hasAlternates = alternates.length > 1;
 
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -235,7 +206,6 @@ export const ImageNode: React.FC<NodeContentProps> = ({ data, isConnected, onCha
         onDoubleClick={() => mediaSrc && !isAsset && setIsModalOpen(true)}
         title={isAsset ? '火山方舟素材 — 用于下游视频生成' : '双击查看大图'}
       >
-        <StackOverlay depth={stackDepth} />
         {isAsset && rawSrc ? (
           <AssetPlaceholder uri={rawSrc} kind="image" />
         ) : mediaSrc ? (
@@ -299,7 +269,6 @@ export const VideoNode: React.FC<NodeContentProps> = ({
   const alternates = Array.isArray(data.alternates)
     ? (data.alternates as Array<{ src: string }>)
     : [];
-  const stackDepth = getStackDepth(alternates);
   const hasAlternates = alternates.length > 1;
 
   const handleVideoLoad = (e: React.SyntheticEvent<HTMLVideoElement>) => {
@@ -328,7 +297,6 @@ export const VideoNode: React.FC<NodeContentProps> = ({
         className="cf-media-node-container"
         title={isAsset ? '火山方舟视频素材 — 用于下游视频生成' : '双击全屏预览'}
       >
-        <StackOverlay depth={stackDepth} />
         {isAsset && rawSrc ? (
           <AssetPlaceholder uri={rawSrc} kind="video" />
         ) : mediaSrc ? (
@@ -393,7 +361,6 @@ export const AudioNode: React.FC<NodeContentProps> = ({ data, isConnected, onCha
   const alternates = Array.isArray(data.alternates)
     ? (data.alternates as Array<{ src: string }>)
     : [];
-  const stackDepth = getStackDepth(alternates);
   const hasAlternates = alternates.length > 1;
 
   if (!showContent) {
@@ -417,7 +384,6 @@ export const AudioNode: React.FC<NodeContentProps> = ({ data, isConnected, onCha
           alignItems: 'center',
         }}
       >
-        <StackOverlay depth={stackDepth} />
         {isAsset && rawSrc ? (
           <AssetPlaceholder uri={rawSrc} kind="audio" />
         ) : mediaSrc ? (
