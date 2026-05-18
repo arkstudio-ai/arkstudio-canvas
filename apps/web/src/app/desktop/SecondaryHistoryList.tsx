@@ -170,7 +170,23 @@ export const SecondaryHistoryList: React.FC = () => {
                 }}
               >
                 {item.thumbnail ? (
-                  <img src={item.thumbnail} alt="" style={thumbStyle} />
+                  // backend 把 video 历史的 thumbnail 字段直接塞了 .mp4
+                  // src — 真生成 poster frame 需要 ffmpeg, 当前没接, 所以
+                  // 前端这里 video 走 <video preload=metadata> 拿第一帧
+                  // 当封面 (浏览器原生支持). image 仍走 <img>.
+                  item.nodeType === 'video' ? (
+                    <video
+                      src={item.thumbnail}
+                      muted
+                      preload="metadata"
+                      // 拦下点击 — 整行的 onClick 走 handleClick, 不让
+                      // video 自带的 click-to-play 抢焦点.
+                      onClick={(e) => e.preventDefault()}
+                      style={thumbStyle}
+                    />
+                  ) : (
+                    <img src={item.thumbnail} alt="" style={thumbStyle} />
+                  )
                 ) : (
                   <div style={iconBoxStyle}>
                     <Icon size={16} />
