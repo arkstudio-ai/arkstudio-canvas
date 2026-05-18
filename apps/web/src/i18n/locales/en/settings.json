@@ -8,14 +8,46 @@
   "common": {
     "save": "Save",
     "saving": "Saving…",
+    "saved": "Saved",
+    "saveFailed": "Save failed",
+    "loadFailed": "Load failed",
     "resetDefault": "Reset",
+    "clear": "Clear",
     "run": "Run",
-    "loading": "Loading…"
+    "running": "Running…",
+    "loading": "Loading…",
+    "show": "Show",
+    "hide": "Hide",
+    "configured": "Configured",
+    "notConfigured": "Not configured",
+    "dbOverride": "DB override",
+    "envOverride": "ENV override",
+    "builtinDefault": "Built-in default"
+  },
+  "kind": {
+    "image": "Image",
+    "video": "Video",
+    "audio": "Audio",
+    "text": "Text",
+    "chat": "Chat",
+    "total": "Total"
   },
   "system": {
+    "pageTitle": "System",
+    "pageSubtitle": "Source info · Providers · History retention · Local storage",
+    "scopeCallout": {
+      "label": "Scope",
+      "desc": "Changes to {{vendor}}'s baseUrl / apiKey / timeout affect these SKU prefixes:"
+    },
     "source": {
       "title": "Source · License",
-      "hint": "This service is open-sourced under {{license}}. AGPL §13 requires operators to provide visitors with the matching source code."
+      "hint": "This service is open-sourced under {{license}}. AGPL §13 requires operators to provide visitors with the matching source code.",
+      "sourceLabel": "Source code",
+      "sourceSub": "git clone · fully reproducible",
+      "licenseLabel": "License",
+      "licenseSub": "Copyleft · modifications/SaaS must remain open",
+      "versionLabel": "Version",
+      "versionSub": "Matches git tag / GitHub release"
     },
     "history": {
       "title": "Generation history retention",
@@ -27,29 +59,160 @@
       "lastPrune": "Last: {{at}} · {{count}} deleted",
       "lastPruneNever": "Last: never (since backend start)",
       "resetAgeTitle": "Revert to built-in default {{count}} days",
-      "resetPerKindTitle": "Revert to built-in default {{count}} rows/kind"
+      "resetPerKindTitle": "Revert to built-in default {{count}} rows/kind",
+      "placeholderAge": "current {{cur}}d · default {{def}}d{{suffix}}",
+      "placeholderPerKind": "current {{cur}} · default {{def}}{{suffix}}",
+      "notConfiguredSuffix": " (not configured)",
+      "confirmPrune": "Prune history rows that exceed the retention policy? This cannot be undone.",
+      "toastChecked": "Already within retention — nothing to prune",
+      "toastPruned": "Pruned {{total}} rows (by age {{age}}, by count {{perKind}})",
+      "toastLoadFailed": "Failed to load history settings",
+      "toastPruneFailed": "Prune failed"
     },
     "storage": {
       "title": "Local storage",
-      "hint": "Uploads and generation results land in the data dir below, served at /static/uploads/<key>. Mount it as a dedicated volume in production for easy backup. i2i / i2v auto-stage through DashScope's temp bucket — no extra setup."
+      "hint": "Uploads and generation results land in the data dir below, served at /static/uploads/<key>. Mount it as a dedicated volume in production for easy backup. i2i / i2v auto-stage through DashScope's temp bucket — no extra setup.",
+      "dataDirLabel": "Data dir",
+      "dataDirPlaceholderConfigured": "DB value in effect — enter a new path to overwrite",
+      "dataDirPlaceholderDefault": "Not configured — enter a new path to overwrite",
+      "dataDirResetTitle": "Remove this DB field; revert to STORAGE_LOCAL_DATA_DIR or built-in default",
+      "dataDirConfirmClear": "Clear the DB value? It will revert to env / built-in default. Files already written under the old path are not auto-migrated.",
+      "sizeLabel": "Disk usage",
+      "sizeSub": "{{count}} files",
+      "maxFileLabel": "Max file size",
+      "maxFilePlaceholder": "current {{cur}}MB · default {{def}}MB{{suffix}}",
+      "publicUrlLabel": "Public URL",
+      "publicUrlSub": "Same-origin static · 1y immutable cache",
+      "toastLoadFailed": "Failed to load storage settings",
+      "sourceLabel": {
+        "db": "DB override",
+        "env": "STORAGE_LOCAL_DATA_DIR",
+        "default": "Built-in default"
+      }
     },
     "providers": {
+      "sectionTitle": "Providers",
+      "statusCard": {
+        "baseUrlLabel": "Base URL",
+        "apiKeyLabel": "API Key",
+        "apiKeySourceConfigured": "DB · encrypted at rest",
+        "apiKeySourceMissing": "⚠ Not configured · provider unavailable"
+      },
+      "baseUrlPlaceholder": "Default {{url}}",
+      "baseUrlResetTitle": "Clear DB value, revert to default URL",
+      "apiKeyPlaceholderConfigured": "Current: {{mask}} · enter a new value to overwrite",
+      "apiKeyPlaceholderEmpty": "Not configured · enter sk-... and save",
+      "apiKeyClearTitle": "Remove the apiKey row from DB",
+      "timeoutsTitle": "Timeouts (seconds)",
+      "timeoutPlaceholder": "new value",
+      "timeoutResetTitle": "Clear DB value, revert to built-in default",
+      "scopeCalloutPrefix": "Changes here affect:",
+      "toastLoadFailed": "Failed to load provider settings",
       "dashscope": {
+        "label": "DashScope (Alibaba Bailian)",
+        "kindHints": {
+          "chat": "Sync chat calls (qwen / deepseek / glm)",
+          "image": "Sync Wan 2.7 image submit (multimodal-generation)",
+          "video": "Async video submit; polling fixed at 10 s",
+          "audio": "TTS / FunMusic / voice clone submit"
+        },
         "timeoutsHint": "Submit timeout per model kind. Polling is fixed at 10s. Empty = default; saved value ≥ 1s.",
         "baseUrlHint": "DashScope (Bailian) gateway. Default https://dashscope.aliyuncs.com; international accounts use https://dashscope-intl.aliyuncs.com.",
-        "apiKeyHint": "Encrypted at rest (AES-256-GCM). UI shows masked form only (e.g. sk-1de...0252). Edits take effect within ~30 seconds."
+        "apiKeyHint": "Encrypted at rest (AES-256-GCM). UI shows masked form only (e.g. sk-1de...0252). Edits take effect within ~30 seconds.",
+        "clearKeyConfirm": "Clear the DashScope API Key? Every Alibaba SKU (qwen-* / wan2.7-* / glm / deepseek / speech-* / fun-music) will fail to call."
       },
       "openai": {
+        "label": "OpenAI-compatible",
+        "kindHints": {
+          "chat": "/chat/completions (gpt-* / openrouter / vllm ...)",
+          "image": "/images/generations (dall-e-3 occasionally > 60 s)",
+          "video": "OpenAI has no standard video API; kept for forward-compat",
+          "audio": "/audio/speech TTS (no provider yet; schema reserved)"
+        },
         "timeoutsHint": "Defaults are slightly wider (DALL-E 3 / GPT-image occasionally exceed 60 s). No video / audio provider yet — fields kept for forward-compat. Empty = default; saved value ≥ 1s.",
         "baseUrlHint": "Any OpenAI Chat Completions / Images Generations gateway (OpenAI / OpenRouter / Together / Groq / vLLM). Must include /v1, no trailing slash.",
-        "apiKeyHint": "Encrypted at rest (AES-256-GCM). UI shows masked form only. Once configured, openai-chat/<model> and openai-image/<model> become addable under Config."
+        "apiKeyHint": "Encrypted at rest (AES-256-GCM). UI shows masked form only. Once configured, openai-chat/<model> and openai-image/<model> become addable under Config.",
+        "clearKeyConfirm": "Clear the OpenAI API Key? Every openai-chat/* / openai-image/* SKU will fail to call."
       },
       "volcengine": {
+        "label": "Volcengine (Ark Seedance)",
+        "kindHints": {
+          "chat": "Volcengine chat provider not wired yet; kept for future Doubao text models.",
+          "image": "Not wired yet; placeholder.",
+          "video": "Seedance 2.0 / 2.0 Fast submit; polling fixed at 10 s.",
+          "audio": "Not wired yet; placeholder."
+        },
         "timeoutsHint": "Only video active today (Seedance 2.0 / 2.0 Fast). chat / image / audio fields kept for forward-compat. Polling is fixed at 10s.",
         "baseUrlHint": "Volcengine Ark Seedance gateway. Default https://ark.cn-beijing.volces.com/api/v3. Private proxies with matching path layout slot in too. Don't include /contents/... — provider appends it.",
         "apiKeyHint": "Bearer token (use ARK_API_KEY for the official endpoint, proxy key for self-hosted). Encrypted at rest with AES-256-GCM.",
-        "ossWarning": "Seedance i2v / r2v also needs Object Storage (OSS / TOS) configured below — without it, locally uploaded images can't be fetched by Volcengine servers and only t2v works."
+        "ossWarning": "Seedance i2v / r2v also needs Object Storage (OSS / TOS) configured below — without it, locally uploaded images can't be fetched by Volcengine servers and only t2v works.",
+        "clearKeyConfirm": "Clear the Volcengine API Key? Every doubao-seedance-* / seedance-* SKU will fail to call."
       }
+    },
+    "testConnection": {
+      "label": "Connectivity test",
+      "buttonIdle": "Test connection",
+      "buttonRunning": "Testing…",
+      "toastSuccess": "Connected · {{count}} models",
+      "toastSuccessNoCount": "Connected",
+      "toastFailNoKey": "Enter or save an API Key first, then test",
+      "toastFailNetwork": "Network unreachable · {{message}}",
+      "toastFailHttp": "Upstream {{status}} · {{message}}",
+      "tooltipDraft": "Test with the URL / Key currently in the input boxes",
+      "tooltipSaved": "Test with the URL / Key saved in DB",
+      "tooltipDisabled": "Save an API Key first, then test",
+      "latency": "{{ms}}ms",
+      "useDraft": "Use draft",
+      "useSaved": "Use saved"
+    },
+    "network": {
+      "title": "Outbound proxy",
+      "hint": "Affects every backend outbound HTTP call (DashScope / OpenAI / Volcengine, etc.). Empty = direct; set = everything routes through this proxy. Takes effect within ~30 seconds, no restart needed.",
+      "httpsProxyLabel": "HTTPS proxy",
+      "httpProxyLabel": "HTTP proxy",
+      "proxyPlaceholder": "http://user:pass@host:port",
+      "disabledLabel": "Force direct",
+      "disabledHint": "When checked, any configured URL is ignored and process.env.{HTTP,HTTPS,ALL}_PROXY is cleared at startup, forcing direct connections. Useful for diagnosing leaked shell env proxies.",
+      "effectiveLabel": "Currently effective",
+      "effectiveNone": "None (direct)",
+      "agentLabel": "globalAgent",
+      "agentDirect": "Agent (direct)",
+      "agentHttp": "HttpProxyAgent (HTTP)",
+      "agentHttps": "HttpsProxyAgent (HTTPS)",
+      "toastLoadFailed": "Failed to load proxy settings"
+    },
+    "oss": {
+      "title": "Object storage (OSS / TOS)",
+      "hint": "Stages locally uploaded files to a publicly reachable URL so URL-only vendors (Volcengine Seedance i2v / r2v) can fetch them. Empty provider = staging disabled.",
+      "providerLabel": "Provider",
+      "providerNone": "Disabled",
+      "providerAliyun": "Aliyun OSS",
+      "providerVolcengine": "Volcengine TOS",
+      "bucketLabel": "Bucket",
+      "regionLabel": "Region",
+      "endpointLabel": "Endpoint",
+      "endpointPlaceholder": "Empty = use region default",
+      "publicBaseUrlLabel": "Public base URL",
+      "publicBaseUrlPlaceholder": "https://<bucket>.<region>.aliyuncs.com or a custom CDN",
+      "accessKeyIdLabel": "AccessKey ID",
+      "accessKeyIdPlaceholder": "LTAI... / AKIA...",
+      "accessKeySecretLabel": "AccessKey Secret",
+      "accessKeySecretPlaceholderConfigured": "Configured · enter a new value to overwrite",
+      "accessKeySecretPlaceholderEmpty": "Not configured · enter and save",
+      "readyBadge": "Ready",
+      "notReadyBadge": "Incomplete",
+      "toastLoadFailed": "Failed to load object storage settings",
+      "clearConfirm": "Clear {{provider}} config? Seedance i2v / r2v will become unavailable."
+    },
+    "desktop": {
+      "title": "Desktop",
+      "browserOnlyHint": "Desktop-only section. You're viewing from a browser — these controls are disabled.",
+      "openDevtoolsLabel": "Open DevTools",
+      "openDevtoolsHint": "For debugging. You can close it any time.",
+      "openLogsLabel": "Open log directory",
+      "openLogsHint": "Electron main process + backend stdout land here.",
+      "openUserDataLabel": "Open userData directory",
+      "openUserDataHint": "SQLite database + local uploads live here. Quit the app before backing up."
     }
   },
   "config": {

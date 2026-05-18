@@ -8,14 +8,46 @@
   "common": {
     "save": "保存",
     "saving": "保存中…",
+    "saved": "已保存",
+    "saveFailed": "保存失败",
+    "loadFailed": "加载失败",
     "resetDefault": "重置默认",
+    "clear": "清除",
     "run": "执行",
-    "loading": "加载中…"
+    "running": "执行中…",
+    "loading": "加载中…",
+    "show": "显示",
+    "hide": "隐藏",
+    "configured": "已配置",
+    "notConfigured": "未配置",
+    "dbOverride": "DB 覆盖",
+    "envOverride": "ENV 覆盖",
+    "builtinDefault": "内置默认"
+  },
+  "kind": {
+    "image": "图片",
+    "video": "视频",
+    "audio": "音频",
+    "text": "文本",
+    "chat": "对话",
+    "total": "总计"
   },
   "system": {
+    "pageTitle": "系统设置",
+    "pageSubtitle": "开源信息 · 模型 Provider · 生成历史保留 · 本地存储",
+    "scopeCallout": {
+      "label": "影响范围",
+      "desc": "改 {{vendor}} 的 baseUrl / apiKey / timeout 会影响以下 SKU 前缀:"
+    },
     "source": {
       "title": "Source · License",
-      "hint": "本服务以 {{license}} 协议开源。按 AGPL §13，部署方需要让访问者拿到对应版本的源码。"
+      "hint": "本服务以 {{license}} 协议开源。按 AGPL §13，部署方需要让访问者拿到对应版本的源码。",
+      "sourceLabel": "Source code",
+      "sourceSub": "git clone · 完整可重建",
+      "licenseLabel": "License",
+      "licenseSub": "copyleft · 修改/SaaS 必须开源",
+      "versionLabel": "Version",
+      "versionSub": "对应 git tag / GitHub release"
     },
     "history": {
       "title": "生成历史保留",
@@ -27,29 +59,160 @@
       "lastPrune": "上次：{{at}} · 删除 {{count}} 条",
       "lastPruneNever": "上次：未运行（自后端启动）",
       "resetAgeTitle": "回退到内置默认 {{count}} 天",
-      "resetPerKindTitle": "回退到内置默认 {{count}} 条/kind"
+      "resetPerKindTitle": "回退到内置默认 {{count}} 条/kind",
+      "placeholderAge": "当前 {{cur}}d · 默认 {{def}}d{{suffix}}",
+      "placeholderPerKind": "当前 {{cur}} · 默认 {{def}}{{suffix}}",
+      "notConfiguredSuffix": " (未配置)",
+      "confirmPrune": "确认立即清理超出保留策略的历史记录？不可恢复。",
+      "toastChecked": "已检查，无需清理",
+      "toastPruned": "已清理 {{total}} 条 (按时间 {{age}}, 按数量 {{perKind}})",
+      "toastLoadFailed": "加载历史设置失败",
+      "toastPruneFailed": "清理失败"
     },
     "storage": {
       "title": "本地存储",
-      "hint": "上传 / 生成结果都落到下面的 data dir，由 /static/uploads/<key> 对外服务。生产建议挂独立卷以方便备份。i2i / i2v 由后端自动中转到 DashScope 临时桶，无需额外配置。"
+      "hint": "上传 / 生成结果都落到下面的 data dir，由 /static/uploads/<key> 对外服务。生产建议挂独立卷以方便备份。i2i / i2v 由后端自动中转到 DashScope 临时桶，无需额外配置。",
+      "dataDirLabel": "Data dir",
+      "dataDirPlaceholderConfigured": "已用 DB 配置 · 输入新路径覆盖",
+      "dataDirPlaceholderDefault": "未配置 · 输入新路径覆盖",
+      "dataDirResetTitle": "从 DB 删除该字段；回退到 STORAGE_LOCAL_DATA_DIR 或内置默认",
+      "dataDirConfirmClear": "确认清除 DB 配置？清除后回退到环境变量 / 内置默认。已写入旧路径的文件不会自动迁移。",
+      "sizeLabel": "占用空间",
+      "sizeSub": "{{count}} 个文件",
+      "maxFileLabel": "单文件上限",
+      "maxFilePlaceholder": "当前 {{cur}}MB · 默认 {{def}}MB{{suffix}}",
+      "publicUrlLabel": "对外路径",
+      "publicUrlSub": "同源静态文件 · 1y immutable cache",
+      "toastLoadFailed": "加载存储设置失败",
+      "sourceLabel": {
+        "db": "DB 覆盖",
+        "env": "STORAGE_LOCAL_DATA_DIR",
+        "default": "内置默认"
+      }
     },
     "providers": {
+      "sectionTitle": "Provider 设置",
+      "statusCard": {
+        "baseUrlLabel": "Base URL",
+        "apiKeyLabel": "API Key",
+        "apiKeySourceConfigured": "DB · 加密存储",
+        "apiKeySourceMissing": "⚠ 未配置 · 该 provider 不可用"
+      },
+      "baseUrlPlaceholder": "默认 {{url}}",
+      "baseUrlResetTitle": "清除 DB 配置，回退到默认 URL",
+      "apiKeyPlaceholderConfigured": "当前: {{mask}} · 输入新值覆盖",
+      "apiKeyPlaceholderEmpty": "尚未配置 · 输入 sk-... 并保存",
+      "apiKeyClearTitle": "从 DB 删除 apiKey 行",
+      "timeoutsTitle": "超时设置 (秒)",
+      "timeoutPlaceholder": "新值",
+      "timeoutResetTitle": "清除 DB 配置，回退到内置默认",
+      "scopeCalloutPrefix": "改本节会影响:",
+      "toastLoadFailed": "加载 Provider 设置失败",
       "dashscope": {
+        "label": "DashScope (阿里百炼)",
+        "kindHints": {
+          "chat": "同步对话调用 (qwen / deepseek / glm)",
+          "image": "同步万相 2.7 图像 submit (multimodal-generation)",
+          "video": "异步视频 submit；polling 固定 10s 不暴露",
+          "audio": "TTS / FunMusic / 音色复刻 submit"
+        },
         "timeoutsHint": "按 model kind 配置 submit 调用超时。Polling 固定 10s 不暴露。留空 = 默认；保存值 ≥ 1s。",
         "baseUrlHint": "DashScope (百炼) 网关地址。默认 https://dashscope.aliyuncs.com，国际版用 https://dashscope-intl.aliyuncs.com。",
-        "apiKeyHint": "落库前 AES-256-GCM 加密，页面只显示掩码（如 sk-1de...0252），修改约 30 秒内生效。"
+        "apiKeyHint": "落库前 AES-256-GCM 加密，页面只显示掩码（如 sk-1de...0252），修改约 30 秒内生效。",
+        "clearKeyConfirm": "确认清除 DashScope API Key？清除后 qwen-* / wan2.7-* / glm / deepseek / speech-* / fun-music 等所有阿里系 SKU 都会调用失败。"
       },
       "openai": {
+        "label": "OpenAI-compatible",
+        "kindHints": {
+          "chat": "/chat/completions (gpt-* / openrouter / vllm ...)",
+          "image": "/images/generations (dall-e-3 偶发 60s+)",
+          "video": "当前 OpenAI 无标准视频接口；保留以兼容未来扩展",
+          "audio": "/audio/speech TTS（暂未接入 provider，预留 schema）"
+        },
         "timeoutsHint": "默认值略宽（DALL-E 3 / GPT-image 偶发 60s+）。video / audio 暂无 provider，配置仍保留。留空 = 默认；保存值 ≥ 1s。",
         "baseUrlHint": "任意 OpenAI Chat Completions / Images Generations 协议网关（OpenAI / OpenRouter / Together / Groq / vLLM 等）。须包含 /v1，末尾不带斜线。",
-        "apiKeyHint": "落库前 AES-256-GCM 加密，页面只显示掩码。配置后才能在「配置」页把 openai-chat/<model> · openai-image/<model> 加进 models 列表。"
+        "apiKeyHint": "落库前 AES-256-GCM 加密，页面只显示掩码。配置后才能在「配置」页把 openai-chat/<model> · openai-image/<model> 加进 models 列表。",
+        "clearKeyConfirm": "确认清除 OpenAI API Key？清除后所有 openai-chat/* / openai-image/* SKU 都会调用失败。"
       },
       "volcengine": {
+        "label": "Volcengine (火山方舟 Seedance)",
+        "kindHints": {
+          "chat": "当前 Volcengine 暂未接入 chat provider；预留位以兼容未来 Doubao 文本模型。",
+          "image": "当前未接入；预留位。",
+          "video": "Seedance 2.0 / 2.0 Fast submit；polling 固定 10s 不暴露。",
+          "audio": "当前未接入；预留位。"
+        },
         "timeoutsHint": "目前仅 video 生效（Seedance 2.0 / 2.0 Fast）。chat / image / audio 字段保留待接入。Polling 固定 10s。",
         "baseUrlHint": "Volcengine 火山方舟 Seedance 网关。默认 https://ark.cn-beijing.volces.com/api/v3。自建代理路径布局一致即可切换。不要带 /contents/... 后缀。",
         "apiKeyHint": "Bearer Token（官方填 ARK_API_KEY；私有代理填代理 key）。落库前 AES-256-GCM 加密。",
-        "ossWarning": "Seedance 视频 i2v / r2v 模式还需要在下方配置「对象存储 (OSS / TOS)」，否则本地上传的图片无法被火山服务器拉到，只能跑 t2v。"
+        "ossWarning": "Seedance 视频 i2v / r2v 模式还需要在下方配置「对象存储 (OSS / TOS)」，否则本地上传的图片无法被火山服务器拉到，只能跑 t2v。",
+        "clearKeyConfirm": "确认清除 Volcengine API Key？清除后所有 doubao-seedance-* / seedance-* SKU 都会调用失败。"
       }
+    },
+    "testConnection": {
+      "label": "连通性测试",
+      "buttonIdle": "测试连接",
+      "buttonRunning": "测试中…",
+      "toastSuccess": "连接正常 · {{count}} 个模型",
+      "toastSuccessNoCount": "连接正常",
+      "toastFailNoKey": "请先输入或保存 API Key 再测试",
+      "toastFailNetwork": "网络不通 · {{message}}",
+      "toastFailHttp": "上游 {{status}} · {{message}}",
+      "tooltipDraft": "用当前输入框里的 URL / Key 试",
+      "tooltipSaved": "用 DB 已保存的 URL / Key 试",
+      "tooltipDisabled": "请先保存 API Key 再测试",
+      "latency": "{{ms}}ms",
+      "useDraft": "用草稿试",
+      "useSaved": "用已存试"
+    },
+    "network": {
+      "title": "出站代理",
+      "hint": "影响后端所有出站 HTTP（DashScope / OpenAI / Volcengine 等）。留空 = 直连；填写 = 全部走该代理。改完约 30 秒内生效，无需重启。",
+      "httpsProxyLabel": "HTTPS Proxy",
+      "httpProxyLabel": "HTTP Proxy",
+      "proxyPlaceholder": "http://user:pass@host:port",
+      "disabledLabel": "强制直连",
+      "disabledHint": "勾上 = 即使配了 URL 也忽略，启动时清掉 process.env.{HTTP,HTTPS,ALL}_PROXY，全部走直连。用于排查 shell env 漏代理。",
+      "effectiveLabel": "当前生效",
+      "effectiveNone": "无（直连）",
+      "agentLabel": "globalAgent",
+      "agentDirect": "Agent (直连)",
+      "agentHttp": "HttpProxyAgent (HTTP)",
+      "agentHttps": "HttpsProxyAgent (HTTPS)",
+      "toastLoadFailed": "加载代理设置失败"
+    },
+    "oss": {
+      "title": "对象存储 (OSS / TOS)",
+      "hint": "本地上传文件中转到公网可达 URL，让仅支持 URL 的 vendor（Volcengine Seedance i2v / r2v）能拉到。留空 provider = 禁用 staging。",
+      "providerLabel": "Provider",
+      "providerNone": "未启用",
+      "providerAliyun": "Aliyun OSS",
+      "providerVolcengine": "Volcengine TOS",
+      "bucketLabel": "Bucket",
+      "regionLabel": "Region",
+      "endpointLabel": "Endpoint",
+      "endpointPlaceholder": "留空 = 用 region 默认",
+      "publicBaseUrlLabel": "Public Base URL",
+      "publicBaseUrlPlaceholder": "https://<bucket>.<region>.aliyuncs.com 或自定义 CDN",
+      "accessKeyIdLabel": "AccessKey ID",
+      "accessKeyIdPlaceholder": "LTAI... / AKIA...",
+      "accessKeySecretLabel": "AccessKey Secret",
+      "accessKeySecretPlaceholderConfigured": "已配置 · 输入新值覆盖",
+      "accessKeySecretPlaceholderEmpty": "未配置 · 输入并保存",
+      "readyBadge": "就绪",
+      "notReadyBadge": "未配置完整",
+      "toastLoadFailed": "加载对象存储设置失败",
+      "clearConfirm": "确认清除 {{provider}} 配置？清除后 Seedance i2v / r2v 模式不可用。"
+    },
+    "desktop": {
+      "title": "桌面端",
+      "browserOnlyHint": "本节为桌面端独占。当前从浏览器访问，配置不可用。",
+      "openDevtoolsLabel": "打开 DevTools",
+      "openDevtoolsHint": "调试用，启动后可随时关。",
+      "openLogsLabel": "打开日志目录",
+      "openLogsHint": "Electron 主进程 + backend stdout 落在这里。",
+      "openUserDataLabel": "打开 UserData 目录",
+      "openUserDataHint": "SQLite 库、本地上传都在这里。备份前先 quit app。"
     }
   },
   "config": {
