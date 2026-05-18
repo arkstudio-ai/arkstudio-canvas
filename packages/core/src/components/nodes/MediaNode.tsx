@@ -78,12 +78,20 @@ const AssetPlaceholder: React.FC<{ uri: string; kind: 'image' | 'video' | 'audio
   );
 };
 
-// AI-generated 节点 save 完会带 taskId; 手动上传 (file picker / 拖放)
-// 不带. asset:// 是火山素材占位, 替换也没意义. 仅这两类之外才有 "替换"
-// 按钮 — 让用户能在原 manual-upload 节点上换一张图, 不用删了重连.
+// 区分 "手动上传" vs "AI 生成" vs "asset 引用":
+//
+// - 手动上传 (useFlow.handleNodeDataChange 的 _uploadRequest 分支):
+//     落库 { src, fileName, fileType, fileSize }  ← fileName 是关键签名
+// - AI 生成 (params-builder.saveExecutionResult):
+//     落库 { taskId, fileType, src }              ← 没 fileName, 有 taskId
+// - asset:// 火山素材占位: 替换会丢失上游引用, 不出按钮
+//
+// 用 fileName 做正向证据 (双重保险: 同时 !taskId), AI 生成永远过不了,
+// 避免 "用户在生成的图上点替换、把 AI 结果换掉" 这种意外操作.
 function isManualUpload(data: any, isAsset: boolean): boolean {
   if (isAsset) return false;
   if (data?.taskId) return false;
+  if (typeof data?.fileName !== 'string' || !data.fileName) return false;
   return !!(data?.src || data?.output);
 }
 
