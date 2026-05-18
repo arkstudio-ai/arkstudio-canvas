@@ -1429,7 +1429,11 @@ const tabStyle: React.CSSProperties = {
 const tabActiveStyle: React.CSSProperties = {
   ...tabStyle,
   color: tokens.textPrimary,
-  borderBottomColor: tokens.accent,
+  // 必须用 shorthand `borderBottom` 而不是 longhand `borderBottomColor`.
+  // tabStyle 是 shorthand, 如果这里用 longhand 覆盖, React 切回 inactive
+  // 时移除 longhand 但 shorthand 已被浏览器拆成 width/style/color 三条,
+  // color 那条没人重写就丢, 之前 active 的 tab 切走后看起来还像 active.
+  borderBottom: `2px solid ${tokens.accent}`,
   // 上拉 1px 让 accent border 跟 tabBar 的 1px 灰线 (border) 重合,
   // 视觉上是 "选中的 tab 用 accent 色顶替了那段灰线".
   marginBottom: -1,
