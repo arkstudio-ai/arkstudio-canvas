@@ -1,0 +1,43 @@
+{
+  "language": {
+    "label": "语言",
+    "zh": "简体中文",
+    "en": "English"
+  },
+  "common": {
+    "loading": "加载中…",
+    "close": "关闭",
+    "closeEsc": "关闭 (Esc)"
+  },
+  "canvasRail": {
+    "expand": "展开画布列表",
+    "collapse": "收起画布列表"
+  },
+  "statusBar": {
+    "connected": "已连接",
+    "down": "后端无响应",
+    "connecting": "连接中…",
+    "sameOrigin": "(same origin)",
+    "nodes": "节点",
+    "edges": "边",
+    "zoom": "缩放",
+    "zoomFit": "点击适配画布",
+    "zoomLoading": "画布加载中…",
+    "queueing": "个生成中…",
+    "queueingTooltip": "{{count}} 个节点正在生成中",
+    "assetLibrary": "素材库",
+    "assetLibraryTooltip": "火山方舟素材库 (Seedance 参考素材)"
+  },
+  "settings": {
+    "title": "设置",
+    "sectionNavAria": "设置分类"
+  },
+  "assetLibrary": {
+    "filter": {
+      "all": "全部",
+      "image": "图片",
+      "video": "视频",
+      "audio": "音频"
+    }
+  }
+}

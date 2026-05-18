@@ -16,6 +16,7 @@
 // top-right corner per user preference.
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
 import { useUIStore } from '../store/uiStore';
@@ -26,11 +27,13 @@ const WIDTH_COLLAPSED = 56;
 const TRANSITION = 'width 220ms cubic-bezier(0.32, 0.72, 0, 1)';
 
 export const CanvasRail: React.FC = () => {
+  const { t } = useTranslation();
   const currentFlowId = useUIStore((s) => s.currentFlowId);
   const mode = useUIStore((s) => s.canvasRailMode);
   const toggle = useUIStore((s) => s.toggleCanvasRail);
 
   const expanded = mode === 'expanded';
+  const toggleLabel = expanded ? t('canvasRail.collapse') : t('canvasRail.expand');
 
   return (
     <aside
@@ -53,8 +56,8 @@ export const CanvasRail: React.FC = () => {
         <button
           type="button"
           onClick={toggle}
-          title={expanded ? '收起画布列表' : '展开画布列表'}
-          aria-label={expanded ? '收起画布列表' : '展开画布列表'}
+          title={toggleLabel}
+          aria-label={toggleLabel}
           style={collapseBtnStyle}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = 'rgba(255,255,255,0.06)';

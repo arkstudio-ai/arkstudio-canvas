@@ -6,6 +6,10 @@ import { Toaster } from 'sonner'
 import App from './app/App'
 import '@radix-ui/themes/styles.css'
 import './app/styles/toast.css'
+// i18n bootstrap (side-effect import). Initializes i18next + sets the
+// active language from localStorage / browser before App renders, so
+// useTranslation() returns the right strings on first paint.
+import './i18n'
 
 // 桌面端 (Electron) 通过 file:// 加载 index.html, pathname 是磁盘上的绝对
 // 路径, BrowserRouter 没法 match 任何业务路由 → 整页不渲染 (黑屏).

@@ -11,6 +11,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { Plus, RefreshCw, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -45,11 +46,13 @@ interface AssetLibraryPanelProps {
   onClose: () => void;
 }
 
-const TYPE_FILTER_LABELS: Record<AssetType | 'All', string> = {
-  All: '全部',
-  Image: '图片',
-  Video: '视频',
-  Audio: '音频',
+// label keys live in apps/web/src/i18n/locales/{zh,en}/common.json
+// under assetLibrary.filter.*; the order array drives chip layout.
+const TYPE_FILTER_KEYS: Record<AssetType | 'All', string> = {
+  All: 'assetLibrary.filter.all',
+  Image: 'assetLibrary.filter.image',
+  Video: 'assetLibrary.filter.video',
+  Audio: 'assetLibrary.filter.audio',
 };
 const TYPE_FILTER_ORDER: Array<AssetType | 'All'> = ['All', 'Image', 'Video', 'Audio'];
 
@@ -57,6 +60,7 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(false);
   const [typeFilter, setTypeFilter] = useState<AssetType | 'All'>('All');
@@ -184,14 +188,14 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({
 
         <div style={filterRowStyle}>
           <div style={chipGroupStyle}>
-            {TYPE_FILTER_ORDER.map((t) => (
+            {TYPE_FILTER_ORDER.map((type) => (
               <button
-                key={t}
+                key={type}
                 type="button"
-                style={chipStyle(typeFilter === t)}
-                onClick={() => setTypeFilter(t)}
+                style={chipStyle(typeFilter === type)}
+                onClick={() => setTypeFilter(type)}
               >
-                {TYPE_FILTER_LABELS[t]}
+                {t(TYPE_FILTER_KEYS[type])}
               </button>
             ))}
           </div>

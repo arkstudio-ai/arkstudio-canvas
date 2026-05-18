@@ -11,6 +11,7 @@
 // state — what they're looking at + what's being computed for them.
 
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Loader2, Package } from 'lucide-react';
 
 import { API_BASE_URL } from '../config/api';
@@ -21,6 +22,7 @@ type HealthStatus = 'unknown' | 'ok' | 'down';
 const POLL_INTERVAL_MS = 5_000;
 
 export const StatusBar: React.FC = () => {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<HealthStatus>('unknown');
   const [tooltipOpen, setTooltipOpen] = useState(false);
   const dotRef = useRef<HTMLSpanElement>(null);
@@ -62,12 +64,13 @@ export const StatusBar: React.FC = () => {
 
   const dotColor =
     status === 'ok' ? '#52c41a' : status === 'down' ? '#ff4d4f' : '#8a8f98';
+  const apiLabel = API_BASE_URL || t('statusBar.sameOrigin');
   const tooltipText =
     status === 'ok'
-      ? `已连接 · ${API_BASE_URL || '(same origin)'}`
+      ? `${t('statusBar.connected')} · ${apiLabel}`
       : status === 'down'
-      ? `后端无响应 · ${API_BASE_URL || '(same origin)'}`
-      : `连接中… · ${API_BASE_URL || '(same origin)'}`;
+      ? `${t('statusBar.down')} · ${apiLabel}`
+      : `${t('statusBar.connecting')} · ${apiLabel}`;
   const zoomPct = `${Math.round(zoom * 100)}%`;
 
   return (
@@ -87,9 +90,9 @@ export const StatusBar: React.FC = () => {
         <span style={dividerStyle} aria-hidden />
 
         <span style={statStyle}>
-          <strong style={numStyle}>{nodeCount}</strong> 节点
+          <strong style={numStyle}>{nodeCount}</strong> {t('statusBar.nodes')}
           <span style={dotSepStyle}>·</span>
-          <strong style={numStyle}>{edgeCount}</strong> 边
+          <strong style={numStyle}>{edgeCount}</strong> {t('statusBar.edges')}
         </span>
 
         <span style={dividerStyle} aria-hidden />
@@ -99,7 +102,7 @@ export const StatusBar: React.FC = () => {
           onClick={() => resetZoom?.()}
           disabled={!resetZoom}
           style={zoomBtnStyle}
-          title={resetZoom ? '点击适配画布' : '画布加载中…'}
+          title={resetZoom ? t('statusBar.zoomFit') : t('statusBar.zoomLoading')}
           onMouseEnter={(e) => {
             if (!resetZoom) return;
             e.currentTarget.style.color = '#fff';
@@ -110,22 +113,22 @@ export const StatusBar: React.FC = () => {
             e.currentTarget.style.background = 'transparent';
           }}
         >
-          缩放 <strong style={numStyle}>{zoomPct}</strong>
+          {t('statusBar.zoom')} <strong style={numStyle}>{zoomPct}</strong>
         </button>
       </div>
 
       <div style={rightGroupStyle}>
         {queue > 0 && (
-          <span style={queueStyle} title={`${queue} 个节点正在生成中`}>
+          <span style={queueStyle} title={t('statusBar.queueingTooltip', { count: queue })}>
             <Loader2 size={11} style={spinStyle} />
-            <strong style={numStyle}>{queue}</strong> 个生成中…
+            <strong style={numStyle}>{queue}</strong> {t('statusBar.queueing')}
           </span>
         )}
         <button
           type="button"
           onClick={() => openAssetLibrary()}
           style={assetBtnStyle}
-          title="火山方舟素材库 (Seedance 参考素材)"
+          title={t('statusBar.assetLibraryTooltip')}
           onMouseEnter={(e) => {
             e.currentTarget.style.color = '#fff';
             e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
@@ -136,7 +139,7 @@ export const StatusBar: React.FC = () => {
           }}
         >
           <Package size={11} />
-          <span>素材库</span>
+          <span>{t('statusBar.assetLibrary')}</span>
         </button>
       </div>
 

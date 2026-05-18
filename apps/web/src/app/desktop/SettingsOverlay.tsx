@@ -14,12 +14,15 @@
 //   - Avoids polluting the URL — the canvas address bar stays clean.
 
 import React, { Suspense, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 
 import { adminModules } from '../pages/admin/shell/adminModules';
 import { useUIStore } from '../store/uiStore';
+import { LanguageSwitcher } from '../../i18n/LanguageSwitcher';
 
 export const SettingsOverlay: React.FC = () => {
+  const { t } = useTranslation();
   const open = useUIStore((s) => s.settingsOpen);
   const section = useUIStore((s) => s.settingsSection);
   const setSection = useUIStore((s) => s.setSettingsSection);
@@ -55,31 +58,34 @@ export const SettingsOverlay: React.FC = () => {
       }}
       role="dialog"
       aria-modal="true"
-      aria-label="设置"
+      aria-label={t('settings.title')}
     >
       <div style={panelStyle} onMouseDown={(e) => e.stopPropagation()}>
         <header style={headerStyle}>
-          <span style={titleStyle}>设置</span>
-          <button
-            type="button"
-            onClick={close}
-            title="关闭 (Esc)"
-            style={closeBtnStyle}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-              e.currentTarget.style.color = '#fff';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = '#9aa0a6';
-            }}
-          >
-            <X size={16} />
-          </button>
+          <span style={titleStyle}>{t('settings.title')}</span>
+          <div style={headerRightStyle}>
+            <LanguageSwitcher />
+            <button
+              type="button"
+              onClick={close}
+              title={t('common.closeEsc')}
+              style={closeBtnStyle}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                e.currentTarget.style.color = '#fff';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = '#9aa0a6';
+              }}
+            >
+              <X size={16} />
+            </button>
+          </div>
         </header>
 
         <div style={bodyStyle}>
-          <nav style={navStyle} aria-label="设置分类">
+          <nav style={navStyle} aria-label={t('settings.sectionNavAria')}>
             {adminModules.map((m) => {
               const Icon = m.icon;
               const isActive = m.id === section;
@@ -117,7 +123,7 @@ export const SettingsOverlay: React.FC = () => {
 
           <section style={contentStyle}>
             <Suspense
-              fallback={<div style={loadingStyle}>加载中…</div>}
+              fallback={<div style={loadingStyle}>{t('common.loading')}</div>}
             >
               {ActiveComponent && <ActiveComponent />}
             </Suspense>
@@ -168,6 +174,12 @@ const titleStyle: React.CSSProperties = {
   fontWeight: 600,
   letterSpacing: 0.4,
   textTransform: 'uppercase',
+};
+
+const headerRightStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
 };
 
 const closeBtnStyle: React.CSSProperties = {
