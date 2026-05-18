@@ -10,7 +10,7 @@
 // Right-click row → 详情 / 应用到画布 / 删除.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { LayoutTemplate, Plus, Info, Trash2, Play } from 'lucide-react';
+import { LayoutTemplate, Plus, Info, Trash2, Play, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import {
@@ -32,7 +32,17 @@ export const SecondaryTemplateList: React.FC = () => {
     item: TemplateAsset;
   } | null>(null);
   const [detail, setDetail] = useState<TemplateAsset | null>(null);
+  // 搜索框输入. 250ms debounce 后才打 query — 输入 "abc" 不会触发 3
+  // 次请求. backend templatesService.query 已经支持 keyword 字段
+  // (LIKE name + description), 前端只是接上.
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedKeyword, setDebouncedKeyword] = useState('');
   const apply = useUIStore((s) => s.applyTemplateAsset);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedKeyword(searchInput.trim()), 250);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   const fetchPage = useCallback(async () => {
     try {
@@ -40,6 +50,7 @@ export const SecondaryTemplateList: React.FC = () => {
       const res = await templatesService.query({
         page: 1,
         limit: PAGE_LIMIT,
+        ...(debouncedKeyword ? { keyword: debouncedKeyword } : {}),
       });
       setItems(res.items);
       setError(null);
@@ -48,7 +59,7 @@ export const SecondaryTemplateList: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [debouncedKeyword]);
 
   useEffect(() => {
     void fetchPage();
@@ -150,6 +161,27 @@ export const SecondaryTemplateList: React.FC = () => {
         </button>
       </div>
 
+      <div style={searchRowStyle}>
+        <Search size={12} style={{ color: '#666', flexShrink: 0 }} />
+        <input
+          type="text"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="搜模板 (名称 / 描述)"
+          style={searchInputStyle}
+        />
+        {searchInput && (
+          <button
+            type="button"
+            onClick={() => setSearchInput('')}
+            style={clearBtnStyle}
+            title="清空"
+          >
+            <X size={11} />
+          </button>
+        )}
+      </div>
+
       {loading && items.length === 0 ? (
         <div style={dimStyle}>加载中…</div>
       ) : error ? (
@@ -192,6 +224,24 @@ export const SecondaryTemplateList: React.FC = () => {
                   <span style={titleStyle}>{item.name}</span>
                   {item.description && (
                     <span style={metaStyle}>{item.description}</span>
+                  )}
+                  {item.tags && item.tags.length > 0 && (
+                    <div style={tagRowStyle}>
+                      {item.tags.slice(0, 4).map((t, i) => (
+                        <span
+                          key={`${t.category}:${t.value}:${i}`}
+                          style={tagChipStyle(t.color ?? null)}
+                          title={`${t.category}: ${t.value}`}
+                        >
+                          {t.value}
+                        </span>
+                      ))}
+                      {item.tags.length > 4 && (
+                        <span style={tagMoreStyle}>
+                          +{item.tags.length - 4}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
               </button>
@@ -349,4 +399,65 @@ const retryStyle: React.CSSProperties = {
   borderRadius: 6,
   fontSize: 11,
   cursor: 'pointer',
+};
+
+const searchRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '0 8px',
+  height: 28,
+  borderRadius: 6,
+  background: 'rgba(255,255,255,0.04)',
+  border: '1px solid rgba(255,255,255,0.06)',
+  marginBottom: 6,
+};
+
+const searchInputStyle: React.CSSProperties = {
+  flex: 1,
+  background: 'transparent',
+  border: 'none',
+  outline: 'none',
+  fontSize: 12,
+  color: '#dcdcdc',
+  minWidth: 0,
+};
+
+const clearBtnStyle: React.CSSProperties = {
+  flexShrink: 0,
+  background: 'transparent',
+  border: 'none',
+  color: '#888',
+  cursor: 'pointer',
+  padding: 0,
+  display: 'flex',
+  alignItems: 'center',
+};
+
+const tagRowStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 4,
+  marginTop: 4,
+};
+
+// 后端可选给 tag.color, 没给就一个中性灰. 字体小到 9 不挤行高 — 列表行
+// 本身高度才 50 上下, 4 个 tag 横铺.
+const tagChipStyle = (color: string | null): React.CSSProperties => ({
+  fontSize: 9,
+  padding: '1px 6px',
+  borderRadius: 4,
+  background: color ? `${color}22` : 'rgba(255,255,255,0.06)',
+  color: color ?? '#9ca0a8',
+  border: `1px solid ${color ? `${color}55` : 'rgba(255,255,255,0.10)'}`,
+  whiteSpace: 'nowrap',
+  maxWidth: 80,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+});
+
+const tagMoreStyle: React.CSSProperties = {
+  fontSize: 9,
+  color: '#666',
+  alignSelf: 'center',
 };
