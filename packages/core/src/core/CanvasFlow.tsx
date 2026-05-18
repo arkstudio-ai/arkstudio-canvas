@@ -126,25 +126,27 @@ export interface CanvasFlowHandle {
   
   // 媒体内容设置 API (专用方法 - 类型安全)
   //
-  // 可选 meta.aiGenerated: backend saveExecutionResult 通路写 true,
-  // reload (dataAdapter) / 数据回灌路径透传过来. 不传则保持原值/不动 —
-  // 手动上传 (file picker) 等场景就别传, 节点没 aiGenerated 字段, 视为
-  // 手动. 不要把任何业务字段塞进 meta — 这里只收 "内容来源 marker" 一类
-  // 极小集合, 想加新字段先在 updateMediaData 白名单里挂一席.
+  // 可选 meta:
+  //   aiGenerated — backend saveExecutionResult 写 true, reload (dataAdapter)
+  //                 / 回灌路径透传. 手动上传场景不传, 节点无字段视为手动.
+  //   alternates  — 多图生成 (n>1) 的备选 mirror URL 数组, 第一张同时进 src
+  //                 当主图. 单图生成不传, 兼容老单图行为.
+  // 不要把任何业务字段塞进 meta — 只收 "内容来源 marker" 一类极小集合,
+  // 想加新字段先在 updateMediaData 白名单里挂一席.
   setNodeImage(
     nodeId: string,
     src: string,
-    meta?: { aiGenerated?: boolean },
+    meta?: { aiGenerated?: boolean; alternates?: Array<{ src: string }> },
   ): void;
   setNodeVideo(
     nodeId: string,
     src: string,
-    meta?: { aiGenerated?: boolean },
+    meta?: { aiGenerated?: boolean; alternates?: Array<{ src: string }> },
   ): void;
   setNodeAudio(
     nodeId: string,
     src: string,
-    meta?: { aiGenerated?: boolean },
+    meta?: { aiGenerated?: boolean; alternates?: Array<{ src: string }> },
   ): void;
   setNodeText(nodeId: string, text: string): void;
   setNodeTitle(nodeId: string, title: string): void;
@@ -314,6 +316,13 @@ export const CanvasFlow = React.forwardRef<CanvasFlowHandle, CanvasFlowProps>((p
       // "替换" 按钮显不显示 (只对手动上传出按钮). 没这字段的视为手动.
       'aiGenerated',
 
+      // 多图生成的备选数组 — n>1 时 backend saveExecutionResult 把全部
+      // mirror 后的 URL 塞进来 ({src} 元素). 第一张同时进 src 当主图.
+      // MediaNode 用它渲染 stack 视觉 + picker 模态; 用户在 picker 里
+      // 换主图 = 重写 src, alternates 数组不动. n=1 不写, 跟单图老节点
+      // 形态完全一致 (向后兼容).
+      'alternates',
+
       // 其他媒体相关字段
       'resourceType',  // 资源类型
     ];
@@ -439,12 +448,13 @@ export const CanvasFlow = React.forwardRef<CanvasFlowHandle, CanvasFlowProps>((p
     setNodeImage: (
       nodeId: string,
       src: string,
-      meta?: { aiGenerated?: boolean },
+      meta?: { aiGenerated?: boolean; alternates?: Array<{ src: string }> },
     ) => {
       const validTypes = ['image', 'video', 'audio'];
       if (validateNodeType(nodeId, validTypes, 'setNodeImage')) {
         const payload: Record<string, unknown> = { src };
         if (meta?.aiGenerated !== undefined) payload.aiGenerated = meta.aiGenerated;
+        if (meta?.alternates !== undefined) payload.alternates = meta.alternates;
         updateMediaData(nodeId, payload);
       }
     },
@@ -452,11 +462,12 @@ export const CanvasFlow = React.forwardRef<CanvasFlowHandle, CanvasFlowProps>((p
     setNodeVideo: (
       nodeId: string,
       src: string,
-      meta?: { aiGenerated?: boolean },
+      meta?: { aiGenerated?: boolean; alternates?: Array<{ src: string }> },
     ) => {
       if (validateNodeType(nodeId, 'video', 'setNodeVideo')) {
         const payload: Record<string, unknown> = { src };
         if (meta?.aiGenerated !== undefined) payload.aiGenerated = meta.aiGenerated;
+        if (meta?.alternates !== undefined) payload.alternates = meta.alternates;
         updateMediaData(nodeId, payload);
       }
     },
@@ -464,11 +475,12 @@ export const CanvasFlow = React.forwardRef<CanvasFlowHandle, CanvasFlowProps>((p
     setNodeAudio: (
       nodeId: string,
       src: string,
-      meta?: { aiGenerated?: boolean },
+      meta?: { aiGenerated?: boolean; alternates?: Array<{ src: string }> },
     ) => {
       if (validateNodeType(nodeId, 'audio', 'setNodeAudio')) {
         const payload: Record<string, unknown> = { src };
         if (meta?.aiGenerated !== undefined) payload.aiGenerated = meta.aiGenerated;
+        if (meta?.alternates !== undefined) payload.alternates = meta.alternates;
         updateMediaData(nodeId, payload);
       }
     },
