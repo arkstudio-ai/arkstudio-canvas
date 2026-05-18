@@ -6,32 +6,45 @@
  * The DB is the single source of truth at runtime. The default catalog in
  * `prisma/default-node-definitions.ts` is only consulted when seeding a fresh
  * deployment (empty `node_definitions` table). That leaves a gap: when the
- * project ships a NEW model entry as part of an open-source update, existing
- * deployments (with admin edits already in their DB) won't pick it up — the
- * seed step is skipped to avoid clobbering those edits.
+ * project ships a NEW model entry (or a new paramsSchema field on an
+ * existing model) as part of an open-source update, existing deployments
+ * (with admin edits already in their DB) won't pick it up — the seed step
+ * is skipped to avoid clobbering those edits.
  *
- * This script bridges that gap. Two complementary modes:
+ * This script bridges that gap. Three complementary operations:
  *
  *   1. ADD (always on) — for each node type, append default-side `value`s
  *      that are missing from the DB row. Idempotent. Never modifies or
  *      reorders existing entries.
  *
- *   2. PRUNE (`--prune`) — additionally REMOVE DB-side entries whose
+ *   2. FIELD PATCH (always on) — for each EXISTING model entry whose value
+ *      matches a default catalog entry, merge in any paramsSchema fields
+ *      and defaultParams keys that the default has but the DB row doesn't.
+ *      Existing fields and admin-edited values are NEVER touched; only
+ *      missing keys are appended. This back-ports e.g. a new `n` selector
+ *      to old gpt-image-2 entries without clobbering the user's edited
+ *      aspectRatio options.
+ *
+ *      Edge case: if admin INTENTIONALLY removed a default-side field via
+ *      /admin/config, this will re-add it. Acceptable trade-off given the
+ *      99% case is "back-port new defaults"; admin can re-remove via UI.
+ *
+ *   3. PRUNE (`--prune`) — additionally REMOVE DB-side entries whose
  *      `value` is not in the default catalog. Use to bring an existing
  *      deployment in line with what a fresh seed would produce — e.g.
  *      after dropping legacy SKUs from the codebase. Each removal prints
  *      the full JSON entry to stdout BEFORE deleting so the operator can
  *      back it up if they change their mind.
  *
- * Both modes are dry-run by default (per repo db-safety rule). Add
+ * All operations are dry-run by default (per repo db-safety rule). Add
  * `--apply` to actually write.
  *
  * Usage
  * -----
- *   pnpm --filter canvas-flow-backend db:patch-models                    # dry-run, preview add
- *   pnpm --filter canvas-flow-backend db:patch-models -- --apply         # apply add
- *   pnpm --filter canvas-flow-backend db:patch-models -- --prune         # dry-run, preview add+prune
- *   pnpm --filter canvas-flow-backend db:patch-models -- --prune --apply # apply add+prune (align to defaults)
+ *   pnpm --filter canvas-flow-backend db:patch-models                    # dry-run, preview add + field patch
+ *   pnpm --filter canvas-flow-backend db:patch-models -- --apply         # apply add + field patch
+ *   pnpm --filter canvas-flow-backend db:patch-models -- --prune         # dry-run, add + patch + preview prune
+ *   pnpm --filter canvas-flow-backend db:patch-models -- --prune --apply # apply add + patch + prune (align to defaults)
  */
 // 必须放在第一行: 在 PrismaClient 实例化之前给 process.env 兜默认 DATABASE_URL.
 // 详见 ../../src/bootstrap-env.ts.
@@ -47,12 +60,122 @@ interface ModelEntry {
   [key: string]: unknown;
 }
 
+interface SchemaField {
+  key?: unknown;
+  [k: string]: unknown;
+}
+
 function asModelArray(raw: unknown): ModelEntry[] {
   return Array.isArray(raw) ? (raw as ModelEntry[]) : [];
 }
 
+function asSchemaArray(raw: unknown): SchemaField[] {
+  return Array.isArray(raw) ? (raw as SchemaField[]) : [];
+}
+
 function getValue(entry: ModelEntry): string | null {
   return typeof entry.value === 'string' && entry.value.length > 0 ? entry.value : null;
+}
+
+function getSchemaKey(field: SchemaField): string | null {
+  return typeof field.key === 'string' && field.key.length > 0 ? field.key : null;
+}
+
+interface FieldPatch {
+  /** model.value 锚定哪一条要补 */
+  modelValue: string;
+  /** 默认目录有, DB 里没的 paramsSchema 字段, 整条 append */
+  addedSchemaFields: SchemaField[];
+  /** 默认目录有, DB 里没的 defaultParams key (用默认值填) */
+  addedDefaultParamKeys: string[];
+}
+
+/**
+ * 对每条同时存在于 DB 和默认目录的 model entry, 算出"该补的字段".
+ * 完全 additive: DB 已有的字段 (含 admin 自定义) 一律不动. 想加 `n`
+ * 这种新选择器到老的 gpt-image-2 entry 就走这条.
+ */
+function computeFieldPatches(
+  existing: ModelEntry[],
+  defaults: ModelEntry[],
+): FieldPatch[] {
+  const defaultByValue = new Map<string, ModelEntry>();
+  for (const d of defaults) {
+    const v = getValue(d);
+    if (v) defaultByValue.set(v, d);
+  }
+
+  const patches: FieldPatch[] = [];
+  for (const e of existing) {
+    const v = getValue(e);
+    if (!v) continue;
+    const d = defaultByValue.get(v);
+    if (!d) continue;
+
+    // paramsSchema diff — append missing keys
+    const existingSchema = asSchemaArray(e.paramsSchema);
+    const defaultSchema = asSchemaArray(d.paramsSchema);
+    const existingKeys = new Set(
+      existingSchema
+        .map(getSchemaKey)
+        .filter((k): k is string => k !== null),
+    );
+    const addedSchemaFields = defaultSchema.filter((f) => {
+      const k = getSchemaKey(f);
+      return k !== null && !existingKeys.has(k);
+    });
+
+    // defaultParams diff — merge missing keys
+    const existingDefaults =
+      e.defaultParams && typeof e.defaultParams === 'object'
+        ? (e.defaultParams as Record<string, unknown>)
+        : {};
+    const defaultDefaults =
+      d.defaultParams && typeof d.defaultParams === 'object'
+        ? (d.defaultParams as Record<string, unknown>)
+        : {};
+    const addedDefaultParamKeys = Object.keys(defaultDefaults).filter(
+      (k) => !(k in existingDefaults),
+    );
+
+    if (addedSchemaFields.length > 0 || addedDefaultParamKeys.length > 0) {
+      patches.push({
+        modelValue: v,
+        addedSchemaFields,
+        addedDefaultParamKeys,
+      });
+    }
+  }
+  return patches;
+}
+
+/** 给一条 DB existing entry 套用 FieldPatch, 返回新 entry (append/merge only). */
+function applyFieldPatch(
+  entry: ModelEntry,
+  patch: FieldPatch,
+  defaultEntry: ModelEntry,
+): ModelEntry {
+  const existingSchema = asSchemaArray(entry.paramsSchema);
+  const existingDefaults =
+    entry.defaultParams && typeof entry.defaultParams === 'object'
+      ? (entry.defaultParams as Record<string, unknown>)
+      : {};
+  const defaultDefaults =
+    defaultEntry.defaultParams &&
+    typeof defaultEntry.defaultParams === 'object'
+      ? (defaultEntry.defaultParams as Record<string, unknown>)
+      : {};
+
+  const mergedDefaults = { ...existingDefaults };
+  for (const k of patch.addedDefaultParamKeys) {
+    mergedDefaults[k] = defaultDefaults[k];
+  }
+
+  return {
+    ...entry,
+    paramsSchema: [...existingSchema, ...patch.addedSchemaFields],
+    defaultParams: mergedDefaults,
+  };
 }
 
 async function main() {
@@ -69,6 +192,7 @@ async function main() {
 
   let totalAdded = 0;
   let totalRemoved = 0;
+  let totalPatched = 0;
   let touchedNodes = 0;
 
   for (const def of DEFAULT_NODE_DEFINITIONS) {
@@ -108,7 +232,22 @@ async function main() {
         })
       : [];
 
-    if (missing.length === 0 && toRemove.length === 0) {
+    // ---- compute field patches for existing entries ----
+    // Always on (跟 ADD 同性质 — 加缺的, 不动有的). prune 模式下也只
+    // 给"会留下"的 entry 算 patch, 删的不算白搞.
+    const survivors = prune
+      ? existing.filter((m) => {
+          const v = getValue(m);
+          return v === null || defaultValues.has(v);
+        })
+      : existing;
+    const fieldPatches = computeFieldPatches(survivors, def.models as ModelEntry[]);
+
+    if (
+      missing.length === 0 &&
+      toRemove.length === 0 &&
+      fieldPatches.length === 0
+    ) {
       console.log(`  [ok]   ${def.type}: up to date (${existing.length} models)`);
       continue;
     }
@@ -116,6 +255,23 @@ async function main() {
     if (missing.length > 0) {
       console.log(`  [+]    ${def.type}: + ${missing.map((m) => getValue(m as ModelEntry)).join(', ')}`);
       totalAdded += missing.length;
+    }
+
+    if (fieldPatches.length > 0) {
+      for (const p of fieldPatches) {
+        const parts: string[] = [];
+        if (p.addedSchemaFields.length > 0) {
+          const keys = p.addedSchemaFields
+            .map(getSchemaKey)
+            .filter((k): k is string => k !== null);
+          parts.push(`+schema: ${keys.join(',')}`);
+        }
+        if (p.addedDefaultParamKeys.length > 0) {
+          parts.push(`+defaultParams: ${p.addedDefaultParamKeys.join(',')}`);
+        }
+        console.log(`  [≈]    ${def.type}/${p.modelValue}: ${parts.join(' · ')}`);
+      }
+      totalPatched += fieldPatches.length;
     }
 
     if (toRemove.length > 0) {
@@ -164,12 +320,26 @@ async function main() {
     }
 
     if (apply) {
-      const kept = prune
-        ? existing.filter((m) => {
-            const v = getValue(m);
-            return v === null || defaultValues.has(v);
-          })
-        : existing;
+      // 套用 field patches — 同一个 modelValue 的 patch 找出来 apply.
+      // 默认 entry 通过 modelValue 反查 (default catalog 一份, 拍扁就好).
+      const patchByValue = new Map(
+        fieldPatches.map((p) => [p.modelValue, p]),
+      );
+      const defaultByValue = new Map<string, ModelEntry>();
+      for (const d of def.models as ModelEntry[]) {
+        const v = getValue(d);
+        if (v) defaultByValue.set(v, d);
+      }
+
+      const kept = survivors.map((e) => {
+        const v = getValue(e);
+        if (!v) return e;
+        const patch = patchByValue.get(v);
+        if (!patch) return e;
+        const dEntry = defaultByValue.get(v)!;
+        return applyFieldPatch(e, patch, dEntry);
+      });
+
       const merged = [...kept, ...missing] as Prisma.InputJsonValue;
       await prisma.nodeDefinition.update({
         where: { type: def.type },
@@ -184,15 +354,17 @@ async function main() {
   }
 
   console.log('');
-  if (totalAdded === 0 && totalRemoved === 0) {
+  if (totalAdded === 0 && totalRemoved === 0 && totalPatched === 0) {
     console.log('[patch-models] nothing to do — DB already matches defaults.');
   } else if (apply) {
     console.log(
-      `[patch-models] applied: +${totalAdded} / -${totalRemoved} model(s) across ${touchedNodes} node(s).`,
+      `[patch-models] applied: +${totalAdded} model(s), ≈${totalPatched} field-patch(es), ` +
+        `-${totalRemoved} pruned across ${touchedNodes} node(s).`,
     );
   } else {
     console.log(
-      `[patch-models] dry-run: would add ${totalAdded}, remove ${totalRemoved} across ${touchedNodes} node(s).`,
+      `[patch-models] dry-run: would add ${totalAdded}, patch ${totalPatched}, ` +
+        `remove ${totalRemoved} across ${touchedNodes} node(s).`,
     );
     const flag = prune ? '`-- --prune --apply`' : '`-- --apply`';
     console.log(`[patch-models] re-run with ${flag} to write.`);
