@@ -9,7 +9,9 @@
 /build
 
 # Logs
-logs
+# Anchor to the package root so we don't accidentally ignore source dirs
+# called `logs/` (we got bitten by this in apps/web — see commit d096eeb).
+/logs
 *.log
 npm-debug.log*
 pnpm-debug.log*
