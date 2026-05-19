@@ -12,6 +12,7 @@
  *   - Belongs to the public web API surface re-exported from `apps/web/src/index.ts`.
  */
 
+import type { ReactNode } from 'react';
 import type { AdminModule } from './pages/admin/types';
 import { adminModules } from './pages/admin/shell/adminModules';
 
@@ -35,3 +36,23 @@ export const setAdminModuleFilter = (fn: AdminModuleFilter | null): void => {
 
 export const getActiveAdminModules = (): AdminModule[] =>
   activeFilter ? adminModules.filter(activeFilter) : adminModules;
+
+// ─── Settings nav footer slot ───────────────────────────────────────────────
+//
+// Downstream forks can render arbitrary content at the bottom of the
+// `SettingsOverlay` nav sidebar — e.g. a logout button for SaaS builds where
+// the shell is authenticated. OSS default = nothing rendered.
+//
+// Example (commercial entry):
+//   setSettingsNavFooter(() => <LogoutButton />);
+
+type SettingsNavFooterRenderer = () => ReactNode;
+
+let settingsNavFooter: SettingsNavFooterRenderer | null = null;
+
+export const setSettingsNavFooter = (fn: SettingsNavFooterRenderer | null): void => {
+  settingsNavFooter = fn;
+};
+
+export const renderSettingsNavFooter = (): ReactNode =>
+  settingsNavFooter ? settingsNavFooter() : null;

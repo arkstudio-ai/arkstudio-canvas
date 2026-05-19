@@ -17,7 +17,7 @@ import React, { Suspense, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 
-import { getActiveAdminModules } from '../extensions';
+import { getActiveAdminModules, renderSettingsNavFooter } from '../extensions';
 import { useUIStore } from '../store/uiStore';
 import { LanguageSwitcher } from '../../i18n/LanguageSwitcher';
 
@@ -123,6 +123,8 @@ export const SettingsOverlay: React.FC = () => {
                 </button>
               );
             })}
+            {/* Downstream fork 注入的 footer slot（默认空，OSS 无影响） */}
+            <div style={navFooterStyle}>{renderSettingsNavFooter()}</div>
           </nav>
 
           <section style={contentStyle}>
@@ -214,6 +216,13 @@ const navStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 2,
+};
+
+// Pushes the footer slot (logout etc.) to the bottom of the nav column.
+const navFooterStyle: React.CSSProperties = {
+  marginTop: 'auto',
+  paddingTop: 12,
+  borderTop: '1px solid #1a1a1a',
 };
 
 const navItemStyle: React.CSSProperties = {

@@ -12,12 +12,13 @@
 // Width changes go through a 220ms ease-out transition (Apple-ish curve)
 // so the layout shift feels intentional rather than a hard jump.
 //
-// Settings button moved out of P1 — it now lives in the custom titlebar's
-// top-right corner per user preference.
+// Settings button: also lives here at the bottom of P1 (browser sessions
+// don't render `CustomTitleBar` so the titlebar settings gear is invisible
+// there — this gives a path to settings that always exists).
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react';
 
 import { useUIStore } from '../store/uiStore';
 import { CanvasRailList } from './CanvasRailList';
@@ -31,9 +32,19 @@ export const CanvasRail: React.FC = () => {
   const currentFlowId = useUIStore((s) => s.currentFlowId);
   const mode = useUIStore((s) => s.canvasRailMode);
   const toggle = useUIStore((s) => s.toggleCanvasRail);
+  const openSettings = useUIStore((s) => s.openSettings);
 
   const expanded = mode === 'expanded';
   const toggleLabel = expanded ? t('canvasRail.collapse') : t('canvasRail.expand');
+
+  const hoverEnter = (e: React.MouseEvent<HTMLButtonElement>): void => {
+    e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+    e.currentTarget.style.color = '#fff';
+  };
+  const hoverLeave = (e: React.MouseEvent<HTMLButtonElement>): void => {
+    e.currentTarget.style.background = 'transparent';
+    e.currentTarget.style.color = '#9aa0a6';
+  };
 
   return (
     <aside
@@ -50,23 +61,30 @@ export const CanvasRail: React.FC = () => {
       <div
         style={{
           ...bottomBarStyle,
-          justifyContent: expanded ? 'flex-end' : 'center',
+          flexDirection: expanded ? 'row' : 'column',
+          justifyContent: expanded ? 'space-between' : 'center',
+          gap: expanded ? 0 : 4,
         }}
       >
+        <button
+          type="button"
+          onClick={() => openSettings()}
+          title={t('settings.title') as string}
+          aria-label={t('settings.title') as string}
+          style={iconBtnStyle}
+          onMouseEnter={hoverEnter}
+          onMouseLeave={hoverLeave}
+        >
+          <Settings size={14} />
+        </button>
         <button
           type="button"
           onClick={toggle}
           title={toggleLabel}
           aria-label={toggleLabel}
-          style={collapseBtnStyle}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-            e.currentTarget.style.color = '#fff';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = '#9aa0a6';
-          }}
+          style={iconBtnStyle}
+          onMouseEnter={hoverEnter}
+          onMouseLeave={hoverLeave}
         >
           {expanded ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
         </button>
@@ -106,7 +124,7 @@ const bottomBarStyle: React.CSSProperties = {
   // justify-content swapped per mode (see render).
 };
 
-const collapseBtnStyle: React.CSSProperties = {
+const iconBtnStyle: React.CSSProperties = {
   width: 28,
   height: 28,
   borderRadius: 6,

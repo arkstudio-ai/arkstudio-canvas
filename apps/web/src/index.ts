@@ -25,7 +25,7 @@ export { default as App } from './app/App';
 export { apiClient, API_BASE_URL } from './app/config/api';
 
 // Extension knobs (mutate-once-at-boot pattern). See `./app/extensions.ts`.
-export { setAdminModuleFilter } from './app/extensions';
+export { setAdminModuleFilter, setSettingsNavFooter } from './app/extensions';
 
 // Public types that downstream code is expected to reference.
 export type { AdminModule } from './app/pages/admin/types';
