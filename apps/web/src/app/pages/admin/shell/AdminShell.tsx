@@ -1,7 +1,8 @@
 import React, { Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AdminSidebar } from './AdminSidebar';
-import { adminModules, DEFAULT_ADMIN_MODULE_ID } from './adminModules';
+import { DEFAULT_ADMIN_MODULE_ID } from './adminModules';
+import { getActiveAdminModules } from '../../../extensions';
 
 /** Absolute mount point. Kept here as the single source of truth so both
  *  sidebar links and internal Navigate redirects use the same base. */
@@ -17,16 +18,20 @@ const ADMIN_BASE = '/admin';
  * v6 — sidebar nav silently no-op'd before this was made explicit.
  */
 export const AdminShell: React.FC = () => {
-  const defaultModule = adminModules.find((m) => m.id === DEFAULT_ADMIN_MODULE_ID) ?? adminModules[0];
+  // Filter applied at render time so downstream forks (commercial / vertical
+  // editions) can drop entries via `setAdminModuleFilter` at boot. OSS
+  // default = no filter = full module list.
+  const activeModules = getActiveAdminModules();
+  const defaultModule = activeModules.find((m) => m.id === DEFAULT_ADMIN_MODULE_ID) ?? activeModules[0];
   const defaultPath = `${ADMIN_BASE}/${defaultModule?.path ?? 'usage'}`;
 
   return (
     <div style={rootStyle}>
-      <AdminSidebar modules={adminModules} basePath={ADMIN_BASE} />
+      <AdminSidebar modules={activeModules} basePath={ADMIN_BASE} />
       <main style={mainStyle}>
         <Suspense fallback={<div style={loadingStyle}>加载中…</div>}>
           <Routes>
-            {adminModules.map((m) => (
+            {activeModules.map((m) => (
               <Route key={m.id} path={`${m.path}/*`} element={<m.Component />} />
             ))}
             <Route path="/" element={<Navigate to={defaultPath} replace />} />

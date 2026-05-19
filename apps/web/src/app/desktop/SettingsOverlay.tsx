@@ -17,7 +17,7 @@ import React, { Suspense, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 
-import { adminModules } from '../pages/admin/shell/adminModules';
+import { getActiveAdminModules } from '../extensions';
 import { useUIStore } from '../store/uiStore';
 import { LanguageSwitcher } from '../../i18n/LanguageSwitcher';
 
@@ -44,7 +44,11 @@ export const SettingsOverlay: React.FC = () => {
 
   if (!open) return null;
 
-  const active = adminModules.find((m) => m.id === section) ?? adminModules[0];
+  // Filter applied at render so downstream forks (commercial / vertical
+  // editions) can drop entries via `setAdminModuleFilter` at boot. OSS
+  // default = no filter = full module list.
+  const activeModules = getActiveAdminModules();
+  const active = activeModules.find((m) => m.id === section) ?? activeModules[0];
   const ActiveComponent = active?.Component;
 
   return (
@@ -86,7 +90,7 @@ export const SettingsOverlay: React.FC = () => {
 
         <div style={bodyStyle}>
           <nav style={navStyle} aria-label={t('settings.sectionNavAria')}>
-            {adminModules.map((m) => {
+            {activeModules.map((m) => {
               const Icon = m.icon;
               const isActive = m.id === section;
               return (
