@@ -11,6 +11,7 @@ import type {
 } from './provider.types';
 import { OpenaiCompatConfigService } from '../canvas-config/openai-compat-config.service';
 import { LocalStorageService } from '../storage/local-storage.service';
+import { getImageGatewayRedirect } from './extensions';
 import { summarizeBody } from './log-utils';
 import {
   clampSeed,
@@ -86,8 +87,13 @@ export class OpenAICompatImageProvider implements ProviderClient {
       );
     }
 
-    const apiKey = await this.openaiConfig.getApiKey();
-    const baseUrl = await this.openaiConfig.getBaseUrl();
+    // Gateway redirect (t2i only). i2i / `/images/edits` is left direct
+    // because the multipart upload + b64-persist flow assumes a real
+    // OpenAI-compat endpoint; gateway support varies and is opt-in later.
+    const redirect = getImageGatewayRedirect({
+      providerId: this.name,
+      modelSku: req.modelSku,
+    });
     const timeout = await this.openaiConfig.getTimeoutMs('image');
     const realSku = this.stripNamespace(req.modelSku);
     const family = resolveFamily(realSku);
@@ -97,10 +103,13 @@ export class OpenAICompatImageProvider implements ProviderClient {
     // i2i path — only for gpt-image-* (user-scoped). dall-e-* still
     // drops image inputs with a warn (legacy behaviour: better to
     // produce a text-only result than 400 on a connected image node).
+    // Note: i2i always goes direct to the vendor (see comment above).
     if (imageInputs.length > 0 && family !== 'dalle') {
+      const editsApiKey = await this.openaiConfig.getApiKey();
+      const editsBaseUrl = await this.openaiConfig.getBaseUrl();
       const result = await this.edits.run({
-        baseUrl,
-        apiKey,
+        baseUrl: editsBaseUrl,
+        apiKey: editsApiKey,
         timeoutMs: timeout,
         realSku,
         prompt: req.prompt,
@@ -128,11 +137,24 @@ export class OpenAICompatImageProvider implements ProviderClient {
       );
     }
 
-    const body = this.buildGenerationsBody(req, realSku, family);
-    const url = `${baseUrl}${this.IMAGE_PATH}`;
+    const nativeBody = this.buildGenerationsBody(req, realSku, family);
+    let url: string;
+    let apiKey: string;
+    if (redirect) {
+      url = redirect.url;
+      apiKey = redirect.apiKey;
+    } else {
+      apiKey = await this.openaiConfig.getApiKey();
+      const baseUrl = await this.openaiConfig.getBaseUrl();
+      url = `${baseUrl}${this.IMAGE_PATH}`;
+    }
+    const body = redirect
+      ? (redirect.transformBody(nativeBody) as Record<string, any>)
+      : nativeBody;
     this.logger.log(
       `[openai-compat-image:submit] sku=${req.modelSku} (real=${realSku}) ` +
-        `requestId=${req.requestId} url=${url} body=${summarizeBody(body)}`,
+        `requestId=${req.requestId} url=${url} body=${summarizeBody(body)}` +
+        (redirect ? ' (via gateway override)' : ''),
     );
 
     // Proxy lives globally on http(s).globalAgent via NetworkConfigService.

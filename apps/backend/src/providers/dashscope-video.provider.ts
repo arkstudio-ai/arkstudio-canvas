@@ -2,6 +2,7 @@ import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { DashscopeConfigService } from '../canvas-config/dashscope-config.service';
 import { DashscopeUploadService } from '../upload/dashscope-upload.service';
+import { getVideoGatewayRedirect } from './extensions';
 import { summarizeBody } from './log-utils';
 import { firstValueFrom } from 'rxjs';
 import type {
@@ -70,9 +71,23 @@ export class DashScopeVideoProvider implements ProviderClient {
   }
 
   async submit(req: SubmitRequest): Promise<SubmitResult> {
-    const apiKey = await this.dashscopeConfig.getApiKey();
-    const baseUrl = await this.dashscopeConfig.getBaseUrl();
+    // Gateway redirect: when a fork supplies one, skip the per-vendor
+    // config lookups so deployments without a local DashScope key still
+    // work (the gateway holds the upstream credential).
+    const redirect = getVideoGatewayRedirect({
+      providerId: this.name,
+      modelSku: req.modelSku,
+    });
     const timeout = await this.dashscopeConfig.getTimeoutMs('video');
+    let baseUrl: string;
+    let apiKey: string;
+    if (redirect) {
+      baseUrl = '';
+      apiKey = redirect.apiKey;
+    } else {
+      apiKey = await this.dashscopeConfig.getApiKey();
+      baseUrl = await this.dashscopeConfig.getBaseUrl();
+    }
     const mode = this.detectMode(req.modelSku);
 
     const input: Record<string, any> = {};
@@ -91,7 +106,7 @@ export class DashScopeVideoProvider implements ProviderClient {
     // instead of a 400 from upstream.
     this.validateMediaForMode(req.modelSku, mode, media, req.prompt);
 
-    const body = {
+    const nativeBody = {
       model: req.modelSku,
       input,
       ...(this.hasParameters(req.extraParams)
@@ -99,10 +114,14 @@ export class DashScopeVideoProvider implements ProviderClient {
         : {}),
     };
 
-    const url = `${baseUrl}${this.SUBMIT_PATH}`;
+    const url = redirect ? redirect.submitUrl : `${baseUrl}${this.SUBMIT_PATH}`;
+    const body = redirect
+      ? (redirect.transformSubmitBody(nativeBody) as Record<string, unknown>)
+      : nativeBody;
     this.logger.log(
       `[dashscope-video:submit] sku=${req.modelSku} mode=${mode} requestId=${req.requestId} ` +
-        `media=${media.length} url=${url} body=${summarizeBody(body)}`,
+        `media=${media.length} url=${url} body=${summarizeBody(body)}` +
+        (redirect ? ' (via gateway override)' : ''),
     );
 
     let resp;
@@ -167,6 +186,16 @@ export class DashScopeVideoProvider implements ProviderClient {
   }
 
   async pollStatus(taskId: string): Promise<PollResult> {
+    // Gateway redirect: if a fork supplied one, hand poll over completely
+    // — the gateway's poll response shape usually differs from DashScope's
+    // native `output.task_status`, so the fork's `pollTask` returns a
+    // ready-to-use `PollResult`.
+    const redirect = getVideoGatewayRedirect({
+      providerId: this.name,
+      modelSku: '',
+    });
+    if (redirect) return await redirect.pollTask(taskId);
+
     const apiKey = await this.dashscopeConfig.getApiKey();
     const baseUrl = await this.dashscopeConfig.getBaseUrl();
     const url = `${baseUrl}${this.TASK_PATH}/${taskId}`;

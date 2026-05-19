@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { VolcengineConfigService } from '../canvas-config/volcengine-config.service';
 import { VolcengineAssetService } from '../volcengine-asset/volcengine-asset.service';
 import { OssUploadService } from '../upload/oss-upload.service';
+import { getVideoGatewayRedirect } from './extensions';
 import { summarizeBody } from './log-utils';
 import type {
   PollResult,
@@ -83,10 +84,24 @@ export class VolcengineVideoProvider implements ProviderClient {
   }
 
   async submit(req: SubmitRequest): Promise<SubmitResult> {
-    const apiKey = await this.volcengineConfig.getApiKey();
-    const baseUrl = await this.volcengineConfig.getBaseUrl();
+    // Gateway redirect: when a fork supplies one, skip the per-vendor
+    // config lookups so deployments without a local Volcengine key still
+    // work (the gateway holds the upstream credential).
+    const redirect = getVideoGatewayRedirect({
+      providerId: this.name,
+      modelSku: req.modelSku,
+    });
     const timeout = await this.volcengineConfig.getVideoTimeoutMs();
     const defaultModel = await this.volcengineConfig.getDefaultModel();
+    let baseUrl: string;
+    let apiKey: string;
+    if (redirect) {
+      baseUrl = '';
+      apiKey = redirect.apiKey;
+    } else {
+      apiKey = await this.volcengineConfig.getApiKey();
+      baseUrl = await this.volcengineConfig.getBaseUrl();
+    }
 
     const modelId = (req.modelSku?.trim() || defaultModel || '').trim();
     if (!modelId) {
@@ -115,15 +130,19 @@ export class VolcengineVideoProvider implements ProviderClient {
     // LRU 淘汰长期不用的 asset, 或仍在 Processing 状态. 不预检的话 submit 会被
     // 上游拒, 但错误信息抽象 (InvalidParameter); 预检失败抛 400 携带具体哪条 asset
     // 出问题, 前端可直接提示用户 "刷新一下素材状态".
-    const assetUris = (req.inputs ?? [])
-      .map((i) => i.url)
-      .filter((u): u is string => typeof u === 'string' && u.startsWith('asset://'));
-    if (assetUris.length > 0) {
-      await this.volcengineAsset.assertActive(assetUris);
+    // Gateway 模式下跳过: assertActive 依赖本地 Volcengine apiKey, 而 gateway
+    // 部署里 key 在 gateway 那侧, 这里也不会出现 asset:// (商业版用公网 URL).
+    if (!redirect) {
+      const assetUris = (req.inputs ?? [])
+        .map((i) => i.url)
+        .filter((u): u is string => typeof u === 'string' && u.startsWith('asset://'));
+      if (assetUris.length > 0) {
+        await this.volcengineAsset.assertActive(assetUris);
+      }
     }
 
     const ep = req.extraParams ?? {};
-    const body: Record<string, unknown> = { model: modelId, content };
+    let body: Record<string, unknown> = { model: modelId, content };
 
     // 顶层参数 — 直接对齐官方 schema. 缺省由 upstream 决定 (resolution=720p,
     // ratio=adaptive, duration=5, generate_audio=true). 不传等于让 upstream 用默认.
@@ -151,10 +170,14 @@ export class VolcengineVideoProvider implements ProviderClient {
       body.tools = [{ type: 'web_search' }];
     }
 
-    const url = `${baseUrl}${this.SUBMIT_PATH}`;
+    const url = redirect ? redirect.submitUrl : `${baseUrl}${this.SUBMIT_PATH}`;
+    if (redirect) {
+      body = redirect.transformSubmitBody(body) as Record<string, unknown>;
+    }
     this.logger.log(
       `[volcengine-video:submit] sku=${modelId} requestId=${req.requestId} ` +
-        `content_items=${content.length} url=${url} body=${summarizeBody(body)}`,
+        `content_items=${content.length} url=${url} body=${summarizeBody(body)}` +
+        (redirect ? ' (via gateway override)' : ''),
     );
 
     let resp;
@@ -217,6 +240,15 @@ export class VolcengineVideoProvider implements ProviderClient {
   }
 
   async pollStatus(taskId: string): Promise<PollResult> {
+    // Gateway redirect: if a fork supplied one, hand poll over completely
+    // — gateway responses are shaped differently from Volcengine's native
+    // task GET, so the fork's `pollTask` returns a ready-to-use PollResult.
+    const redirect = getVideoGatewayRedirect({
+      providerId: this.name,
+      modelSku: '',
+    });
+    if (redirect) return await redirect.pollTask(taskId);
+
     const apiKey = await this.volcengineConfig.getApiKey();
     const baseUrl = await this.volcengineConfig.getBaseUrl();
     const url = `${baseUrl}${this.SUBMIT_PATH}/${taskId}`;

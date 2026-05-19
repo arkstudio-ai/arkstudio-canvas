@@ -51,3 +51,18 @@ export {
 // format) breaks.
 export { ResponseInterceptor } from './common/interceptors/response.interceptor';
 export { HttpExceptionFilter } from './common/filters/http-exception.filter';
+
+// ── Provider gateway extension points ────────────────────────────────────
+// Reroute provider HTTP calls through a central AI gateway (LiteLLM,
+// One-API, a self-hosted OpenAI-compat relay, an enterprise AI mesh,
+// etc.). Call these once at NestJS boot before any provider fires.
+// Default = no setter called = providers go direct to the vendor.
+export {
+  setChatGatewayOverride,
+  setImageGatewayOverride,
+  setVideoGatewayOverride,
+  type GatewayOverrideContext,
+  type ChatGatewayRedirect,
+  type ImageGatewayRedirect,
+  type VideoGatewayRedirect,
+} from './providers/extensions';

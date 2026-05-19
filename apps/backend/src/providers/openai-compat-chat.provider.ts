@@ -10,6 +10,7 @@ import type {
   SubmitResult,
 } from './provider.types';
 import { OpenaiCompatConfigService } from '../canvas-config/openai-compat-config.service';
+import { getChatGatewayRedirect } from './extensions';
 import { summarizeBody } from './log-utils';
 
 /**
@@ -87,10 +88,25 @@ export class OpenAICompatChatProvider implements ProviderClient {
 
     this.assertNoOssInputs(req.inputs);
 
-    const apiKey = await this.openaiConfig.getApiKey();
-    const baseUrl = await this.openaiConfig.getBaseUrl();
+    // Gateway redirect: skip per-vendor config when a fork supplies the
+    // gateway URL + token, so deployments without a local OpenAI key still
+    // work (the gateway holds the upstream credential).
+    const redirect = getChatGatewayRedirect({
+      providerId: this.name,
+      modelSku: req.modelSku,
+    });
     const timeout = await this.openaiConfig.getTimeoutMs('chat');
     const realSku = this.stripNamespace(req.modelSku);
+    let url: string;
+    let apiKey: string;
+    if (redirect) {
+      url = redirect.url;
+      apiKey = redirect.apiKey;
+    } else {
+      apiKey = await this.openaiConfig.getApiKey();
+      const baseUrl = await this.openaiConfig.getBaseUrl();
+      url = `${baseUrl}${this.CHAT_PATH}`;
+    }
 
     // OpenAI multimodal: when there are image inputs we must use the
     // `content[]` array form. For plain text prompts we keep the
@@ -127,10 +143,10 @@ export class OpenAICompatChatProvider implements ProviderClient {
     const topP = this.numericParam(req.extraParams, 'top_p');
     if (topP !== undefined) body.top_p = topP;
 
-    const url = `${baseUrl}${this.CHAT_PATH}`;
     this.logger.log(
       `[openai-compat-chat:submit] sku=${req.modelSku} (real=${realSku}) ` +
-        `requestId=${req.requestId} url=${url} body=${summarizeBody(body)}`,
+        `requestId=${req.requestId} url=${url} body=${summarizeBody(body)}` +
+        (redirect ? ' (via gateway override)' : ''),
     );
 
     // Proxy lives globally on http(s).globalAgent via NetworkConfigService.
