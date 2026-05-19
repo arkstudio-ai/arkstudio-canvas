@@ -54,9 +54,15 @@ class ConfigService {
 
     const url = `${API_BASE_URL}/api/canvas-flow/config`;
 
+    // 共用 admin-api 同款的 auth header 扩展点 (extensions.ts 的
+    // setAdminAuthHeaderProvider)。OSS 默认返空，下游 fork (商业版) 注入
+    // Bearer token。configService 历史上写裸 fetch (不走 apiClient axios)，
+    // 所以 commercial 装在 apiClient 上的 Authorization interceptor 对它没影响。
+    const { getAdminAuthHeader } = await import('../app/extensions');
+
     const response = await fetch(url, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAdminAuthHeader() },
       signal: AbortSignal.timeout(10000),
     });
 

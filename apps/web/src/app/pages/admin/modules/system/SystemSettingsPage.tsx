@@ -53,6 +53,7 @@ import {
 import { NetworkSection } from './NetworkSection';
 import { DesktopSection } from './DesktopSection';
 import { OssSection } from './OssSection';
+import { shouldRenderSystemSettingsSection } from '../../../../extensions';
 
 
 /**
@@ -83,20 +84,23 @@ export const SystemSettingsPage: React.FC = () => (
 
     {/* AGPL §13 注脚：网络服务部署必须给用户一个明显的途径拿到对应版本源码。
         这一段在 /admin/system 顶部 + 在普通 canvas 页底部的 Footer 里都
-        挂一份，确保 SaaS 部署也满足 corresponding source 要求。 */}
-    <SourceLicenseSection />
+        挂一份，确保 SaaS 部署也满足 corresponding source 要求。
+        商业版红线下也必须保留——AGPL fork 不能去掉这条。 */}
+    {shouldRenderSystemSettingsSection('source-license') && <SourceLicenseSection />}
 
-    {/* 模型 provider —— DashScope + OpenAI-compat 合并 tab 卡片 */}
-    <ProvidersSection />
+    {/* 模型 provider —— DashScope + OpenAI-compat 合并 tab 卡片。
+        商业版多租户：平台主集中管，租户隐藏。 */}
+    {shouldRenderSystemSettingsSection('providers') && <ProvidersSection />}
 
     {/* 网络代理 — 影响 backend axios 出站; 国内厂商建议禁用代理 */}
-    <NetworkSection />
+    {shouldRenderSystemSettingsSection('network') && <NetworkSection />}
 
-    {/* 对象存储 — Volcengine Seedance i2v / r2v 必需; 不配则只能跑 t2v */}
-    <OssSection />
+    {/* 对象存储 — Volcengine Seedance i2v / r2v 必需; 不配则只能跑 t2v。
+        商业版多租户：平台主集中管，租户隐藏。 */}
+    {shouldRenderSystemSettingsSection('oss') && <OssSection />}
 
     {/* 桌面端独占 (GPU 加速等) — 浏览器访问时显示 "桌面端独占" disabled 态 */}
-    <DesktopSection />
+    {shouldRenderSystemSettingsSection('desktop') && <DesktopSection />}
 
     {/* Generation history retention */}
     <HistoryRetentionSection />

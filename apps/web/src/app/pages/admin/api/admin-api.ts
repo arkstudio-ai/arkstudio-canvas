@@ -32,18 +32,15 @@ import type {
 // 兜底）。重复在这里写一份会让桌面端 (Electron preload 注入的运行时 URL)
 // 漏掉这个文件的请求。
 import { API_BASE_URL } from '../../../config/api';
+import { getAdminAuthHeader } from '../../../extensions';
 
 /**
  * Thin fetch wrapper for `/admin/*` endpoints.
  *
- * Auth is intentionally a no-op in the open-source build — when an
- * `ADMIN_TOKEN` scheme lands, the only place that needs to learn about it
- * is `getAdminAuthHeader()`.
+ * Auth header 通过 `extensions.ts` 的 `setAdminAuthHeaderProvider` 注入。
+ * OSS 默认返空对象（OSS 自家 backend 不鉴权）；下游 fork（商业版）注入
+ * `() => ({ Authorization: 'Bearer <token>' })` 让 admin 请求带上 JWT。
  */
-function getAdminAuthHeader(): Record<string, string> {
-  // Reserved for future ADMIN_TOKEN; see `auth_decision = decide_later`.
-  return {};
-}
 
 async function adminFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${API_BASE_URL}${path}`;

@@ -56,3 +56,51 @@ export const setSettingsNavFooter = (fn: SettingsNavFooterRenderer | null): void
 
 export const renderSettingsNavFooter = (): ReactNode =>
   settingsNavFooter ? settingsNavFooter() : null;
+
+// ─── Admin fetch auth header provider ──────────────────────────────────────
+//
+// OSS admin module 调 `/admin/*` 用原生 fetch (不是 apiClient axios)，所以
+// 下游 fork 装在 apiClient 上的 Authorization interceptor **不会**对 admin
+// 请求生效。本扩展点让 fork 注入一个返 auth header 的函数：
+//
+//   setAdminAuthHeaderProvider(() => ({ Authorization: `Bearer ${getToken()}` }));
+//
+// OSS 默认（无人调）返空对象——OSS 自家没鉴权，行为不变。
+
+type AdminAuthHeaderProvider = () => Record<string, string>;
+
+let adminAuthHeaderProvider: AdminAuthHeaderProvider | null = null;
+
+export const setAdminAuthHeaderProvider = (fn: AdminAuthHeaderProvider | null): void => {
+  adminAuthHeaderProvider = fn;
+};
+
+export const getAdminAuthHeader = (): Record<string, string> =>
+  adminAuthHeaderProvider ? adminAuthHeaderProvider() : {};
+
+// ─── System settings section visibility ────────────────────────────────────
+//
+// `SystemSettingsPage` 内含多个 section (source-license / providers /
+// network / oss / desktop)。下游 fork 用本扩展点决定显示哪些 section——
+// 典型场景：SaaS commercial 把 providers + oss 这两个"平台主该管的"
+// 隐藏，desktop 终端用户只看到 source-license + network + desktop。
+
+export type SystemSettingsSectionId =
+  | 'source-license'
+  | 'providers'
+  | 'network'
+  | 'oss'
+  | 'desktop';
+
+type SystemSettingsSectionFilter = (id: SystemSettingsSectionId) => boolean;
+
+let systemSettingsSectionFilter: SystemSettingsSectionFilter | null = null;
+
+export const setSystemSettingsSectionFilter = (
+  fn: SystemSettingsSectionFilter | null,
+): void => {
+  systemSettingsSectionFilter = fn;
+};
+
+export const shouldRenderSystemSettingsSection = (id: SystemSettingsSectionId): boolean =>
+  systemSettingsSectionFilter ? systemSettingsSectionFilter(id) : true;
