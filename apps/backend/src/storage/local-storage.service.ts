@@ -10,6 +10,13 @@ import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { ReadStream } from 'fs';
 import { PrismaService } from '../prisma/prisma.service';
+import type {
+  PutObjectArgs,
+  PutObjectResult,
+  ReadObjectResult,
+  ReadObjectByUrlResult,
+  StorageDriver,
+} from './storage-driver';
 
 const KEY_MAX_FILE_SIZE = 'storage.local.maxFileSize';
 const KEY_DATA_DIR = 'storage.local.dataDir';
@@ -59,23 +66,13 @@ export interface LocalStorageView {
   publicBaseUrl: string;
 }
 
-export interface PutObjectArgs {
-  key: string;
-  buffer: Buffer;
-  contentType: string;
-}
-
-export interface PutObjectResult {
-  /** Relative URL the frontend can put straight into <img src> / <video src>. */
-  accessUrl: string;
-  bytes: number;
-}
-
-export interface ReadObjectResult {
-  stream: ReadStream;
-  bytes: number;
-  contentType: string;
-}
+// PutObjectArgs / PutObjectResult / ReadObjectResult 现已搬到 storage-driver.ts。
+// 这里 re-export 保持老调用方 `import { ... } from './local-storage.service'` 不破。
+export type {
+  PutObjectArgs,
+  PutObjectResult,
+  ReadObjectResult,
+} from './storage-driver';
 
 /**
  * Local-disk storage backend — single source of truth for everything the
@@ -103,7 +100,7 @@ export interface ReadObjectResult {
  * proxies the path to backend so same-origin works without CORS.
  */
 @Injectable()
-export class LocalStorageService implements OnModuleInit {
+export class LocalStorageService implements OnModuleInit, StorageDriver {
   private readonly logger = new Logger(LocalStorageService.name);
   private dataDirCache: CachedString | null = null;
   private maxFileSizeCache: CachedNumber | null = null;
@@ -266,13 +263,18 @@ export class LocalStorageService implements OnModuleInit {
     }
   }
 
+  /** `StorageDriver` interface form of {@link isLocalUrl}. */
+  ownsUrl(url: string | null | undefined): boolean {
+    return this.isLocalUrl(url);
+  }
+
   /**
    * Read a buffer back given a local URL (relative or absolute).
    * Returns null on miss so the stage helper can downgrade gracefully.
    */
   async readObjectByLocalUrl(
     url: string,
-  ): Promise<{ buffer: Buffer; contentType: string; bytes: number } | null> {
+  ): Promise<ReadObjectByUrlResult | null> {
     if (!this.isLocalUrl(url)) return null;
     let key: string;
     if (url.startsWith(`${PUBLIC_BASE_URL}/`)) {
@@ -296,6 +298,11 @@ export class LocalStorageService implements OnModuleInit {
       contentType: obj.contentType,
       bytes: obj.bytes,
     };
+  }
+
+  /** `StorageDriver` interface form of {@link readObjectByLocalUrl}. */
+  readObjectByUrl(url: string): Promise<ReadObjectByUrlResult | null> {
+    return this.readObjectByLocalUrl(url);
   }
 
   // ---- key derivation helpers (used by callers) ----------------------------
