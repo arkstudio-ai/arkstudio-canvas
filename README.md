@@ -152,13 +152,21 @@ docker compose up -d --build
 
 ## 商业 / License
 
-License: [**AGPL-3.0**](LICENSE)。简单说：
+Canvas Flow 采用 **双协议**。
+
+### 开源协议 · [AGPL-3.0](LICENSE)
 
 - ✅ **可以**：自部署、改代码、做行业版 / 私有部署、对外提供 SaaS 服务
 - ⚠️ **必须**：你的修改也要按 AGPL 开源回馈（包括 SaaS 部署 —— 这是 AGPL 与 GPL 的关键差异，§13 网络互动条款）
 - ✅ **天然合规**：`/admin/system` 顶部"Source · License"卡片自动暴露源码地址 + License + 当前版本号，部署方零配置满足 §13
 
-如果 AGPL 的回馈条款不适合你的商业模式（例如想完全闭源做 SaaS、想去掉 Source 卡片），欢迎联系仓库 owner 谈商业授权 / 行业合作。
+### 商业协议 · [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)
+
+如果 AGPL 的回馈条款不适合你的业务（例如想完全闭源做 SaaS、想去掉 Source 卡片、做无源码交付的私有化部署），可购买商业许可。
+
+**联系方式**：<!-- TODO[legal]: 商业咨询邮箱待补，参见 LICENSE-COMMERCIAL.md -->`<待补充：商业咨询邮箱>`
+
+> 版权持有人保留按其他协议再授权本仓库代码的权利。对外部 PR 即将启用 CLA 流程（待接入），merge 前需贡献者签署。
 
 ---
 

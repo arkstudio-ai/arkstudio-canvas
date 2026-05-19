@@ -152,13 +152,21 @@ All forms of contribution welcome:
 
 ## Commercial / License
 
-License: [**AGPL-3.0**](LICENSE). In short:
+Canvas Flow is **dual-licensed**.
+
+### Open source · [AGPL-3.0](LICENSE)
 
 - ✅ **Allowed**: self-host, modify, build vertical / private deployments, offer it as SaaS
 - ⚠️ **Required**: your modifications must also be open-sourced back under AGPL (including SaaS deployments — this is AGPL's key difference from GPL, §13 network interaction clause)
 - ✅ **Compliance built in**: the "Source · License" card at the top of `/admin/system` auto-exposes source URL + license + current version, so operators satisfy §13 with zero config
 
-If AGPL's reciprocity doesn't fit your business model (e.g. you want fully closed-source SaaS, or you want to drop the Source card), reach out to the repo owner for commercial licensing / partnerships.
+### Commercial · [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)
+
+If AGPL's reciprocity doesn't fit your business model (e.g. fully closed-source SaaS, removing the Source card, private on-premise delivery without source disclosure), a commercial license is available for purchase.
+
+**Contact**: <!-- TODO[legal]: commercial inquiry email pending, see LICENSE-COMMERCIAL.md -->`<TODO: commercial inquiry email>`
+
+> The copyright holder retains the right to re-license this repository's code under alternative terms. A CLA process for external PRs is being set up — contributors will be asked to sign before merge.
 
 ---
 
