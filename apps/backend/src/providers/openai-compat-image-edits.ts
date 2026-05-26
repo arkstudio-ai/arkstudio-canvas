@@ -4,8 +4,9 @@
 // (b) the request has at least one upstream image input. Switches the
 // endpoint from `/images/generations` (JSON) to `/images/edits`
 // (multipart) and handles the b64_json response that gpt-image-* returns
-// by default — saves the bytes to LocalStorageService and surfaces a
-// `/static/uploads/...` URL just like t2i mirroring does.
+// by default — persists the bytes via the active STORAGE_DRIVER (local
+// disk in OSS default; cloud bucket in commercial prod) so the URL the
+// orchestrator mirrors is one `FileTransferService.ownsUrl` recognises.
 //
 // dall-e-* also has an edits endpoint but the user explicitly scoped
 // this round to gpt-image-* only; if dall-e i2i lands later, this
@@ -21,6 +22,7 @@ import type {
   ProviderUsage,
 } from './provider.types';
 import type { LocalStorageService } from '../storage/local-storage.service';
+import type { StorageDriver } from '../storage/storage-driver';
 
 export interface EditsCallArgs {
   baseUrl: string;
@@ -51,9 +53,18 @@ const IMAGE_EDITS_PATH = '/images/edits/';
 const MAX_FETCH_BYTES = 25 * 1024 * 1024; // OpenAI hard cap per image is 25 MB.
 
 export class OpenAICompatImageEdits {
+  /**
+   * `storage` 用于 putObject 输出图片 (走 active STORAGE_DRIVER, prod 落
+   * 云存储, dev 落本地磁盘);`localStorage` 只用于 readObjectByLocalUrl,
+   * 当上游节点产物是 `/static/uploads/...` 路径时直接走文件 IO 而不是
+   * 自请求 HTTP — 否则 axios 拿 bare `/static/...` 会抛 'Invalid URL'。
+   * 上游产物是 cloud URL 时 readObjectByLocalUrl 返回 null,自然 fallback
+   * 到 HTTP 读。
+   */
   constructor(
     private readonly http: HttpService,
-    private readonly storage: LocalStorageService,
+    private readonly storage: StorageDriver,
+    private readonly localStorage: LocalStorageService,
     private readonly logger: Logger,
   ) {}
 
@@ -180,7 +191,7 @@ export class OpenAICompatImageEdits {
     // HTTP would (a) need an absolute base URL (axios throws 'Invalid
     // URL' on a bare `/static/...` path), (b) round-trip to ourselves
     // for no reason. Read straight from disk via the storage service.
-    const local = await this.storage.readObjectByLocalUrl(url);
+    const local = await this.localStorage.readObjectByLocalUrl(url);
     if (local) {
       const mimeType = local.contentType.startsWith('image/')
         ? local.contentType

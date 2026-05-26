@@ -31,6 +31,12 @@ export interface GatewayOverrideContext {
   providerId: string;
   /** Concrete upstream SKU the caller asked for. */
   modelSku: string;
+  /** Number of image inputs (i2i / i2v reference images) the caller is
+   *  passing in. Lets forks route i2i/t2i differently — e.g. send t2i
+   *  through a unified OpenAI-compat gateway but bypass for i2i which
+   *  needs the vendor's multimodal / `/images/edits` shape. Image / video
+   *  providers populate this; chat providers leave it undefined. */
+  imageInputCount?: number;
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────────────
@@ -71,6 +77,24 @@ export interface ImageGatewayRedirect {
   apiKey: string;
   /** Map the OSS-built body (vendor-native shape) into the gateway body. */
   transformBody: (originalBody: unknown) => unknown;
+  /** Optional: convert the gateway's response payload back into the
+   *  vendor-native shape that the OSS provider's `extractResources` /
+   *  `extractUsage` expects. Used when the gateway wraps the upstream
+   *  response (e.g. OpenAI-shaped `/v1/images/generations` envelope that
+   *  loses DashScope's `output.choices` structure). The fork carries the
+   *  raw upstream payload through some side channel (e.g. `metadata`)
+   *  and uses this fn to unwrap. Omit for gateways that already pass
+   *  through the vendor shape. */
+  transformResponse?: (gatewayResponse: unknown) => unknown;
+  /** Optional base URL for OpenAI-compatible `/images/edits` multipart i2i
+   *  calls (e.g. gpt-image-* image-to-image). Set this when the gateway
+   *  supports OpenAI edits at the same auth, e.g. `https://gateway/v1`.
+   *  When provided, OpenAI-compat image provider sends i2i through this
+   *  base + `apiKey` instead of vendor-direct; when omitted, OSS falls
+   *  back to vendor-direct edits (legacy behaviour) or drops image inputs
+   *  with a warn if the family doesn't support edits.
+   *  Only consumed by the OpenAI-compat image provider; ignored elsewhere. */
+  editsBaseUrl?: string;
 }
 
 type ImageGatewayOverride = (
@@ -108,6 +132,11 @@ export interface VideoGatewayRedirect {
   apiKey: string;
   /** Map the OSS-built submit body to the gateway envelope. */
   transformSubmitBody: (originalBody: unknown) => unknown;
+  /** Optional: convert the gateway's submit response back into the
+   *  vendor-native shape OSS expects (DashScope reads
+   *  `data.output.task_id` / `data.output.task_status`). Omit for
+   *  gateways that already pass vendor shape through. */
+  transformSubmitResponse?: (gatewayResponse: unknown) => unknown;
   /** Full poll implementation: fetch task status from the gateway and
    *  shape the result into `PollResult`. Provider calls this verbatim
    *  in place of its own poll path. */

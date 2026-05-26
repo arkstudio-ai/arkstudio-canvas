@@ -74,9 +74,11 @@ export class DashScopeVideoProvider implements ProviderClient {
     // Gateway redirect: when a fork supplies one, skip the per-vendor
     // config lookups so deployments without a local DashScope key still
     // work (the gateway holds the upstream credential).
+    const imageInputCount = (req.inputs ?? []).filter((i) => i.type === 'image').length;
     const redirect = getVideoGatewayRedirect({
       providerId: this.name,
       modelSku: req.modelSku,
+      imageInputCount,
     });
     const timeout = await this.dashscopeConfig.getTimeoutMs('video');
     let baseUrl: string;
@@ -159,7 +161,15 @@ export class DashScopeVideoProvider implements ProviderClient {
       throw err;
     }
 
-    const data = resp.data ?? {};
+    // Gateway-wrapped submit responses (e.g. new-api `{task_id, status}` flat
+    // envelope) lose DashScope's `data.output.task_id` structure. Let the
+    // fork unwrap if it supplied `transformSubmitResponse`; otherwise assume
+    // the gateway already returns DashScope shape.
+    const rawData = resp.data ?? {};
+    const data =
+      redirect?.transformSubmitResponse
+        ? (redirect.transformSubmitResponse(rawData) ?? rawData)
+        : rawData;
     const taskId = data?.output?.task_id as string | undefined;
     const taskStatus = String(data?.output?.task_status ?? '').toUpperCase();
 

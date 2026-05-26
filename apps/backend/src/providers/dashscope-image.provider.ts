@@ -125,9 +125,11 @@ export class DashScopeImageProvider implements ProviderClient {
     // Gateway redirect: when a fork supplies one, skip the per-vendor
     // config lookups (which would throw if the local DashScope key isn't
     // configured — the gateway holds it instead).
+    const imageInputCount = (req.inputs ?? []).filter((i) => i.type === 'image').length;
     const redirect = getImageGatewayRedirect({
       providerId: this.name,
       modelSku: req.modelSku,
+      imageInputCount,
     });
     const timeout = await this.dashscopeConfig.getTimeoutMs('image');
     let baseUrl: string;
@@ -220,7 +222,15 @@ export class DashScopeImageProvider implements ProviderClient {
       throw err;
     }
 
-    const data = resp.data ?? {};
+    // Gateway-wrapped responses (OpenAI image shape) lose DashScope's native
+    // `output.choices` structure. The fork can supply `transformResponse` to
+    // unwrap back to vendor-native; otherwise we assume the gateway already
+    // returns DashScope shape.
+    const rawData = resp.data ?? {};
+    const data =
+      redirect?.transformResponse
+        ? (redirect.transformResponse(rawData) ?? rawData)
+        : rawData;
     const resources = this.extractResources(data);
     if (resources.length === 0) {
       const err = this.toHttpException(

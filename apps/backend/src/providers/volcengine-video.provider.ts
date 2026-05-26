@@ -87,9 +87,11 @@ export class VolcengineVideoProvider implements ProviderClient {
     // Gateway redirect: when a fork supplies one, skip the per-vendor
     // config lookups so deployments without a local Volcengine key still
     // work (the gateway holds the upstream credential).
+    const imageInputCount = (req.inputs ?? []).filter((i) => i.type === 'image').length;
     const redirect = getVideoGatewayRedirect({
       providerId: this.name,
       modelSku: req.modelSku,
+      imageInputCount,
     });
     const timeout = await this.volcengineConfig.getVideoTimeoutMs();
     const defaultModel = await this.volcengineConfig.getDefaultModel();

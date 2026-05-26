@@ -1,4 +1,4 @@
-import { HttpException, Injectable, Logger } from '@nestjs/common';
+import { HttpException, Inject, Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import type {
@@ -11,6 +11,7 @@ import type {
 } from './provider.types';
 import { OpenaiCompatConfigService } from '../canvas-config/openai-compat-config.service';
 import { LocalStorageService } from '../storage/local-storage.service';
+import { STORAGE_DRIVER, type StorageDriver } from '../storage/storage-driver';
 import { getImageGatewayRedirect } from './extensions';
 import { summarizeBody } from './log-utils';
 import {
@@ -64,10 +65,18 @@ export class OpenAICompatImageProvider implements ProviderClient {
   constructor(
     private readonly httpService: HttpService,
     private readonly openaiConfig: OpenaiCompatConfigService,
+    // STORAGE_DRIVER: putObject 出去的 URL 跟 FileTransferService.ownsUrl
+    // 必须用同一 driver, 否则下游 transferUrl 不认为它 "已 owned" 会
+    // 试图 axios.get bare `/static/...` 抛 'Invalid URL'。
+    @Inject(STORAGE_DRIVER) private readonly storage: StorageDriver,
+    // LocalStorageService 只用来做 readObjectByLocalUrl: 上游节点产物若是
+    // `/static/uploads/...` 走文件 IO,避免自请求 HTTP。cloud URL 时该方法
+    // 返回 null, 走 HTTP 兜底。
     private readonly localStorage: LocalStorageService,
   ) {
     this.edits = new OpenAICompatImageEdits(
       httpService,
+      this.storage,
       localStorage,
       this.logger,
     );
@@ -87,57 +96,86 @@ export class OpenAICompatImageProvider implements ProviderClient {
       );
     }
 
-    // Gateway redirect (t2i only). i2i / `/images/edits` is left direct
-    // because the multipart upload + b64-persist flow assumes a real
-    // OpenAI-compat endpoint; gateway support varies and is opt-in later.
+    const imageInputs = (req.inputs ?? []).filter((i) => i.type === 'image');
+
+    // Gateway redirect — fork sees imageInputCount in ctx and decides
+    // whether it can handle i2i (route to a gateway adapter for
+    // `/images/edits`) or wants i2i to fall back to vendor direct (return
+    // null). t2i path is unchanged.
     const redirect = getImageGatewayRedirect({
       providerId: this.name,
       modelSku: req.modelSku,
+      imageInputCount: imageInputs.length,
     });
     const timeout = await this.openaiConfig.getTimeoutMs('image');
     const realSku = this.stripNamespace(req.modelSku);
     const family = resolveFamily(realSku);
 
-    const imageInputs = (req.inputs ?? []).filter((i) => i.type === 'image');
-
-    // i2i path — only for gpt-image-* (user-scoped). dall-e-* still
-    // drops image inputs with a warn (legacy behaviour: better to
-    // produce a text-only result than 400 on a connected image node).
-    // Note: i2i always goes direct to the vendor (see comment above).
+    // i2i path — only for gpt-image-* (user-scoped). dall-e-* drops image
+    // inputs with a warn (legacy behaviour: better to produce a text-only
+    // result than 400 on a connected image node).
+    //
+    // Two i2i routes for gpt-image-*:
+    //   1. No redirect → vendor-direct OpenAI `/images/edits` (legacy).
+    //   2. redirect.editsBaseUrl set → gateway-mediated edits (commercial
+    //      forks): same multipart shape, just sent through the gateway so
+    //      billing / quota / audit are preserved.
+    //
+    // Forks that supply a redirect but no `editsBaseUrl` are treated as
+    // "gateway can't do edits"; image inputs are dropped with a warn so
+    // we still produce *something* via t2i generations rather than 400.
     if (imageInputs.length > 0 && family !== 'dalle') {
-      const editsApiKey = await this.openaiConfig.getApiKey();
-      const editsBaseUrl = await this.openaiConfig.getBaseUrl();
-      const result = await this.edits.run({
-        baseUrl: editsBaseUrl,
-        apiKey: editsApiKey,
-        timeoutMs: timeout,
-        realSku,
-        prompt: req.prompt,
-        imageInputs,
-        n: this.clampN(req.extraParams),
-        size: resolveSize(req.extraParams, family),
-        quality: this.stringParam(req.extraParams, 'quality'),
-        seed: clampSeed((req.extraParams as any)?.seed),
-        requestId: req.requestId,
-      });
-      return {
-        status: 'completed',
-        resources: result.resources,
-        usage: result.usage,
-        raw: result.raw,
-        requestPayload: result.requestPayloadSummary,
-      };
+      const canUseGatewayEdits = !!(redirect && redirect.editsBaseUrl);
+      const canUseVendorEdits = !redirect;
+      if (canUseGatewayEdits || canUseVendorEdits) {
+        const editsApiKey = redirect
+          ? redirect.apiKey
+          : await this.openaiConfig.getApiKey();
+        const editsBaseUrl = redirect?.editsBaseUrl
+          ? redirect.editsBaseUrl
+          : await this.openaiConfig.getBaseUrl();
+        const result = await this.edits.run({
+          baseUrl: editsBaseUrl,
+          apiKey: editsApiKey,
+          timeoutMs: timeout,
+          realSku,
+          prompt: req.prompt,
+          imageInputs,
+          n: this.clampN(req.extraParams),
+          size: resolveSize(req.extraParams, family),
+          quality: this.stringParam(req.extraParams, 'quality'),
+          seed: clampSeed((req.extraParams as any)?.seed),
+          requestId: req.requestId,
+        });
+        return {
+          status: 'completed',
+          resources: result.resources,
+          usage: result.usage,
+          raw: result.raw,
+          requestPayload: result.requestPayloadSummary,
+        };
+      }
     }
 
     if (imageInputs.length > 0) {
       this.logger.warn(
         `[openai-compat-image:submit] sku=${req.modelSku} requestId=${req.requestId} ` +
-          `dropping ${imageInputs.length} upstream image input(s); dall-e-* /images/edits ` +
-          `is not wired up, proceeding as text-to-image.`,
+          `dropping ${imageInputs.length} upstream image input(s); ` +
+          (family === 'dalle'
+            ? 'dall-e-* /images/edits is not wired up'
+            : 'gateway redirect did not supply editsBaseUrl') +
+          `, proceeding as text-to-image.`,
       );
     }
 
     const nativeBody = this.buildGenerationsBody(req, realSku, family);
+    // i2i + redirect: 把 imageInputs 注入 nativeBody.metadata.image_inputs,
+    // 让 fork 的 transform 拿到 ref image URLs(亦或 fork 直接读 metadata)。
+    if (imageInputs.length > 0 && redirect) {
+      const meta = (nativeBody.metadata ?? {}) as Record<string, unknown>;
+      meta.image_inputs = imageInputs.map((i) => i.url);
+      nativeBody.metadata = meta;
+    }
     let url: string;
     let apiKey: string;
     if (redirect) {
