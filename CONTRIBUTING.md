@@ -74,4 +74,4 @@ chore: ...
 ## 5. 联系 / Contact
 
 - 一般问题：GitHub Issues
-- 商业合作 / CCLA / 安全报告：见 [README](./README.md#商业咨询)
+- 商业合作 / CCLA / 安全报告：邮件 **bbdwxh@gmail.com**，详见 [外部团队指南](./docs/external-teams.md)
