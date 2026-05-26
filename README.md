@@ -185,3 +185,4 @@ Canvas Flow 采用 **双协议**。
 [bailian-link]: https://bailian.console.aliyun.com/
 [issues-shield]: https://img.shields.io/github/issues/arkstudio-ai/arkstudio-canvas?logo=github
 [issues-link]: https://github.com/arkstudio-ai/arkstudio-canvas/issues
+testfrok
