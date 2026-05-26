@@ -9,6 +9,7 @@ import type {
   SubmitResult,
 } from './provider.types';
 import { DashscopeConfigService } from '../canvas-config/dashscope-config.service';
+import { getChatGatewayRedirect } from './extensions';
 import { summarizeBody } from './log-utils';
 
 /**
@@ -58,9 +59,24 @@ export class DashScopeChatProvider implements ProviderClient {
   }
 
   async submit(req: SubmitRequest): Promise<SubmitResult> {
-    const apiKey = await this.dashscopeConfig.getApiKey();
-    const baseUrl = await this.dashscopeConfig.getBaseUrl();
+    // Gateway redirect: if a fork wired up `setChatGatewayOverride`, skip
+    // the per-vendor config (which would otherwise throw "DashScope apiKey
+    // not configured" in deployments where the gateway holds the credentials).
+    const redirect = getChatGatewayRedirect({
+      providerId: this.name,
+      modelSku: req.modelSku,
+    });
     const timeout = await this.dashscopeConfig.getTimeoutMs('chat');
+    let url: string;
+    let apiKey: string;
+    if (redirect) {
+      url = redirect.url;
+      apiKey = redirect.apiKey;
+    } else {
+      apiKey = await this.dashscopeConfig.getApiKey();
+      const baseUrl = await this.dashscopeConfig.getBaseUrl();
+      url = `${baseUrl}${this.CHAT_PATH}`;
+    }
     if (!req.prompt) {
       throw this.toHttpException(
         `${req.modelSku} requires a prompt`,
@@ -88,10 +104,10 @@ export class DashScopeChatProvider implements ProviderClient {
     const topP = this.numericParam(req.extraParams, 'top_p');
     if (topP !== undefined) body.top_p = topP;
 
-    const url = `${baseUrl}${this.CHAT_PATH}`;
     this.logger.log(
       `[dashscope-chat:submit] sku=${req.modelSku} requestId=${req.requestId} ` +
-        `url=${url} body=${summarizeBody(body)}`,
+        `url=${url} body=${summarizeBody(body)}` +
+        (redirect ? ' (via gateway override)' : ''),
     );
 
     let resp;
@@ -195,6 +211,9 @@ export class DashScopeChatProvider implements ProviderClient {
       status,
     );
     (err as any).payloadSnippet = payload ?? message;
+    // 显式覆盖 .message, 否则 NestJS 默认 .message = 'Http Exception'(类名),
+    // ExecutionsService log 只看到 wrapper 名字, root cause 丢失.
+    (err as any).message = message;
     return err;
   }
 }

@@ -1,0 +1,32 @@
+{
+  "name": "canvas-flow-desktop",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Canvas Flow Electron shell — wraps the web UI + spawns the backend as a child process for offline desktop use.",
+  "license": "AGPL-3.0-only",
+  "homepage": "https://github.com/arkstudio-ai/arkstudio-canvas#readme",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:preload": "tsc -p tsconfig.preload.json",
+    "build": "pnpm run build:main && pnpm run build:preload",
+    "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.preload.json --noEmit",
+    "dev": "pnpm run build && cross-env NODE_ENV=development electron .",
+    "start": "electron .",
+    "package:backend": "node scripts/package-backend.mjs",
+    "prepack": "pnpm run build && pnpm run package:backend && pnpm --filter canvas-flow build",
+    "pack": "pnpm run prepack && electron-builder --dir",
+    "dist:mac": "pnpm run prepack && electron-builder --mac",
+    "dist:win": "pnpm run prepack && electron-builder --win"
+  },
+  "dependencies": {
+    "electron-log": "^5.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "cross-env": "^7.0.3",
+    "electron": "^33.4.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "~5.9.3"
+  }
+}

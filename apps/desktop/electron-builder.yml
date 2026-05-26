@@ -1,0 +1,91 @@
+# electron-builder 配置 —— Canvas Flow 桌面端打包。
+#
+# 形态约束 (跟 README "架构概要" 对齐):
+#   - app.asar 里只放 main / preload + 极少依赖 (electron-log)
+#   - extraResources 里塞两份大头:
+#       resources/web/      ← apps/web/dist
+#       resources/backend/  ← apps/desktop/build/backend (pnpm deploy --prod 产物)
+#   - electron 自身的 node 二进制就是 backend 子进程的 runtime
+#     (ELECTRON_RUN_AS_NODE=1, 见 src/main/backend.ts)
+#
+# 当前阶段:
+#   - 暂无 codesign / notarize / icon (下次会话补)
+#   - 仅出 macOS (dmg + zip) + Windows (nsis)，不出 Linux
+
+appId: ai.arkstudio.canvas-flow
+productName: Canvas Flow
+copyright: Copyright (C) 2026 Canvas Flow Contributors (AGPL-3.0)
+
+directories:
+  buildResources: resources
+  output: release
+
+# 走 default asar 打包 main/preload。注意 resources/backend 那一坨不能进 asar
+# —— prisma engine 是 .dylib / .node, 在 asar 里没法 dlopen。所以放到
+# extraResources。
+asar: true
+
+# app.asar 里只放 main / preload 编译产物 + electron-log 这一条 main 进程
+# 用得到的依赖。其它一概不带。
+files:
+  - 'dist/main/**/*'
+  - 'dist/preload/**/*'
+  - 'package.json'
+  - 'node_modules/electron-log/**/*'
+
+# 这两个目录会原样拷贝到 <app>/Contents/Resources/{web,backend} (mac)
+# 或 <app>/resources/{web,backend} (win)。运行期 src/main/paths.ts 通过
+# process.resourcesPath 定位。
+extraResources:
+  - from: '../web/dist'
+    to: 'web'
+    filter: ['**/*']
+  - from: 'build/backend'
+    to: 'backend'
+    filter: ['**/*']
+
+# 把 node_modules 完全留给 extraResources/backend 自带的那一份。
+# main 进程依赖的 electron-log 通过 files 段单独带进 asar。
+npmRebuild: false
+
+mac:
+  category: public.app-category.developer-tools
+  # 只出 dmg。zip 只用于 electron-updater 自动更新，第一期没接更新机制，
+  # 单 dmg 能砍掉 7za 双架构 mx=7 压缩约 4-5 分钟 build 时长。
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  # 第一阶段不签名：用户首次打开会被 Gatekeeper 拦，需要右键 -> 打开。
+  # 等下次补上 Developer ID + APPLE_ID/TEAM_ID/APP_SPECIFIC_PWD 环境变量后
+  # 把 identity 改为 "Developer ID Application: ..." 并开 hardenedRuntime。
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  notarize: false
+
+dmg:
+  writeUpdateInfo: false
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  # 同样裸跑，未签名。用户首次安装会有 SmartScreen 警告。
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  # differentialPackage:false 关掉增量更新分支. 开着的话 uninstaller 启动时
+  # 会算 base + patch 两份 checksum, 任何一份对不上就报 "Installer integrity
+  # check has failed" (实测用户机上撞过). 当前没在用 electron-updater 增量,
+  # 全量覆盖更可控.
+  differentialPackage: false
+  # deleteAppDataOnUninstall:false 显式声明卸载不删 userData. 默认值就是
+  # 这样, 写出来防以后跟着模板抄到 true. 保留 SQLite + 配置 + 引用素材,
+  # 用户重装能无缝继续; 真要全清得用户手动删
+  # %APPDATA%\canvas-flow-desktop\.
+  deleteAppDataOnUninstall: false
+
+# 隐式默认会把 dependencies (devDependencies 不会) 复制到 app.asar/node_modules
+# 里。我们已经在 files 段显式控制，加上禁用 npmRebuild，足够干净。

@@ -24,6 +24,7 @@ import {
 import { Upload, Clock, Mic, Square, Trash2 } from 'lucide-react';
 import { voiceService } from '../services/voiceService';
 import { api } from '../services/api';
+import { VOICE_LIST_REFRESH_EVENT } from '../constants/voiceListRefresh';
 
 interface CreateVoiceDialogProps {
   open: boolean;
@@ -226,6 +227,7 @@ export function CreateVoiceDialog({ open, onClose, onSuccess }: CreateVoiceDialo
       setDemoText('');
       resetAudio();
       onSuccess();
+      window.dispatchEvent(new Event(VOICE_LIST_REFRESH_EVENT));
     } catch (err) {
       setError(err instanceof Error ? err.message : '创建失败');
     } finally {

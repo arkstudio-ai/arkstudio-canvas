@@ -528,6 +528,123 @@
   background: #0a0a0a;
 }
 
+
+/* picker modal 内的 grid / scroll 布局.
+ * grid: ≤4 张, 2x2 一屏装下; scroll: >4 张, 横向滚动, 跟 macOS 翻照片
+ * 同款体感. 都 max-height/width 限制, 避免占满屏幕.
+ */
+/* picker 模态容器: 限制最大尺寸 + 自身不滚动 (滚动留给 grid/scroll
+ * 子元素), 不然 overflow:hidden 会把超出的 cell 直接裁掉 — 之前用户
+ * 报"图显示不全"就是这里. */
+.cf-alternates-container {
+  position: relative;
+  background: #0a0a0a;
+  border-radius: 12px;
+  padding: 48px 24px 24px;
+  width: min(90vw, 900px);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* 2x2 grid: 每个 cell 高度上限避免单图撑爆容器 + 整 grid 可纵向滚动. */
+.cf-alternates-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px; /* scrollbar 不贴 cell 右边缘 */
+}
+/* 横滚: 一行高度固定, 横向 auto scroll. */
+.cf-alternates-scroll {
+  display: flex;
+  gap: 16px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 4px;
+}
+.cf-alternates-scroll .cf-alternates-cell {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+.cf-alternates-cell {
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 120ms ease, transform 120ms ease;
+  /* 关键: cell 自身不允许撑高超过 grid 单元格 — object-fit 控制图片
+   * 在 cell 内显示. */
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cf-alternates-cell:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: scale(1.01);
+}
+/* 2x2 grid 模式: 图最大不超过 cell 实际高度 (容器 70vh 拆 2 行 ≈ 35vh)
+ * 同时不超过 80% 容器宽度. object-fit:contain 保比例. */
+.cf-alternates-media {
+  max-width: 100%;
+  max-height: min(40vh, 380px);
+  object-fit: contain;
+  display: block;
+  border-radius: 8px;
+}
+/* 横滚模式: 单图占容器一半高度, 单宽不超 40vw. */
+.cf-alternates-scroll .cf-alternates-media {
+  width: auto;
+  height: min(50vh, 480px);
+  max-width: 40vw;
+}
+.cf-alternates-audio-placeholder {
+  width: 200px;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  background: #1a1a1a;
+  border-radius: 8px;
+}
+
+/* 手动上传节点右上角的 "替换" 按钮. 跟竞品截图同款绿色 chip.
+ * pointer-events:auto 因为容器有时 set pointer-events:none 在 hover
+ * 状态外, 这里要保持可点 (双击查看 modal 由容器拦, button click 优先).
+ * 控件本身 z-index 高过 img/video 防止被盖. */
+.cf-media-node-replace-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  color: #5eead4;
+  font-size: 11px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.cf-media-node-replace-btn:hover {
+  background: rgba(52, 211, 153, 0.18);
+  border-color: rgba(52, 211, 153, 0.7);
+}
+
 .cf-media-node-content {
   width: 100%;
   height: 100%;

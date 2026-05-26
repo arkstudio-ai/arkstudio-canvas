@@ -1,10 +1,17 @@
 # compiled output
 /dist
+# Isolated dist used by apps/desktop/scripts/package-backend.mjs so the
+# packaging pipeline doesn't fight dev's nest start --watch (both would
+# otherwise write to /dist, and nest-cli's deleteOutDir clobbers the
+# dev backend mid-build → "Cannot find module './app.module'" crash).
+/.dist-package
 /node_modules
 /build
 
 # Logs
-logs
+# Anchor to the package root so we don't accidentally ignore source dirs
+# called `logs/` (we got bitten by this in apps/web — see commit d096eeb).
+/logs
 *.log
 npm-debug.log*
 pnpm-debug.log*

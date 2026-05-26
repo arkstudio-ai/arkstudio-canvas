@@ -14,9 +14,9 @@ import type {
   CanvasFlowConfigResponse,
   ConfigLoadOptions,
 } from '../types/configApi';
-
-// `??` 而非 `||`：空串 (`""`) 是 docker compose 反代部署的合法值（走相对路径）。
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:18500';
+// 共用 `app/config/api.ts` 的解析（runtime > build-time），桌面端 Electron
+// preload 注入的动态 URL 才能在 configService 这边也生效。
+import { API_BASE_URL } from '../app/config/api';
 
 class ConfigService {
   private config: CanvasFlowConfigData | null = null;
@@ -24,7 +24,7 @@ class ConfigService {
   private loadPromise: Promise<CanvasFlowConfigData> | null = null;
 
   async loadConfig(options: ConfigLoadOptions = {}): Promise<CanvasFlowConfigData> {
-    const { userId, forceRefresh = false } = options;
+    const { forceRefresh = false } = options;
 
     if (this.config && !forceRefresh) {
       console.log('[ConfigService] 使用缓存配置');
@@ -37,7 +37,7 @@ class ConfigService {
     }
 
     this.loading = true;
-    this.loadPromise = this.doLoadConfig(userId);
+    this.loadPromise = this.doLoadConfig();
 
     try {
       const config = await this.loadPromise;
@@ -49,17 +49,20 @@ class ConfigService {
     }
   }
 
-  private async doLoadConfig(userId?: string): Promise<CanvasFlowConfigData> {
+  private async doLoadConfig(): Promise<CanvasFlowConfigData> {
     console.log('[ConfigService] 从 API 加载配置:', API_BASE_URL);
 
-    let url = `${API_BASE_URL}/api/canvas-flow/config`;
-    if (userId) {
-      url += `?userId=${encodeURIComponent(userId)}`;
-    }
+    const url = `${API_BASE_URL}/api/canvas-flow/config`;
+
+    // 共用 admin-api 同款的 auth header 扩展点 (extensions.ts 的
+    // setAdminAuthHeaderProvider)。OSS 默认返空，下游 fork (商业版) 注入
+    // Bearer token。configService 历史上写裸 fetch (不走 apiClient axios)，
+    // 所以 commercial 装在 apiClient 上的 Authorization interceptor 对它没影响。
+    const { getAdminAuthHeader } = await import('../app/extensions');
 
     const response = await fetch(url, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAdminAuthHeader() },
       signal: AbortSignal.timeout(10000),
     });
 
@@ -86,9 +89,9 @@ class ConfigService {
     this.config = null;
   }
 
-  async refreshConfig(userId?: string): Promise<CanvasFlowConfigData> {
+  async refreshConfig(): Promise<CanvasFlowConfigData> {
     console.log('[ConfigService] 刷新配置...');
-    return this.loadConfig({ userId, forceRefresh: true });
+    return this.loadConfig({ forceRefresh: true });
   }
 
   isLoaded(): boolean {
@@ -100,11 +103,6 @@ class ConfigService {
   }
 }
 
-// 导出单例实例
 export const configService = new ConfigService();
 
-// 导出类型（供其他模块使用）
 export type { ConfigService };
-
-
-

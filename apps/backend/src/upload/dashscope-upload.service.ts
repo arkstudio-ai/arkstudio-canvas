@@ -122,10 +122,15 @@ export class DashscopeUploadService {
       };
     } catch (e) {
       const elapsed = Date.now() - startTime;
-      const status = e?.response?.status;
-      const body = e?.response?.data?.toString?.()?.slice?.(0, 400);
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      const body = (
+        e as { response?: { data?: { toString?: () => string } } }
+      )?.response?.data?.toString?.()?.slice?.(0, 400);
       this.logger.error(
-        `[dashscope-upload] ❌ failed (${elapsed}ms, status=${status}): ${(e as Error).message} ${body ?? ''}`,
+        `[dashscope-upload] ❌ failed (${elapsed}ms, status=${status}, ` +
+          `code=${(e as { code?: string })?.code ?? '?'}, host=${policy.upload_host}): ` +
+          `${(e as Error).message} ${body ?? ''}\n` +
+          `${(e as Error).stack ?? '(no stack)'}`,
       );
       throw new DashscopeUploadFailedError((e as Error).message, status, body);
     }
@@ -222,8 +227,18 @@ export class DashscopeUploadService {
         timeout: 15_000,
       });
     } catch (e) {
-      const status = e?.response?.status;
-      const body = JSON.stringify(e?.response?.data ?? null).slice(0, 400);
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      const body = JSON.stringify(
+        (e as { response?: { data?: unknown } })?.response?.data ?? null,
+      ).slice(0, 400);
+      // 把底层 error 的 code + stack 也打到 log, 方便排查 "protocol mismatch"
+      // 这类 axios message 不带上下文的错. catch 里抛出去的 wrapper 只保留
+      // 给用户看的 message, 调试细节走 logger 不污染前端面板.
+      this.logger.error(
+        `[dashscope-upload] getPolicy raw error (model=${model}, endpoint=${endpoint}, ` +
+          `code=${(e as { code?: string })?.code ?? '?'}, status=${status ?? '?'}): ` +
+          `${(e as Error).message}\n${(e as Error).stack ?? '(no stack)'}`,
+      );
       throw new DashscopeUploadFailedError(
         `getPolicy failed (model=${model}): ${(e as Error).message}`,
         status,

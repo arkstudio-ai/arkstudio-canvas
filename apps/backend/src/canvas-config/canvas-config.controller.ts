@@ -12,6 +12,12 @@ import { UpdateOpenaiSettingsDto } from './dto/openai-settings.dto';
 import { TestProviderConnectionDto } from './dto/test-provider-connection.dto';
 import { UpdateHistorySettingsDto } from './dto/history-settings.dto';
 import { UpdateStorageSettingsDto } from './dto/storage-settings.dto';
+import { UpdateVolcengineSettingsDto } from './dto/volcengine-settings.dto';
+import { VolcengineConfigService } from './volcengine-config.service';
+import { UpdateNetworkSettingsDto } from './dto/network-settings.dto';
+import { NetworkConfigService } from './network-config.service';
+import { UpdateOssSettingsDto } from './dto/oss-settings.dto';
+import { OssConfigService } from './oss-config.service';
 
 @Controller('api/canvas-flow')
 export class CanvasConfigController {
@@ -22,6 +28,9 @@ export class CanvasConfigController {
     private openaiConfig: OpenaiCompatConfigService,
     private providerConnectivity: ProviderConnectivityService,
     private localStorage: LocalStorageService,
+    private volcengineConfig: VolcengineConfigService,
+    private networkConfig: NetworkConfigService,
+    private ossConfig: OssConfigService,
   ) {}
 
   /**
@@ -155,6 +164,71 @@ export class CanvasConfigController {
   @Post('openai-settings/test')
   async testOpenaiSettings(@Body() dto: TestProviderConnectionDto) {
     return this.providerConnectivity.testOpenai(dto);
+  }
+
+  /**
+   * GET /api/canvas-flow/volcengine-settings
+   * View-only payload for the admin Volcengine (火山方舟 / Doubao / Seedance)
+   * 设置面板. 同 dashscope/openai 一样脱敏 apiKey. baseUrl 默认指向火山官方
+   * gateway, admin 可改成任何兼容相同 path layout 的私有代理 (0 代码切换).
+   */
+  @Get('volcengine-settings')
+  async getVolcengineSettings() {
+    return this.volcengineConfig.getViewPayload();
+  }
+
+  /**
+   * PUT /api/canvas-flow/volcengine-settings
+   * Admin 更新 base URL / API key / defaultModel / video submit timeout.
+   * 详见 UpdateVolcengineSettingsDto 的 empty-string=clear 语义。
+   */
+  @Put('volcengine-settings')
+  async updateVolcengineSettings(@Body() dto: UpdateVolcengineSettingsDto) {
+    await this.volcengineConfig.updateSettings(dto);
+    return this.volcengineConfig.getViewPayload();
+  }
+
+  /**
+   * GET /api/canvas-flow/network-settings
+   * 网络代理配置面板. 返回 DB 里存的代理 + 当前 process.env 真实生效值
+   * (diagnostic — 让 admin 看清楚 "我配的" 和 "实际跑的" 是否一致).
+   */
+  @Get('network-settings')
+  async getNetworkSettings() {
+    return this.networkConfig.getViewPayload();
+  }
+
+  /**
+   * PUT /api/canvas-flow/network-settings
+   * 更新代理 URL 或 disabled (force-direct). 保存后立刻 apply 到
+   * process.env, 下一次 axios 请求即生效, 无需 restart.
+   */
+  @Put('network-settings')
+  async updateNetworkSettings(@Body() dto: UpdateNetworkSettingsDto) {
+    await this.networkConfig.updateSettings(dto);
+    return this.networkConfig.getViewPayload();
+  }
+
+  /**
+   * GET /api/canvas-flow/oss-settings
+   * 阿里 OSS / 火山 TOS 凭据配置. provider 字段选 'aliyun-oss' 或
+   * 'volcengine-tos'; 留空 = 禁用 OSS staging (Volcengine Seedance 走不了
+   * i2v / r2v). 凭据脱敏返回掩码.
+   */
+  @Get('oss-settings')
+  async getOssSettings() {
+    return this.ossConfig.getViewPayload();
+  }
+
+  /**
+   * PUT /api/canvas-flow/oss-settings
+   * 更新 provider + AK/SK + bucket + region 等. AK/SK 落库前 aes-256-gcm
+   * 加密. 保存后立即对 OssUploadService 生效.
+   */
+  @Put('oss-settings')
+  async updateOssSettings(@Body() dto: UpdateOssSettingsDto) {
+    await this.ossConfig.updateSettings(dto);
+    return this.ossConfig.getViewPayload();
   }
 
   /**

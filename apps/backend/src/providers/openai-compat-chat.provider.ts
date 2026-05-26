@@ -10,6 +10,7 @@ import type {
   SubmitResult,
 } from './provider.types';
 import { OpenaiCompatConfigService } from '../canvas-config/openai-compat-config.service';
+import { getChatGatewayRedirect } from './extensions';
 import { summarizeBody } from './log-utils';
 
 /**
@@ -87,10 +88,25 @@ export class OpenAICompatChatProvider implements ProviderClient {
 
     this.assertNoOssInputs(req.inputs);
 
-    const apiKey = await this.openaiConfig.getApiKey();
-    const baseUrl = await this.openaiConfig.getBaseUrl();
+    // Gateway redirect: skip per-vendor config when a fork supplies the
+    // gateway URL + token, so deployments without a local OpenAI key still
+    // work (the gateway holds the upstream credential).
+    const redirect = getChatGatewayRedirect({
+      providerId: this.name,
+      modelSku: req.modelSku,
+    });
     const timeout = await this.openaiConfig.getTimeoutMs('chat');
     const realSku = this.stripNamespace(req.modelSku);
+    let url: string;
+    let apiKey: string;
+    if (redirect) {
+      url = redirect.url;
+      apiKey = redirect.apiKey;
+    } else {
+      apiKey = await this.openaiConfig.getApiKey();
+      const baseUrl = await this.openaiConfig.getBaseUrl();
+      url = `${baseUrl}${this.CHAT_PATH}`;
+    }
 
     // OpenAI multimodal: when there are image inputs we must use the
     // `content[]` array form. For plain text prompts we keep the
@@ -127,12 +143,14 @@ export class OpenAICompatChatProvider implements ProviderClient {
     const topP = this.numericParam(req.extraParams, 'top_p');
     if (topP !== undefined) body.top_p = topP;
 
-    const url = `${baseUrl}${this.CHAT_PATH}`;
     this.logger.log(
       `[openai-compat-chat:submit] sku=${req.modelSku} (real=${realSku}) ` +
-        `requestId=${req.requestId} url=${url} body=${summarizeBody(body)}`,
+        `requestId=${req.requestId} url=${url} body=${summarizeBody(body)}` +
+        (redirect ? ' (via gateway override)' : ''),
     );
 
+    // Proxy lives globally on http(s).globalAgent via NetworkConfigService.
+    // Don't set `proxy` here — that would override the global policy.
     let resp;
     try {
       resp = await firstValueFrom(
@@ -146,6 +164,15 @@ export class OpenAICompatChatProvider implements ProviderClient {
       );
     } catch (e: any) {
       const data = e?.response?.data ?? null;
+      // 把上游真实错误码 + body 落 log, 不然 ExecutionsService 那层只看到
+      // wrapper HttpException 类名 ("Http Exception"), root cause 全丢失.
+      // 跟 dashscope-video / dashscope-upload 那对 catch 同款做法.
+      this.logger.error(
+        `[openai-compat-chat:submit] ❌ sku=${req.modelSku} ` +
+          `status=${e?.response?.status ?? '?'} code=${e?.code ?? '?'} ` +
+          `upstream=${JSON.stringify(data).slice(0, 600)} ` +
+          `axiosMessage=${(e as Error).message}`,
+      );
       const err = this.toHttpException(
         data?.error?.message ||
           data?.message ||
@@ -257,6 +284,9 @@ export class OpenAICompatChatProvider implements ProviderClient {
       status,
     );
     (err as any).payloadSnippet = payload ?? message;
+    // 显式覆盖 .message, 否则 NestJS 默认 .message = 'Http Exception'(类名),
+    // ExecutionsService log 只看到 wrapper 名字, root cause 丢失.
+    (err as any).message = message;
     return err;
   }
 }

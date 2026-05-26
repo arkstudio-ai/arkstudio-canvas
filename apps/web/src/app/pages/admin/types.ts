@@ -13,8 +13,8 @@ import type { LucideIcon } from 'lucide-react';
 export interface AdminModule {
   /** Stable id; used for route key & nav active highlight. */
   id: string;
-  /** Sidebar label. */
-  label: string;
+  /** i18next key (in `settings` namespace) for the sidebar nav label. */
+  labelKey: string;
   /** Sidebar icon. */
   icon: LucideIcon;
   /** Sub-path under `/admin/`, no leading slash. e.g. `'logs'` -> `/admin/logs` */
@@ -280,6 +280,100 @@ export interface OpenaiSettingsUpdate {
   baseUrl?: string;
   apiKey?: string;
   timeouts?: Partial<Record<OpenaiCompatKind, number>>;
+}
+
+// ---- Volcengine (火山方舟 Seedance) -----------------------------------------
+//
+// 4-kind timeout shape mirrors Dashscope/OpenAI for shared-UI compat; only
+// `video` is real in phase 1. `defaultModel` is Volcengine-specific (lets
+// admin preset e.g. `doubao-seedance-2-0-260128` so node config can omit it).
+
+export type VolcengineKind = 'chat' | 'image' | 'video' | 'audio';
+
+export interface VolcengineSettingsView {
+  baseUrl: string;
+  baseUrlConfigured: boolean;
+  apiKeyMask: string | null;
+  apiKeyConfigured: boolean;
+  defaultModel: string | null;
+  timeouts: Record<VolcengineKind, TimeoutEntry>;
+}
+
+export interface VolcengineSettingsUpdate {
+  baseUrl?: string;
+  apiKey?: string;
+  defaultModel?: string;
+  timeouts?: Partial<Record<VolcengineKind, number>>;
+}
+
+// ---- Network (proxy) -------------------------------------------------------
+//
+// Centralised proxy config so users don't need to wrangle shell env vars.
+// Most relevant for China-based users whose shell has HTTPS_PROXY=...:7890
+// for OpenAI/翻墙, which BREAKS DashScope / Volcengine (国内 IDC 直连).
+//
+// `disabled=true` is the "force direct" big-red-button — overrides the
+// configured strings AND unsets process.env.HTTP_PROXY at backend boot.
+
+export interface NetworkSettingsView {
+  /** DB-stored value (admin form draft). Empty string ↔ no DB row. */
+  httpProxy: string;
+  httpsProxy: string;
+  disabled: boolean;
+  /** Snapshot of process.env at view time — diagnostic so admin can spot
+   *  "I changed it but the shell env is still leaking through" cases. */
+  effective: {
+    httpProxy: string | null;
+    httpsProxy: string | null;
+    /** axios's bundled proxy-from-env falls back here when HTTP(S)_PROXY
+     *  isn't set; we mirror our admin value into it so user-shell
+     *  `ALL_PROXY=socks5://...` (V2Ray/Clash) can't sneak through. */
+    allProxy?: string | null;
+  };
+  /** Constructor name of http(s).globalAgent right now. Triages
+   *  "protocol mismatch" without a backend restart — `HttpProxyAgent`
+   *  / `HttpsProxyAgent` for proxied, `Agent` for direct. */
+  globalAgent?: {
+    http: string;
+    https: string;
+  };
+}
+
+export interface NetworkSettingsUpdate {
+  httpProxy?: string;
+  httpsProxy?: string;
+  disabled?: boolean;
+}
+
+// ---- OSS / TOS object storage ---------------------------------------------
+//
+// Used to stage local file uploads (`/static/uploads/...`) to a public-
+// internet-reachable URL so URL-only vendors (Volcengine Seedance) can fetch
+// them. One provider at a time: Aliyun OSS or Volcengine TOS. 留空 provider
+// 即禁用 staging (Seedance i2v / r2v 不可用).
+
+export type OssProvider = 'aliyun-oss' | 'volcengine-tos';
+
+export interface OssSettingsView {
+  provider: OssProvider | null;
+  bucket: string;
+  region: string;
+  endpoint: string;
+  publicBaseUrl: string;
+  accessKeyIdMask: string | null;
+  accessKeySecretConfigured: boolean;
+  /** Backend's view of "everything filled, ready to upload". */
+  ready: boolean;
+}
+
+export interface OssSettingsUpdate {
+  provider?: OssProvider | '';
+  accessKeyId?: string;
+  accessKeySecret?: string;
+  bucket?: string;
+  region?: string;
+  endpoint?: string;
+  publicBaseUrl?: string;
 }
 
 // ---- Provider 连通性测试 ----------------------------------------------------

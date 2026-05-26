@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, Settings, Trash2 } from 'lucide-react';
 import {
   buttonGhostStyle,
@@ -27,6 +28,7 @@ export interface ModelGridProps {
  * common flow ("我要再加一个 model 试试").
  */
 export const ModelGrid: React.FC<ModelGridProps> = ({ models, onSelect, onAdd, onRemove }) => {
+  const { t } = useTranslation();
   const [adding, setAdding] = useState(false);
   const [draftValue, setDraftValue] = useState('');
   const [draftLabel, setDraftLabel] = useState('');
@@ -47,12 +49,12 @@ export const ModelGrid: React.FC<ModelGridProps> = ({ models, onSelect, onAdd, o
         <h3 style={sectionTitleStyle}>models ({models.length})</h3>
         {!adding && (
           <button type="button" onClick={() => setAdding(true)} style={buttonGhostStyle}>
-            <Plus size={12} style={{ verticalAlign: 'middle' }} /> 新增模型
+            <Plus size={12} style={{ verticalAlign: 'middle' }} /> {t('settings:config.modelGrid.addModel')}
           </button>
         )}
       </div>
 
-      {models.length === 0 && !adding && <div style={emptyStyle}>该节点暂无模型</div>}
+      {models.length === 0 && !adding && <div style={emptyStyle}>{t('settings:config.modelGrid.empty')}</div>}
 
       <div style={gridStyle}>
         {models.map((m) => (
@@ -61,7 +63,7 @@ export const ModelGrid: React.FC<ModelGridProps> = ({ models, onSelect, onAdd, o
             model={m}
             onSelect={() => onSelect(m.value)}
             onRemove={() => {
-              if (confirm(`确认删除模型 "${m.value}"?`)) onRemove(m.value);
+              if (confirm(t('settings:config.modelGrid.confirmRemove', { value: m.value }))) onRemove(m.value);
             }}
           />
         ))}
@@ -72,8 +74,8 @@ export const ModelGrid: React.FC<ModelGridProps> = ({ models, onSelect, onAdd, o
           <input
             value={draftValue}
             onChange={(e) => setDraftValue(e.target.value)}
-            placeholder="value（前缀决定路由：openai-image/… / wan2.* / qwen-* …）"
-            title="前缀决定 backend 把请求送给哪个 provider，详见配置抽屉里的说明"
+            placeholder={t('settings:config.modelGrid.valuePlaceholder')}
+            title={t('settings:config.modelGrid.valueTitle')}
             style={{ ...inputMonoStyle, flex: 1 }}
             autoFocus
           />
@@ -95,7 +97,7 @@ export const ModelGrid: React.FC<ModelGridProps> = ({ models, onSelect, onAdd, o
             style={buttonStyle}
             disabled={!draftValue.trim() || !draftLabel.trim() || !draftAction.trim()}
           >
-            添加
+            {t('settings:config.modelGrid.add')}
           </button>
           <button
             type="button"
@@ -107,7 +109,7 @@ export const ModelGrid: React.FC<ModelGridProps> = ({ models, onSelect, onAdd, o
             }}
             style={buttonStyle}
           >
-            取消
+            {t('settings:config.modelGrid.cancel')}
           </button>
         </div>
       )}
@@ -120,6 +122,7 @@ const ModelCard: React.FC<{
   onSelect: () => void;
   onRemove: () => void;
 }> = ({ model, onSelect, onRemove }) => {
+  const { t } = useTranslation();
   const upstreams = (model.allowedUpstreamTypes ?? []) as string[];
   const modeCount = Array.isArray(model.modes) ? model.modes.length : 0;
   const schemaCount = Array.isArray(model.paramsSchema) ? model.paramsSchema.length : 0;
@@ -148,9 +151,9 @@ const ModelCard: React.FC<{
 
       <div style={cardActionsStyle}>
         <button type="button" onClick={onSelect} style={buttonStyle}>
-          <Settings size={11} style={{ verticalAlign: 'middle' }} /> 配置
+          <Settings size={11} style={{ verticalAlign: 'middle' }} /> {t('settings:config.modelGrid.configure')}
         </button>
-        <button type="button" onClick={onRemove} style={buttonStyle} title="删除">
+        <button type="button" onClick={onRemove} style={buttonStyle} title={t('settings:config.modelGrid.removeTitle')}>
           <Trash2 size={11} />
         </button>
       </div>

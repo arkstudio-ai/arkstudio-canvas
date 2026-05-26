@@ -61,31 +61,44 @@ export function applyNodeDataToCore(
     return;
   }
   
+  // 透传 aiGenerated marker (backend saveExecutionResult 写的 true)
+  // + alternates 多图备选 (n>1 才有). 没字段则视为手动上传 / 单图.
+  // 手动上传走 useFlow 的 _uploadRequest 分支, 不经过这里, alternates
+  // 永远 undefined.
+  const aiGenerated = backendData?.aiGenerated === true ? true : undefined;
+  const alternates = Array.isArray(backendData?.alternates)
+    ? (backendData.alternates as Array<{ src: string }>)
+    : undefined;
+  const meta =
+    aiGenerated !== undefined || alternates !== undefined
+      ? { aiGenerated, alternates }
+      : undefined;
+
   // 根据节点类型，从 outputData 中提取数据
   switch (node.type) {
     case 'image': {
       // 图片节点：提取 URL 并调用 setNodeImage
       const url = extractMediaUrl(backendData);
       if (url) {
-        flowRef.setNodeImage(nodeId, url);
+        flowRef.setNodeImage(nodeId, url, meta);
       }
       break;
     }
-    
+
     case 'video': {
       // 视频节点：提取 URL 并调用 setNodeVideo
       const url = extractMediaUrl(backendData);
       if (url) {
-        flowRef.setNodeVideo(nodeId, url);
+        flowRef.setNodeVideo(nodeId, url, meta);
       }
       break;
     }
-    
+
     case 'audio': {
       // 音频节点：提取 URL 并调用 setNodeAudio
       const url = extractMediaUrl(backendData);
       if (url) {
-        flowRef.setNodeAudio(nodeId, url);
+        flowRef.setNodeAudio(nodeId, url, meta);
       }
       break;
     }

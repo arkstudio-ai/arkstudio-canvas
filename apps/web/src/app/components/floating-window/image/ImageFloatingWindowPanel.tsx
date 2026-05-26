@@ -6,6 +6,7 @@ import {
   BottomBar,
   ModelChip,
   ParamsChip,
+  CountChip,
   RunChip,
   NodeFloatingWindow,
 } from '..';
@@ -137,9 +138,37 @@ export const ImageFloatingWindowPanel: React.FC<ImageFloatingWindowPanelProps> =
     return FALLBACK_IMAGE_PARAMS_SCHEMA;
   }, [models, currentModel]);
 
+  // 把 `n` (生成数量) 从 paramSchema 拆出来 — 走独立 CountChip, 不再
+  // 跟 ratio/quality 挤在 ParamsChip 的 popover 里. 后两者还是走老的
+  // ParamsChip + ImageParamsPopover. 这样 bottom bar 就是 [模型] [参数]
+  // [数量] 三个独立 chip, 跟竞品对齐.
+  const { nField, restSchema, countMax } = useMemo(() => {
+    const nField = paramSchema.find((f) => f.key === 'n');
+    const restSchema = paramSchema.filter((f) => f.key !== 'n');
+    // CountChip 的 max 从 nField.options 抽 (e.g. 1/2/3/4 → max=4),
+    // 没有 nField 时不渲染 chip.
+    let countMax = 0;
+    if (nField) {
+      for (const opt of nField.options) {
+        const v = typeof opt.value === 'number' ? opt.value : Number(opt.value);
+        if (Number.isFinite(v) && v > countMax) countMax = v;
+      }
+    }
+    return { nField, restSchema, countMax };
+  }, [paramSchema]);
+
+  const currentN = useMemo(() => {
+    const raw = (params as Record<string, unknown>).n;
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    if (Number.isFinite(n) && n >= 1) return Math.floor(n);
+    const defaultV =
+      nField?.defaultValue !== undefined ? Number(nField.defaultValue) : 1;
+    return Number.isFinite(defaultV) && defaultV >= 1 ? Math.floor(defaultV) : 1;
+  }, [params, nField]);
+
   const paramSummary = useMemo(
-    () => buildParamSummary(paramSchema, params),
-    [paramSchema, params],
+    () => buildParamSummary(restSchema, params),
+    [restSchema, params],
   );
 
   const upstreamCtx = useMemo(() => buildUpstreamMentionContexts(upstreamNodes), [upstreamNodes]);
@@ -229,15 +258,23 @@ export const ImageFloatingWindowPanel: React.FC<ImageFloatingWindowPanelProps> =
               <ParamsChip
                 summary={paramSummary}
                 title="参数"
-                disabled={paramSchema.length === 0}
+                disabled={restSchema.length === 0}
                 renderPopover={() => (
                   <ImageParamsPopover
-                    schema={paramSchema}
+                    schema={restSchema}
                     params={params}
                     onPick={(key, value) => updateParams({ [key]: value })}
                   />
                 )}
               />
+              {nField && countMax > 1 && (
+                <CountChip
+                  value={currentN}
+                  max={countMax}
+                  onChange={(n) => updateParams({ n })}
+                  disabled={isRunning}
+                />
+              )}
             </>
           }
           right={<RunChip onRun={onRun} isRunning={isRunning} />}

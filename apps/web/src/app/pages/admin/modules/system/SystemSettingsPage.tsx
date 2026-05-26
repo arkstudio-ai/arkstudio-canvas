@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Database,
   Eye,
@@ -19,6 +20,8 @@ import { toast } from 'sonner';
 import {
   getHistorySettings,
   getOpenaiSettings,
+  getVolcengineSettings,
+  updateVolcengineSettings,
   getProviderSettings,
   getStorageSettings,
   pruneHistory,
@@ -47,6 +50,10 @@ import {
   sectionTitleStyle,
   tokens,
 } from '../config/styles';
+import { NetworkSection } from './NetworkSection';
+import { DesktopSection } from './DesktopSection';
+import { OssSection } from './OssSection';
+import { shouldRenderSystemSettingsSection } from '../../../../extensions';
 
 
 /**
@@ -77,11 +84,23 @@ export const SystemSettingsPage: React.FC = () => (
 
     {/* AGPL §13 注脚：网络服务部署必须给用户一个明显的途径拿到对应版本源码。
         这一段在 /admin/system 顶部 + 在普通 canvas 页底部的 Footer 里都
-        挂一份，确保 SaaS 部署也满足 corresponding source 要求。 */}
-    <SourceLicenseSection />
+        挂一份，确保 SaaS 部署也满足 corresponding source 要求。
+        商业版红线下也必须保留——AGPL fork 不能去掉这条。 */}
+    {shouldRenderSystemSettingsSection('source-license') && <SourceLicenseSection />}
 
-    {/* 模型 provider —— DashScope + OpenAI-compat 合并 tab 卡片 */}
-    <ProvidersSection />
+    {/* 模型 provider —— DashScope + OpenAI-compat 合并 tab 卡片。
+        商业版多租户：平台主集中管，租户隐藏。 */}
+    {shouldRenderSystemSettingsSection('providers') && <ProvidersSection />}
+
+    {/* 网络代理 — 影响 backend axios 出站; 国内厂商建议禁用代理 */}
+    {shouldRenderSystemSettingsSection('network') && <NetworkSection />}
+
+    {/* 对象存储 — Volcengine Seedance i2v / r2v 必需; 不配则只能跑 t2v。
+        商业版多租户：平台主集中管，租户隐藏。 */}
+    {shouldRenderSystemSettingsSection('oss') && <OssSection />}
+
+    {/* 桌面端独占 (GPU 加速等) — 浏览器访问时显示 "桌面端独占" disabled 态 */}
+    {shouldRenderSystemSettingsSection('desktop') && <DesktopSection />}
 
     {/* Generation history retention */}
     <HistoryRetentionSection />
@@ -91,16 +110,17 @@ export const SystemSettingsPage: React.FC = () => (
   </div>
 );
 
-const Header: React.FC = () => (
-  <header style={headerStyle}>
-    <div>
-      <h1 style={titleStyle}>系统设置</h1>
-      <div style={subTitleStyle}>
-        开源信息 · 模型 Provider · 生成历史保留 · 本地存储
+const Header: React.FC = () => {
+  const { t } = useTranslation();
+  return (
+    <header style={headerStyle}>
+      <div>
+        <h1 style={titleStyle}>{t('settings:system.pageTitle')}</h1>
+        <div style={subTitleStyle}>{t('settings:system.pageSubtitle')}</div>
       </div>
-    </div>
-  </header>
-);
+    </header>
+  );
+};
 
 /**
  * AGPL-3.0 §13 compliance widget.
@@ -116,21 +136,22 @@ const Header: React.FC = () => (
  * Values are baked at build time (vite `define`) so they reflect the
  * artifact actually served, not whatever the runtime DB might claim.
  */
-const SourceLicenseSection: React.FC = () => (
+const SourceLicenseSection: React.FC = () => {
+  const { t } = useTranslation();
+  return (
   <section style={sectionStyle}>
     <h3 style={sectionTitleStyle}>
       <Github size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-      Source · License
+      {t('settings:system.source.title')}
     </h3>
     <div style={sectionBodyStyle}>
       <p style={hintStyle}>
-        本服务以 <strong>{__ARK_LICENSE_NAME__}</strong> 协议开源；按 AGPL §13
-        网络互动条款，部署方需要让访问者能拿到对应版本的源代码。
+        {t('settings:system.source.hint', { license: __ARK_LICENSE_NAME__ })}
       </p>
       <div style={statusGridStyle}>
         <StatusCard
           icon={<Github size={14} />}
-          label="Source code"
+          label={t('settings:system.source.sourceLabel')}
           value={
             <a
               href={__ARK_REPO_URL__}
@@ -142,12 +163,12 @@ const SourceLicenseSection: React.FC = () => (
               <ExternalLink size={11} />
             </a>
           }
-          source="git clone · 完整可重建"
+          source={t('settings:system.source.sourceSub')}
           ok
         />
         <StatusCard
           icon={<Scale size={14} />}
-          label="License"
+          label={t('settings:system.source.licenseLabel')}
           value={
             <a
               href={__ARK_LICENSE_URL__}
@@ -159,20 +180,21 @@ const SourceLicenseSection: React.FC = () => (
               <ExternalLink size={11} />
             </a>
           }
-          source="copyleft · 修改/SaaS 必须开源"
+          source={t('settings:system.source.licenseSub')}
           ok
         />
         <StatusCard
           icon={<Database size={14} />}
-          label="Version"
+          label={t('settings:system.source.versionLabel')}
           value={__ARK_VERSION__}
-          source="对应 git tag / GitHub release"
+          source={t('settings:system.source.versionSub')}
           ok
         />
       </div>
     </div>
   </section>
-);
+  );
+};
 
 const sourceLinkStyle: React.CSSProperties = {
   display: 'inline-flex',
@@ -184,11 +206,12 @@ const sourceLinkStyle: React.CSSProperties = {
   fontSize: 13,
 };
 
-const HISTORY_KINDS: { kind: HistoryKind; label: string }[] = [
-  { kind: 'image', label: '图片' },
-  { kind: 'video', label: '视频' },
-  { kind: 'audio', label: '音频' },
-  { kind: 'text', label: '文本' },
+// labels come from `settings:kind.*` at render time so EN / ZH stay in sync.
+const HISTORY_KINDS: { kind: HistoryKind; labelKey: string }[] = [
+  { kind: 'image', labelKey: 'settings:kind.image' },
+  { kind: 'video', labelKey: 'settings:kind.video' },
+  { kind: 'audio', labelKey: 'settings:kind.audio' },
+  { kind: 'text', labelKey: 'settings:kind.text' },
 ];
 
 /**
@@ -203,6 +226,7 @@ const HISTORY_KINDS: { kind: HistoryKind; label: string }[] = [
  * also explicitly type 0 to disable the knob entirely.
  */
 const HistoryRetentionSection: React.FC = () => {
+  const { t } = useTranslation();
   const [view, setView] = useState<HistorySettingsView | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -218,7 +242,7 @@ const HistoryRetentionSection: React.FC = () => {
       setAgeDraft('');
       setPerKindDraft('');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '加载历史设置失败');
+      toast.error(err instanceof Error ? err.message : t('settings:system.history.toastLoadFailed'));
     } finally {
       setLoading(false);
     }
@@ -235,29 +259,33 @@ const HistoryRetentionSection: React.FC = () => {
       setView(v);
       if (patch.maxAgeDays !== undefined) setAgeDraft('');
       if (patch.maxPerKind !== undefined) setPerKindDraft('');
-      toast.success('已保存');
+      toast.success(t('settings:common.saved'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '保存失败');
+      toast.error(err instanceof Error ? err.message : t('settings:common.saveFailed'));
     } finally {
       setSaving(false);
     }
   };
 
   const runPrune = async () => {
-    if (!confirm('确认立即清理超出保留策略的历史记录? 不可恢复。')) return;
+    if (!confirm(t('settings:system.history.confirmPrune'))) return;
     setPruning(true);
     try {
       const { outcome, view: fresh } = await pruneHistory();
       setView(fresh);
       if (outcome.total === 0) {
-        toast.success('已检查，无需清理');
+        toast.success(t('settings:system.history.toastChecked'));
       } else {
         toast.success(
-          `已清理 ${outcome.total} 条 (按时间 ${outcome.ageDeleted}, 按数量 ${outcome.perKindDeleted})`,
+          t('settings:system.history.toastPruned', {
+            total: outcome.total,
+            age: outcome.ageDeleted,
+            perKind: outcome.perKindDeleted,
+          }),
         );
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '清理失败');
+      toast.error(err instanceof Error ? err.message : t('settings:system.history.toastPruneFailed'));
     } finally {
       setPruning(false);
     }
@@ -268,10 +296,10 @@ const HistoryRetentionSection: React.FC = () => {
       <section style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
           <History size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-          生成历史保留
+          {t('settings:system.history.title')}
         </h3>
         <div style={sectionBodyStyle}>
-          <div style={emptyStyle}>{loading ? '加载中…' : '加载失败'}</div>
+          <div style={emptyStyle}>{loading ? t('settings:common.loading') : t('settings:common.loadFailed')}</div>
         </div>
       </section>
     );
@@ -294,29 +322,30 @@ const HistoryRetentionSection: React.FC = () => {
     <section style={sectionStyle}>
       <h3 style={sectionTitleStyle}>
         <History size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-        生成历史保留
+        {t('settings:system.history.title')}
       </h3>
       <div style={sectionBodyStyle}>
-        <p style={hintStyle}>
-          开源版不跑定时任务：每次新生成会顺手做一次节流清理（10 分钟内最多触发一次），
-          也可以从下面的「立即清理」按钮强制触发。两个阈值任一保存为 0 表示禁用该维度。
-        </p>
+        <p style={hintStyle}>{t('settings:system.history.hint')}</p>
 
         {/* Counts overview */}
         <div style={countsRowStyle}>
-          <CountChip label="总计" value={view.counts.total} primary />
-          {HISTORY_KINDS.map(({ kind, label }) => (
-            <CountChip key={kind} label={label} value={view.counts[kind] ?? 0} />
+          <CountChip label={t('settings:kind.total')} value={view.counts.total} primary />
+          {HISTORY_KINDS.map(({ kind, labelKey }) => (
+            <CountChip key={kind} label={t(labelKey)} value={view.counts[kind] ?? 0} />
           ))}
         </div>
 
         {/* Knobs */}
         <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>最大保留天数</span>
+          <span style={fieldLabelStyle}>{t('settings:system.history.maxAgeDays')}</span>
           <input
             value={ageDraft}
             onChange={(e) => setAgeDraft(e.target.value)}
-            placeholder={`当前 ${view.maxAgeDays}d · 默认 ${view.maxAgeDaysDefault}d${view.maxAgeDaysConfigured ? '' : ' (未配置)'}`}
+            placeholder={t('settings:system.history.placeholderAge', {
+              cur: view.maxAgeDays,
+              def: view.maxAgeDaysDefault,
+              suffix: view.maxAgeDaysConfigured ? '' : t('settings:system.history.notConfiguredSuffix'),
+            })}
             style={{ ...inputStyle, width: 220, flex: 'none' }}
             type="number"
             min="0"
@@ -328,7 +357,7 @@ const HistoryRetentionSection: React.FC = () => {
             style={ageDirty ? buttonAccentStyle : buttonStyle}
             disabled={!ageDirty || saving}
           >
-            保存
+            {t('settings:common.save')}
           </button>
           {view.maxAgeDaysConfigured && (
             <button
@@ -336,19 +365,23 @@ const HistoryRetentionSection: React.FC = () => {
               onClick={() => apply({ maxAgeDays: -1 })}
               style={buttonGhostStyle}
               disabled={saving}
-              title={`清除 DB 配置，回退到内置默认 ${view.maxAgeDaysDefault} 天`}
+              title={t('settings:system.history.resetAgeTitle', { count: view.maxAgeDaysDefault })}
             >
-              重置默认
+              {t('settings:common.resetDefault')}
             </button>
           )}
         </div>
 
         <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>每个 kind 最多条数</span>
+          <span style={fieldLabelStyle}>{t('settings:system.history.maxPerKind')}</span>
           <input
             value={perKindDraft}
             onChange={(e) => setPerKindDraft(e.target.value)}
-            placeholder={`当前 ${view.maxPerKind} · 默认 ${view.maxPerKindDefault}${view.maxPerKindConfigured ? '' : ' (未配置)'}`}
+            placeholder={t('settings:system.history.placeholderPerKind', {
+              cur: view.maxPerKind,
+              def: view.maxPerKindDefault,
+              suffix: view.maxPerKindConfigured ? '' : t('settings:system.history.notConfiguredSuffix'),
+            })}
             style={{ ...inputStyle, width: 220, flex: 'none' }}
             type="number"
             min="0"
@@ -360,7 +393,7 @@ const HistoryRetentionSection: React.FC = () => {
             style={perKindDirty ? buttonAccentStyle : buttonStyle}
             disabled={!perKindDirty || saving}
           >
-            保存
+            {t('settings:common.save')}
           </button>
           {view.maxPerKindConfigured && (
             <button
@@ -368,16 +401,16 @@ const HistoryRetentionSection: React.FC = () => {
               onClick={() => apply({ maxPerKind: -1 })}
               style={buttonGhostStyle}
               disabled={saving}
-              title={`清除 DB 配置，回退到内置默认 ${view.maxPerKindDefault} 条/kind`}
+              title={t('settings:system.history.resetPerKindTitle', { count: view.maxPerKindDefault })}
             >
-              重置默认
+              {t('settings:common.resetDefault')}
             </button>
           )}
         </div>
 
         {/* Manual prune */}
         <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>立即清理</span>
+          <span style={fieldLabelStyle}>{t('settings:system.history.manualPrune')}</span>
           <button
             type="button"
             onClick={() => void runPrune()}
@@ -385,12 +418,15 @@ const HistoryRetentionSection: React.FC = () => {
             disabled={pruning || saving}
           >
             <Trash2 size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-            {pruning ? '清理中…' : '执行'}
+            {pruning ? t('settings:system.history.pruning') : t('settings:common.run')}
           </button>
           <span style={lastPruneStyle}>
             {view.lastPruneAt
-              ? `上次：${new Date(view.lastPruneAt).toLocaleString()} · 删除 ${view.lastPruneDeleted} 条`
-              : '上次：未运行（自后端启动）'}
+              ? t('settings:system.history.lastPrune', {
+                  at: new Date(view.lastPruneAt).toLocaleString(),
+                  count: view.lastPruneDeleted,
+                })
+              : t('settings:system.history.lastPruneNever')}
           </span>
         </div>
       </div>
@@ -419,6 +455,7 @@ const HistoryRetentionSection: React.FC = () => {
  * configuration needed here.
  */
 const StorageSection: React.FC = () => {
+  const { t } = useTranslation();
   const [view, setView] = useState<StorageSettingsView | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -439,7 +476,7 @@ const StorageSection: React.FC = () => {
           : '',
       });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '加载存储设置失败');
+      toast.error(err instanceof Error ? err.message : t('settings:system.storage.toastLoadFailed'));
     } finally {
       setLoading(false);
     }
@@ -469,9 +506,9 @@ const StorageSection: React.FC = () => {
               : ''
             : s.maxFileSizeMb,
       }));
-      toast.success('已保存');
+      toast.success(t('settings:common.saved'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '保存失败');
+      toast.error(err instanceof Error ? err.message : t('settings:common.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -482,10 +519,10 @@ const StorageSection: React.FC = () => {
       <section style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
           <HardDrive size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-          本地存储
+          {t('settings:system.storage.title')}
         </h3>
         <div style={sectionBodyStyle}>
-          <div style={emptyStyle}>{loading ? '加载中…' : '加载失败'}</div>
+          <div style={emptyStyle}>{loading ? t('settings:common.loading') : t('settings:common.loadFailed')}</div>
         </div>
       </section>
     );
@@ -501,66 +538,59 @@ const StorageSection: React.FC = () => {
     drafts.maxFileSizeMb !== currentMaxMb &&
     (drafts.maxFileSizeMb === '' || (Number.isFinite(maxMbNum) && maxMbNum >= 0));
 
-  // dataDir 来源标签 + 提示
+  // dataDir 来源标签 (从 settings:system.storage.sourceLabel.* 拿翻译).
   const sourceLabel: Record<StorageSettingsView['dataDirSource'], string> = {
-    db: 'DB 覆盖',
-    env: 'STORAGE_LOCAL_DATA_DIR',
-    default: '内置默认',
+    db: t('settings:system.storage.sourceLabel.db'),
+    env: t('settings:system.storage.sourceLabel.env'),
+    default: t('settings:system.storage.sourceLabel.default'),
   };
 
   return (
     <section style={sectionStyle}>
       <h3 style={sectionTitleStyle}>
         <HardDrive size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-        本地存储
+        {t('settings:system.storage.title')}
       </h3>
       <div style={sectionBodyStyle}>
-        <p style={hintStyle}>
-          所有上传文件、模型生成结果都直接写入下方 <code>data dir</code>，由 backend 的{' '}
-          <code>/static/uploads/&lt;key&gt;</code> 路由对外提供。生产部署请把这个路径放到一个
-          独立挂载卷（<code>docker-compose.yml</code> 已经默认这么做），<code>docker compose down</code> 不会丢数据。
-          <br />
-          需要让阿里云模型读取本地图片做 i2i / i2v？后端会在 submit 之前自动把对应文件再上传到
-          DashScope 临时桶（<code>oss://</code>，48h 失效），这里无需任何额外配置。
-        </p>
+        <p style={hintStyle}>{t('settings:system.storage.hint')}</p>
 
         {/* Status overview */}
         <div style={statusGridStyle}>
           <StatusCard
             icon={<Folder size={14} />}
-            label="Data dir"
+            label={t('settings:system.storage.dataDirLabel')}
             value={view.dataDir}
-            source={`${sourceLabel[view.dataDirSource]} · 默认 ${view.dataDirDefault}`}
+            source={`${sourceLabel[view.dataDirSource]} · ${view.dataDirDefault}`}
             ok
           />
           <StatusCard
             icon={<Database size={14} />}
-            label="占用空间"
+            label={t('settings:system.storage.sizeLabel')}
             value={formatBytes(view.stats.bytes)}
-            source={`${view.stats.fileCount.toLocaleString()} 个文件`}
+            source={t('settings:system.storage.sizeSub', { count: view.stats.fileCount.toLocaleString() })}
             ok
           />
           <StatusCard
             icon={<Link2 size={14} />}
-            label="对外路径"
+            label={t('settings:system.storage.publicUrlLabel')}
             value={`${view.publicBaseUrl}/<key>`}
-            source="同源静态文件 · 1y immutable cache"
+            source={t('settings:system.storage.publicUrlSub')}
             ok
           />
         </div>
 
         {/* Data dir */}
         <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>Data dir</span>
+          <span style={fieldLabelStyle}>{t('settings:system.storage.dataDirLabel')}</span>
           <input
             value={drafts.dataDir}
             onChange={(e) => setDrafts((s) => ({ ...s, dataDir: e.target.value }))}
             placeholder={
               view.dataDirSource === 'db'
-                ? '已用 DB 配置 · 输入新路径覆盖'
+                ? t('settings:system.storage.dataDirPlaceholderConfigured')
                 : view.dataDirSource === 'env'
-                  ? `当前来自环境变量: ${view.dataDir}`
-                  : `内置默认: ${view.dataDirDefault}`
+                  ? `${sourceLabel.env}: ${view.dataDir}`
+                  : `${sourceLabel.default}: ${view.dataDirDefault}`
             }
             style={inputMonoStyle}
             disabled={saving}
@@ -571,31 +601,35 @@ const StorageSection: React.FC = () => {
             style={dataDirDirty ? buttonAccentStyle : buttonStyle}
             disabled={!dataDirDirty || saving}
           >
-            保存
+            {t('settings:common.save')}
           </button>
           {view.dataDirSource === 'db' && (
             <button
               type="button"
               onClick={() => {
-                if (!confirm('确认清除 DB 配置? 清除后回退到环境变量 / 内置默认。已写入旧路径的文件不会自动迁移。')) return;
+                if (!confirm(t('settings:system.storage.dataDirConfirmClear'))) return;
                 void apply({ dataDir: '' });
               }}
               style={buttonGhostStyle}
               disabled={saving}
-              title="从 DB 删除该字段；回退到 STORAGE_LOCAL_DATA_DIR 或内置默认"
+              title={t('settings:system.storage.dataDirResetTitle')}
             >
-              重置默认
+              {t('settings:common.resetDefault')}
             </button>
           )}
         </div>
 
         {/* Max File Size */}
         <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>最大文件大小 (MB)</span>
+          <span style={fieldLabelStyle}>{t('settings:system.storage.maxFileLabel')}</span>
           <input
             value={drafts.maxFileSizeMb}
             onChange={(e) => setDrafts((s) => ({ ...s, maxFileSizeMb: e.target.value }))}
-            placeholder={`当前 ${Math.floor(view.maxFileSize / 1024 / 1024)}MB · 默认 ${Math.floor(view.maxFileSizeDefault / 1024 / 1024)}MB${view.maxFileSizeConfigured ? '' : ' (未配置)'}`}
+            placeholder={t('settings:system.storage.maxFilePlaceholder', {
+              cur: Math.floor(view.maxFileSize / 1024 / 1024),
+              def: Math.floor(view.maxFileSizeDefault / 1024 / 1024),
+              suffix: view.maxFileSizeConfigured ? '' : t('settings:system.history.notConfiguredSuffix'),
+            })}
             style={{ ...inputStyle, width: 240, flex: 'none' }}
             type="number"
             min="0"
@@ -614,7 +648,7 @@ const StorageSection: React.FC = () => {
             style={maxFileSizeDirty ? buttonAccentStyle : buttonStyle}
             disabled={!maxFileSizeDirty || saving}
           >
-            保存
+            {t('settings:common.save')}
           </button>
           {view.maxFileSizeConfigured && (
             <button
@@ -692,21 +726,23 @@ const StatusCard: React.FC<{
 // 未来加字节/谷歌：在 PROVIDER_CARDS 数组里加一项即可，UI 自动多一个 tab。
 
 interface ProviderCard {
-  id: 'dashscope' | 'openai';
-  label: string;
+  id: 'dashscope' | 'openai' | 'volcengine';
+  /** i18n key for the human-readable provider label (tab + status card). */
+  labelKey: string;
   defaultBaseUrl: string;
   /** 影响范围 chips：每条对应 ProviderRegistry 里的一个 supports() 前缀。 */
   scopeChips: { sku: string; modality: 'chat' | 'image' | 'video' | 'audio' }[];
-  /** 超时档位 + 文案。video/audio 两档保留即使没 provider，让 schema 一致。 */
-  timeoutKinds: { kind: ProviderKind; label: string; hint: string }[];
-  /** 各档说明 callout 的文字。 */
-  timeoutsHint: string;
-  baseUrlHint: React.ReactNode;
-  apiKeyHint: React.ReactNode;
+  /** 超时档位 + 文案 (label 保 English 跟 backend kind 对齐, hint 走 i18n). */
+  timeoutKinds: { kind: ProviderKind; label: string; hintKey: string }[];
+  timeoutsHintKey: string;
+  baseUrlHintKey: string;
+  apiKeyHintKey: string;
+  /** 可选的二段警告 (Volcengine OSS 依赖), 红字渲染. */
+  apiKeyWarningKey?: string;
   load: () => Promise<ProviderConfigView>;
   save: (patch: ProviderConfigPatch) => Promise<ProviderConfigView>;
-  /** 只在确认清除 apiKey 时弹的话术；默认是通用文案。 */
-  clearKeyConfirm: string;
+  /** 清除 apiKey 弹窗话术的 i18n key (每个 provider 单独, 列出影响 SKU). */
+  clearKeyConfirmKey: string;
 }
 
 type ProviderKind = 'chat' | 'image' | 'video' | 'audio';
@@ -728,7 +764,7 @@ interface ProviderConfigPatch {
 const PROVIDER_CARDS: ProviderCard[] = [
   {
     id: 'dashscope',
-    label: 'DashScope (阿里百炼)',
+    labelKey: 'settings:system.providers.dashscope.label',
     defaultBaseUrl: 'https://dashscope.aliyuncs.com',
     scopeChips: [
       { sku: 'qwen-*', modality: 'chat' },
@@ -740,88 +776,87 @@ const PROVIDER_CARDS: ProviderCard[] = [
       { sku: 'speech-* / fun-music*', modality: 'audio' },
     ],
     timeoutKinds: [
-      { kind: 'chat', label: 'Chat', hint: '同步对话调用 (qwen / deepseek / glm)' },
-      { kind: 'image', label: 'Image', hint: '同步万相 2.7 图像 submit（multimodal-generation）' },
-      { kind: 'video', label: 'Video', hint: '异步视频 submit；polling 固定 10s 不暴露' },
-      { kind: 'audio', label: 'Audio', hint: 'TTS / FunMusic / 音色复刻 submit' },
+      { kind: 'chat', label: 'Chat', hintKey: 'settings:system.providers.dashscope.kindHints.chat' },
+      { kind: 'image', label: 'Image', hintKey: 'settings:system.providers.dashscope.kindHints.image' },
+      { kind: 'video', label: 'Video', hintKey: 'settings:system.providers.dashscope.kindHints.video' },
+      { kind: 'audio', label: 'Audio', hintKey: 'settings:system.providers.dashscope.kindHints.audio' },
     ],
-    timeoutsHint:
-      '按 model kind 分别设置 submit 调用超时。Polling（image/video）固定 10s 不暴露 — polling 是轻 GET，过长意味着是 bug，不是 tuning knob。留空 = 用内置默认；保存值 ≥ 1s。',
-    baseUrlHint: (
-      <>
-        DashScope (Bailian) 网关地址。留空回退到默认 <code>https://dashscope.aliyuncs.com</code>。
-        国际版账号请改 <code>https://dashscope-intl.aliyuncs.com</code>。
-      </>
-    ),
-    apiKeyHint: (
-      <>
-        落库前用 <code>ENCRYPTION_KEY</code> 做 aes-256-gcm 加密；页面只显示掩码（如{' '}
-        <code>sk-1de...0252</code>），永不回传明文。修改约 30 秒内对所有 model 调用生效。
-      </>
-    ),
+    timeoutsHintKey: 'settings:system.providers.dashscope.timeoutsHint',
+    baseUrlHintKey: 'settings:system.providers.dashscope.baseUrlHint',
+    apiKeyHintKey: 'settings:system.providers.dashscope.apiKeyHint',
     load: getProviderSettings,
     save: updateProviderSettings,
-    clearKeyConfirm:
-      '确认清除 DashScope API Key? 清除后 qwen-* / wan2.7-* / glm / deepseek / speech-* / fun-music 等所有阿里系 SKU 都会调用失败。',
+    clearKeyConfirmKey: 'settings:system.providers.dashscope.clearKeyConfirm',
   },
   {
     id: 'openai',
-    label: 'OpenAI-compatible',
+    labelKey: 'settings:system.providers.openai.label',
     defaultBaseUrl: 'https://api.openai.com/v1',
     scopeChips: [
       { sku: 'openai-chat/*', modality: 'chat' },
       { sku: 'openai-image/*', modality: 'image' },
     ],
     timeoutKinds: [
-      { kind: 'chat', label: 'Chat', hint: '/chat/completions (gpt-* / openrouter / vllm ...)' },
-      { kind: 'image', label: 'Image', hint: '/images/generations (dall-e-3 偶发 60s+)' },
-      { kind: 'video', label: 'Video', hint: '当前 OpenAI 无标准视频接口；保留以兼容未来扩展' },
-      { kind: 'audio', label: 'Audio', hint: '/audio/speech TTS（暂未接入 provider，预留 schema）' },
+      { kind: 'chat', label: 'Chat', hintKey: 'settings:system.providers.openai.kindHints.chat' },
+      { kind: 'image', label: 'Image', hintKey: 'settings:system.providers.openai.kindHints.image' },
+      { kind: 'video', label: 'Video', hintKey: 'settings:system.providers.openai.kindHints.video' },
+      { kind: 'audio', label: 'Audio', hintKey: 'settings:system.providers.openai.kindHints.audio' },
     ],
-    timeoutsHint:
-      'DALL-E 3 / GPT-image-1 偶发 60s+，所以默认值比 DashScope 略宽。video / audio 两档暂时无对应 provider，配置仍保留以便未来加入。留空 = 用内置默认；保存值 ≥ 1s。',
-    baseUrlHint: (
-      <>
-        支持任何 <strong>OpenAI Chat Completions / Images Generations</strong> 协议的网关：
-        <code>OpenAI</code> · <code>OpenRouter</code> · <code>Together</code> ·{' '}
-        <code>Groq</code> · 自建 <code>vLLM</code>。约定 base URL <strong>包含 <code>/v1</code> 且末尾不含斜线</strong>（保存时自动剪掉）。OpenRouter 用{' '}
-        <code>https://openrouter.ai/api/v1</code>，自建 vLLM 用 <code>http://your-host:8000/v1</code>。
-      </>
-    ),
-    apiKeyHint: (
-      <>
-        落库前用 <code>ENCRYPTION_KEY</code> 做 aes-256-gcm 加密；页面只显示掩码（如{' '}
-        <code>sk-1de...0252</code>），永不回传明文。配置后才能在 <code>/admin/config</code> 把
-        <code>openai-chat/&lt;model&gt;</code>、<code>openai-image/&lt;model&gt;</code> 加进节点 models 列表。
-      </>
-    ),
+    timeoutsHintKey: 'settings:system.providers.openai.timeoutsHint',
+    baseUrlHintKey: 'settings:system.providers.openai.baseUrlHint',
+    apiKeyHintKey: 'settings:system.providers.openai.apiKeyHint',
     load: getOpenaiSettings,
     save: updateOpenaiSettings,
-    clearKeyConfirm:
-      '确认清除 OpenAI API Key? 清除后所有 openai-chat/* / openai-image/* SKU 都会调用失败。',
+    clearKeyConfirmKey: 'settings:system.providers.openai.clearKeyConfirm',
+  },
+  {
+    id: 'volcengine',
+    labelKey: 'settings:system.providers.volcengine.label',
+    defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+    scopeChips: [
+      { sku: 'doubao-seedance-* / seedance-*', modality: 'video' },
+    ],
+    timeoutKinds: [
+      { kind: 'chat', label: 'Chat', hintKey: 'settings:system.providers.volcengine.kindHints.chat' },
+      { kind: 'image', label: 'Image', hintKey: 'settings:system.providers.volcengine.kindHints.image' },
+      { kind: 'video', label: 'Video', hintKey: 'settings:system.providers.volcengine.kindHints.video' },
+      { kind: 'audio', label: 'Audio', hintKey: 'settings:system.providers.volcengine.kindHints.audio' },
+    ],
+    timeoutsHintKey: 'settings:system.providers.volcengine.timeoutsHint',
+    baseUrlHintKey: 'settings:system.providers.volcengine.baseUrlHint',
+    apiKeyHintKey: 'settings:system.providers.volcengine.apiKeyHint',
+    apiKeyWarningKey: 'settings:system.providers.volcengine.ossWarning',
+    load: getVolcengineSettings,
+    save: updateVolcengineSettings,
+    clearKeyConfirmKey: 'settings:system.providers.volcengine.clearKeyConfirm',
   },
 ];
 
 const ProvidersSection: React.FC = () => {
+  const { t } = useTranslation();
   const [activeId, setActiveId] = useState<ProviderCard['id']>('dashscope');
   // 两个 provider 各自的 view + draft 都 own 在这里，并发 load 一次拿到。
   const [views, setViews] = useState<Record<ProviderCard['id'], ProviderConfigView | null>>({
     dashscope: null,
     openai: null,
+    volcengine: null,
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [baseUrlDrafts, setBaseUrlDrafts] = useState<Record<ProviderCard['id'], string>>({
     dashscope: '',
     openai: '',
+    volcengine: '',
   });
   const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<ProviderCard['id'], string>>({
     dashscope: '',
     openai: '',
+    volcengine: '',
   });
   const [showKey, setShowKey] = useState<Record<ProviderCard['id'], boolean>>({
     dashscope: false,
     openai: false,
+    volcengine: false,
   });
 
   const loadAll = async () => {
@@ -842,7 +877,7 @@ const ProvidersSection: React.FC = () => {
       setViews(next);
       setBaseUrlDrafts(nextBaseDrafts);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '加载 Provider 设置失败');
+      toast.error(err instanceof Error ? err.message : t('settings:system.providers.toastLoadFailed'));
     } finally {
       setLoading(false);
     }
@@ -867,9 +902,9 @@ const ProvidersSection: React.FC = () => {
         setApiKeyDrafts((s) => ({ ...s, [id]: '' }));
         setShowKey((s) => ({ ...s, [id]: false }));
       }
-      toast.success('已保存');
+      toast.success(t('settings:common.saved'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '保存失败');
+      toast.error(err instanceof Error ? err.message : t('settings:common.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -881,13 +916,9 @@ const ProvidersSection: React.FC = () => {
     <section style={sectionStyle}>
       <h3 style={sectionTitleStyle}>
         <Plug size={11} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-        模型 Provider 设置
+        {t('settings:system.providers.sectionTitle')}
       </h3>
       <div style={sectionBodyStyle}>
-        <p style={hintStyle}>
-          每个 Provider 接管一组 SKU 前缀；在下方 tab 里改 baseUrl / apiKey / timeout
-          只会影响该 provider 的 SKU。新增的模型条目仍然在 <code>/admin/config</code> 的节点 models 列表里挂。
-        </p>
 
         {/* 4 张状态卡：两 provider × (baseUrl, apiKey) —— 一眼看全配置态 */}
         <div style={statusGridStyle}>
@@ -897,20 +928,26 @@ const ProvidersSection: React.FC = () => {
               <React.Fragment key={card.id}>
                 <StatusCard
                   icon={<Link2 size={14} />}
-                  label={`${card.label} · Base URL`}
-                  value={v ? v.baseUrl : '加载中…'}
-                  source={v ? (v.baseUrlConfigured ? 'DB 覆盖' : '内置默认') : ''}
+                  label={`${t(card.labelKey)} · ${t('settings:system.providers.statusCard.baseUrlLabel')}`}
+                  value={v ? v.baseUrl : t('settings:common.loading')}
+                  source={v ? (v.baseUrlConfigured ? t('settings:common.dbOverride') : t('settings:common.builtinDefault')) : ''}
                   ok
                 />
                 <StatusCard
                   icon={<KeyRound size={14} />}
-                  label={`${card.label} · API Key`}
-                  value={v ? (v.apiKeyConfigured ? v.apiKeyMask ?? '已配置' : '未配置') : '加载中…'}
+                  label={`${t(card.labelKey)} · ${t('settings:system.providers.statusCard.apiKeyLabel')}`}
+                  value={
+                    v
+                      ? v.apiKeyConfigured
+                        ? v.apiKeyMask ?? t('settings:common.configured')
+                        : t('settings:common.notConfigured')
+                      : t('settings:common.loading')
+                  }
                   source={
                     v
                       ? v.apiKeyConfigured
-                        ? 'DB · 加密存储'
-                        : '⚠ 未配置 · 该 provider 不可用'
+                        ? t('settings:system.providers.statusCard.apiKeySourceConfigured')
+                        : t('settings:system.providers.statusCard.apiKeySourceMissing')
                       : ''
                   }
                   ok={v ? v.apiKeyConfigured : true}
@@ -931,14 +968,14 @@ const ProvidersSection: React.FC = () => {
                 onClick={() => setActiveId(card.id)}
                 style={active ? tabActiveStyle : tabStyle}
               >
-                {card.label}
+                {t(card.labelKey)}
               </button>
             );
           })}
         </div>
 
         {!allLoaded ? (
-          <div style={emptyStyle}>{loading ? '加载中…' : '加载失败'}</div>
+          <div style={emptyStyle}>{loading ? t('settings:common.loading') : t('settings:common.loadFailed')}</div>
         ) : (
           <ProviderTabBody
             card={PROVIDER_CARDS.find((c) => c.id === activeId)!}
@@ -981,13 +1018,14 @@ const ProviderTabBody: React.FC<{
   setShowKey,
   apply,
 }) => {
+  const { t } = useTranslation();
   const baseUrlDirty = baseUrlDraft.trim() !== (view.baseUrlConfigured ? view.baseUrl : '');
   const apiKeyDirty = apiKeyDraft.trim().length > 0;
 
   return (
     <div style={tabBodyStyle}>
       {/* 影响范围 callout：明确告诉用户改这个 provider 会影响哪些 SKU */}
-      <ScopeCallout chips={card.scopeChips} vendorLabel={card.label} />
+      <ScopeCallout chips={card.scopeChips} vendorLabel={t(card.labelKey)} />
 
       {/* Base URL */}
       <div style={fieldGroupStyle}>
@@ -995,13 +1033,13 @@ const ProviderTabBody: React.FC<{
           <Link2 size={12} />
           <span>Base URL</span>
         </div>
-        <p style={hintStyle}>{card.baseUrlHint}</p>
+        <p style={hintStyle}>{t(card.baseUrlHintKey)}</p>
         <div style={fieldRowStyle}>
           <span style={fieldLabelStyle}>Base URL</span>
           <input
             value={baseUrlDraft}
             onChange={(e) => setBaseUrlDraft(e.target.value)}
-            placeholder={`默认 ${card.defaultBaseUrl}`}
+            placeholder={t('settings:system.providers.baseUrlPlaceholder', { url: card.defaultBaseUrl })}
             style={inputMonoStyle}
             disabled={saving}
           />
@@ -1011,7 +1049,7 @@ const ProviderTabBody: React.FC<{
             style={baseUrlDirty ? buttonAccentStyle : buttonStyle}
             disabled={!baseUrlDirty || saving}
           >
-            保存
+            {t('settings:common.save')}
           </button>
           {view.baseUrlConfigured && (
             <button
@@ -1019,9 +1057,9 @@ const ProviderTabBody: React.FC<{
               onClick={() => apply({ baseUrl: '' })}
               style={buttonGhostStyle}
               disabled={saving}
-              title="清除 DB 配置，回退到默认 URL"
+              title={t('settings:system.providers.baseUrlResetTitle')}
             >
-              重置默认
+              {t('settings:common.resetDefault')}
             </button>
           )}
         </div>
@@ -1033,7 +1071,12 @@ const ProviderTabBody: React.FC<{
           <KeyRound size={12} />
           <span>API Key</span>
         </div>
-        <p style={hintStyle}>{card.apiKeyHint}</p>
+        <p style={hintStyle}>{t(card.apiKeyHintKey)}</p>
+        {card.apiKeyWarningKey && (
+          <p style={{ ...hintStyle, color: tokens.warn, marginTop: 6 }}>
+            {t(card.apiKeyWarningKey)}
+          </p>
+        )}
         <div style={fieldRowStyle}>
           <span style={fieldLabelStyle}>API Key</span>
           <div style={apiKeyInputWrapStyle}>
@@ -1042,8 +1085,8 @@ const ProviderTabBody: React.FC<{
               onChange={(e) => setApiKeyDraft(e.target.value)}
               placeholder={
                 view.apiKeyConfigured
-                  ? `当前: ${view.apiKeyMask} · 输入新值覆盖`
-                  : '尚未配置 · 输入 sk-... 并保存'
+                  ? t('settings:system.providers.apiKeyPlaceholderConfigured', { mask: view.apiKeyMask })
+                  : t('settings:system.providers.apiKeyPlaceholderEmpty')
               }
               type={showKey ? 'text' : 'password'}
               style={{ ...inputMonoStyle, paddingRight: 36 }}
@@ -1054,7 +1097,7 @@ const ProviderTabBody: React.FC<{
               type="button"
               onClick={() => setShowKey(!showKey)}
               style={eyeBtnStyle}
-              title={showKey ? '隐藏' : '显示'}
+              title={showKey ? t('settings:common.hide') : t('settings:common.show')}
               tabIndex={-1}
             >
               {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
@@ -1066,45 +1109,49 @@ const ProviderTabBody: React.FC<{
             style={apiKeyDirty ? buttonAccentStyle : buttonStyle}
             disabled={!apiKeyDirty || saving}
           >
-            保存
+            {t('settings:common.save')}
           </button>
           {view.apiKeyConfigured && (
             <button
               type="button"
               onClick={() => {
-                if (!confirm(card.clearKeyConfirm)) return;
+                if (!confirm(t(card.clearKeyConfirmKey))) return;
                 apply({ apiKey: '' });
               }}
               style={buttonGhostStyle}
               disabled={saving}
-              title="从 DB 删除 apiKey 行"
+              title={t('settings:system.providers.apiKeyClearTitle')}
             >
-              清除
+              {t('settings:common.clear')}
             </button>
           )}
         </div>
         {/* 探活按钮: 输入框为空时用 DB 已存的, 非空时用草稿; 详细规则见
             TestConnectionButton 组件文档. 放在 API Key 行下面是因为它最常和
-            "我刚改了 key 想验一下"或"配错了不知道为啥不通"的两类操作绑在一起. */}
-        <div style={fieldRowStyle}>
-          <span style={fieldLabelStyle}>连通性测试</span>
-          <TestConnectionButton
-            providerId={card.id}
-            baseUrlDraft={baseUrlDraft}
-            apiKeyDraft={apiKeyDraft}
-            hasSavedKey={view.apiKeyConfigured}
-            disabled={saving}
-          />
-        </div>
+            "我刚改了 key 想验一下"或"配错了不知道为啥不通"的两类操作绑在一起.
+            Volcengine 暂未接 ProviderConnectivityService 的 testVolcengine
+            endpoint, 隐藏按钮 — 等 Slice 3 (asset 后端) 起来一起补. */}
+        {card.id !== 'volcengine' && (
+          <div style={fieldRowStyle}>
+            <span style={fieldLabelStyle}>{t('settings:system.testConnection.label')}</span>
+            <TestConnectionButton
+              providerId={card.id}
+              baseUrlDraft={baseUrlDraft}
+              apiKeyDraft={apiKeyDraft}
+              hasSavedKey={view.apiKeyConfigured}
+              disabled={saving}
+            />
+          </div>
+        )}
       </div>
 
       {/* Timeouts */}
       <div style={fieldGroupStyle}>
         <div style={fieldGroupHeadStyle}>
           <Timer size={12} />
-          <span>超时设置 (秒)</span>
+          <span>{t('settings:system.providers.timeoutsTitle')}</span>
         </div>
-        <p style={hintStyle}>{card.timeoutsHint}</p>
+        <p style={hintStyle}>{t(card.timeoutsHintKey)}</p>
         <TimeoutsTable
           view={view}
           kinds={card.timeoutKinds}
@@ -1126,24 +1173,27 @@ const ProviderTabBody: React.FC<{
 const ScopeCallout: React.FC<{
   chips: ProviderCard['scopeChips'];
   vendorLabel: string;
-}> = ({ chips, vendorLabel }) => (
-  <div style={scopeCalloutStyle}>
-    <div style={scopeCalloutHeadStyle}>
-      <span style={scopeCalloutLabelStyle}>影响范围</span>
-      <span style={scopeCalloutDescStyle}>
-        改 <strong>{vendorLabel}</strong> 的 baseUrl / apiKey / timeout 会影响以下 SKU 前缀：
-      </span>
-    </div>
-    <div style={scopeChipsStyle}>
-      {chips.map((c, i) => (
-        <span key={`${c.sku}-${i}`} style={{ ...scopeChipStyle, ...modalityChipStyle[c.modality] }}>
-          <code style={{ background: 'transparent', padding: 0 }}>{c.sku}</code>
-          <span style={scopeChipModalityStyle}>{c.modality}</span>
+}> = ({ chips, vendorLabel }) => {
+  const { t } = useTranslation();
+  return (
+    <div style={scopeCalloutStyle}>
+      <div style={scopeCalloutHeadStyle}>
+        <span style={scopeCalloutLabelStyle}>{t('settings:system.scopeCallout.label')}</span>
+        <span style={scopeCalloutDescStyle}>
+          {t('settings:system.scopeCallout.desc', { vendor: vendorLabel })}
         </span>
-      ))}
+      </div>
+      <div style={scopeChipsStyle}>
+        {chips.map((c, i) => (
+          <span key={`${c.sku}-${i}`} style={{ ...scopeChipStyle, ...modalityChipStyle[c.modality] }}>
+            <code style={{ background: 'transparent', padding: 0 }}>{c.sku}</code>
+            <span style={scopeChipModalityStyle}>{c.modality}</span>
+          </span>
+        ))}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const TimeoutsTable: React.FC<{
   view: ProviderConfigView;
@@ -1151,6 +1201,7 @@ const TimeoutsTable: React.FC<{
   saving: boolean;
   apply: (timeouts: Partial<Record<ProviderKind, number>>) => void;
 }> = ({ view, kinds, saving, apply }) => {
+  const { t } = useTranslation();
   const [drafts, setDrafts] = useState<Record<ProviderKind, string>>({
     chat: '',
     image: '',
@@ -1160,7 +1211,7 @@ const TimeoutsTable: React.FC<{
 
   return (
     <div style={timeoutTableStyle}>
-      {kinds.map(({ kind, label, hint }) => {
+      {kinds.map(({ kind, label, hintKey }) => {
         const entry = view.timeouts[kind];
         const draft = drafts[kind];
         const draftNum = Number(draft);
@@ -1173,7 +1224,7 @@ const TimeoutsTable: React.FC<{
           <div key={kind} style={timeoutRowStyle}>
             <div style={timeoutLabelColStyle}>
               <span style={timeoutLabelStyle}>{label}</span>
-              <span style={timeoutHintStyle}>{hint}</span>
+              <span style={timeoutHintStyle}>{t(hintKey)}</span>
             </div>
             <div style={timeoutValueColStyle}>
               <span style={timeoutCurrentStyle}>{entry.value}s</span>
@@ -1182,13 +1233,13 @@ const TimeoutsTable: React.FC<{
                   DB
                 </span>
               ) : (
-                <span style={badgeStyle}>默认</span>
+                <span style={badgeStyle}>{t('settings:common.builtinDefault')}</span>
               )}
             </div>
             <input
               value={draft}
               onChange={(e) => setDrafts((s) => ({ ...s, [kind]: e.target.value }))}
-              placeholder="新值"
+              placeholder={t('settings:system.providers.timeoutPlaceholder')}
               style={{ ...inputStyle, width: 100, flex: 'none' }}
               type="number"
               min="1"
@@ -1204,7 +1255,7 @@ const TimeoutsTable: React.FC<{
               style={dirty ? buttonAccentStyle : buttonStyle}
               disabled={!dirty || saving}
             >
-              保存
+              {t('settings:common.save')}
             </button>
             {entry.configured ? (
               <button
@@ -1212,9 +1263,9 @@ const TimeoutsTable: React.FC<{
                 onClick={() => apply({ [kind]: 0 })}
                 style={buttonGhostStyle}
                 disabled={saving}
-                title="清除 DB 配置，回退到内置默认"
+                title={t('settings:system.providers.timeoutResetTitle')}
               >
-                重置
+                {t('settings:common.resetDefault')}
               </button>
             ) : null}
           </div>
@@ -1332,19 +1383,29 @@ const tabBarStyle: React.CSSProperties = {
 const tabStyle: React.CSSProperties = {
   background: 'transparent',
   border: 'none',
+  // 没 active 的 tab 不带自己的下边线, 也不 marginBottom:-1 上拉.
+  // 这样 tabBar 那条 1px 灰线在每个 tab 下方都正常贯穿, 不被
+  // transparent border 刮掉一段 — 跟用户报告的 "tabs 没点击过下方
+  // 没有白色底边" 对得上.
   borderBottom: '2px solid transparent',
   color: tokens.textMuted,
   fontSize: 12,
   padding: '8px 14px',
   cursor: 'pointer',
   fontWeight: 500,
-  marginBottom: -1,
 };
 
 const tabActiveStyle: React.CSSProperties = {
   ...tabStyle,
   color: tokens.textPrimary,
-  borderBottomColor: tokens.accent,
+  // 必须用 shorthand `borderBottom` 而不是 longhand `borderBottomColor`.
+  // tabStyle 是 shorthand, 如果这里用 longhand 覆盖, React 切回 inactive
+  // 时移除 longhand 但 shorthand 已被浏览器拆成 width/style/color 三条,
+  // color 那条没人重写就丢, 之前 active 的 tab 切走后看起来还像 active.
+  borderBottom: `2px solid ${tokens.accent}`,
+  // 上拉 1px 让 accent border 跟 tabBar 的 1px 灰线 (border) 重合,
+  // 视觉上是 "选中的 tab 用 accent 色顶替了那段灰线".
+  marginBottom: -1,
 };
 
 const tabBodyStyle: React.CSSProperties = {

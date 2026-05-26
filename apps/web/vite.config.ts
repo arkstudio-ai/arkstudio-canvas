@@ -62,7 +62,11 @@ const serverConfig = {
 };
 
 export default defineConfig({
-  base: '/',
+  // 用相对路径 (./assets/...) 而不是绝对路径 (/assets/...).
+  // 桌面端 Electron 用 file:// 协议加载 index.html, 绝对路径会被解析到
+  // 文件系统根目录, 资源永远 404 → 黑屏. docker / nginx 自部署仍然从 / 提供,
+  // 相对路径在那边也能 work.
+  base: './',
   plugins: [react()],
   // Compile-time constants; `JSON.stringify` is required so vite
   // substitutes them as literals rather than identifier references.

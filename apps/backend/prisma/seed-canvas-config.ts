@@ -1,3 +1,7 @@
+// 必须放在第一行: 在 PrismaClient 实例化之前给 process.env 兜默认 DATABASE_URL.
+// 详见 ../src/bootstrap-env.ts.
+import '../src/bootstrap-env';
+
 import { Prisma, PrismaClient } from '@prisma/client';
 import {
   DEFAULT_NODE_DEFINITIONS,
@@ -31,6 +35,17 @@ const prisma = new PrismaClient();
  * the catalog, see `prisma/patches/` (idempotent append-only scripts).
  */
 async function main() {
+  // --if-empty: 仅当 node_definitions 为空时才执行 seed。桌面端 / docker
+  // 的 entrypoint 用这个开关确保「升级安装不覆盖 admin 已编辑过的目录」。
+  // 不带这个 flag 就是显式 reset 行为（dev 想恢复默认目录就裸跑）。
+  if (process.argv.includes('--if-empty')) {
+    const existing = await prisma.nodeDefinition.count();
+    if (existing > 0) {
+      console.log(`ℹ️  node_definitions 已存在 ${existing} 条，跳过 seed（--if-empty）`);
+      return;
+    }
+  }
+
   console.log('🌱 开始导入 Canvas Flow 默认节点定义...');
 
   // 只清节点定义；不要碰 globalConfig 表 —— 它存了 DashScope/OpenAI 凭据

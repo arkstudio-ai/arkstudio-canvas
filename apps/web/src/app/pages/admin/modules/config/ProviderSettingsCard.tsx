@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, Eye, EyeOff, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { getProviderSettings, updateProviderSettings } from '../../api/admin-api';
@@ -17,11 +18,11 @@ import {
   tokens,
 } from './styles';
 
-const TIMEOUT_KINDS: { kind: DashscopeKind; label: string; hint: string }[] = [
-  { kind: 'chat', label: 'Chat', hint: '同步对话调用 (qwen / deepseek / glm)' },
-  { kind: 'image', label: 'Image', hint: '异步图像 submit；polling 固定 10s 不暴露' },
-  { kind: 'video', label: 'Video', hint: '异步视频 submit；polling 固定 10s 不暴露' },
-  { kind: 'audio', label: 'Audio', hint: 'TTS / FunMusic / 音色复刻 submit' },
+const TIMEOUT_KINDS: { kind: DashscopeKind; label: string; hintKey: string }[] = [
+  { kind: 'chat', label: 'Chat', hintKey: 'settings:config.providerCard.kinds.chatHint' },
+  { kind: 'image', label: 'Image', hintKey: 'settings:config.providerCard.kinds.imageHint' },
+  { kind: 'video', label: 'Video', hintKey: 'settings:config.providerCard.kinds.videoHint' },
+  { kind: 'audio', label: 'Audio', hintKey: 'settings:config.providerCard.kinds.audioHint' },
 ];
 
 const DEFAULT_BASE_URL = 'https://dashscope.aliyuncs.com';
@@ -43,6 +44,7 @@ const DEFAULT_BASE_URL = 'https://dashscope.aliyuncs.com';
  * the daily node-config workflow isn't visually crowded.
  */
 export const ProviderSettingsCard: React.FC = () => {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<ProviderSettingsView | null>(null);
   const [loading, setLoading] = useState(false);
@@ -58,7 +60,7 @@ export const ProviderSettingsCard: React.FC = () => {
       setView(v);
       setBaseUrlDraft(v.baseUrlConfigured ? v.baseUrl : '');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '加载 Provider 设置失败');
+      toast.error(err instanceof Error ? err.message : t('settings:config.providerCard.toastLoadFailed'));
     } finally {
       setLoading(false);
     }
@@ -84,9 +86,9 @@ export const ProviderSettingsCard: React.FC = () => {
         setApiKeyDraft('');
         setShowKey(false);
       }
-      toast.success('已保存');
+      toast.success(t('settings:common.saved'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '保存失败');
+      toast.error(err instanceof Error ? err.message : t('settings:common.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -101,29 +103,25 @@ export const ProviderSettingsCard: React.FC = () => {
         <button type="button" onClick={() => setOpen((o) => !o)} style={collapseBtnStyle}>
           {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           <KeyRound size={13} />
-          <span>Provider 设置 · DashScope (Bailian)</span>
+          <span>{t('settings:config.providerCard.title')}</span>
         </button>
         <div style={statusRowStyle}>
           {view ?
             <>
               <StatusPill ok={view.baseUrlConfigured || true} label="baseUrl">
-                {view.baseUrl === DEFAULT_BASE_URL && !view.baseUrlConfigured ? '默认' : 'DB'}
+                {view.baseUrl === DEFAULT_BASE_URL && !view.baseUrlConfigured ? t('settings:config.providerCard.statusDefault') : t('settings:config.providerCard.statusDB')}
               </StatusPill>
               <StatusPill ok={view.apiKeyConfigured} label="apiKey">
-                {view.apiKeyConfigured ? view.apiKeyMask ?? 'OK' : '未配置'}
+                {view.apiKeyConfigured ? view.apiKeyMask ?? 'OK' : t('settings:common.notConfigured')}
               </StatusPill>
             </>
-          : <span style={{ fontSize: 11, color: tokens.textMuted }}>{loading ? '加载中…' : ''}</span>}
+          : <span style={{ fontSize: 11, color: tokens.textMuted }}>{loading ? t('settings:common.loading') : ''}</span>}
         </div>
       </div>
 
       {open && (
         <div style={sectionBodyStyle}>
-          <p style={hintStyle}>
-            权威值存储于数据库 <code>global_configs</code>；apiKey 落库前会用 ENCRYPTION_KEY 做 aes-256-gcm 加密。
-            修改后约 30 秒内对所有 model 调用生效（provider 内有短缓存）。
-            空输入框 = 不改；清除某项请使用对应的清除按钮。
-          </p>
+          <p style={hintStyle}>{t('settings:config.providerCard.hint')}</p>
 
           {/* Base URL row */}
           <div style={fieldRowStyle}>
@@ -131,7 +129,7 @@ export const ProviderSettingsCard: React.FC = () => {
             <input
               value={baseUrlDraft}
               onChange={(e) => setBaseUrlDraft(e.target.value)}
-              placeholder={`默认 ${DEFAULT_BASE_URL}`}
+              placeholder={t('settings:config.providerCard.baseUrlPlaceholder', { url: DEFAULT_BASE_URL })}
               style={inputMonoStyle}
               disabled={saving}
             />
@@ -141,7 +139,7 @@ export const ProviderSettingsCard: React.FC = () => {
               style={baseUrlDirty ? buttonAccentStyle : buttonStyle}
               disabled={!baseUrlDirty || saving}
             >
-              保存
+              {t('settings:common.save')}
             </button>
             {view?.baseUrlConfigured && (
               <button
@@ -149,9 +147,9 @@ export const ProviderSettingsCard: React.FC = () => {
                 onClick={() => apply({ baseUrl: '' })}
                 style={buttonGhostStyle}
                 disabled={saving}
-                title="清除 DB 配置，回退到默认 URL"
+                title={t('settings:config.providerCard.baseUrlResetTitle')}
               >
-                重置默认
+                {t('settings:common.resetDefault')}
               </button>
             )}
           </div>
@@ -163,7 +161,9 @@ export const ProviderSettingsCard: React.FC = () => {
               <input
                 value={apiKeyDraft}
                 onChange={(e) => setApiKeyDraft(e.target.value)}
-                placeholder={view?.apiKeyConfigured ? `当前: ${view.apiKeyMask} · 输入新值覆盖` : '尚未配置 · 输入 sk-... 并保存'}
+                placeholder={view?.apiKeyConfigured
+                  ? t('settings:config.providerCard.apiKeyPlaceholderConfigured', { mask: view.apiKeyMask })
+                  : t('settings:config.providerCard.apiKeyPlaceholderEmpty')}
                 type={showKey ? 'text' : 'password'}
                 style={{ ...inputMonoStyle, paddingRight: 36 }}
                 disabled={saving}
@@ -173,7 +173,7 @@ export const ProviderSettingsCard: React.FC = () => {
                 type="button"
                 onClick={() => setShowKey((s) => !s)}
                 style={eyeBtnStyle}
-                title={showKey ? '隐藏' : '显示'}
+                title={showKey ? t('settings:common.hide') : t('settings:common.show')}
                 tabIndex={-1}
               >
                 {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
@@ -185,20 +185,20 @@ export const ProviderSettingsCard: React.FC = () => {
               style={apiKeyDirty ? buttonAccentStyle : buttonStyle}
               disabled={!apiKeyDirty || saving}
             >
-              保存
+              {t('settings:common.save')}
             </button>
             {view?.apiKeyConfigured && (
               <button
                 type="button"
                 onClick={() => {
-                  if (!confirm('确认清除 API Key? 清除后所有模型调用都会失败，直到重新配置。')) return;
+                  if (!confirm(t('settings:config.providerCard.clearKeyConfirm'))) return;
                   void apply({ apiKey: '' });
                 }}
                 style={buttonGhostStyle}
                 disabled={saving}
-                title="从 DB 删除 apiKey 行"
+                title={t('settings:config.providerCard.apiKeyClearTitle')}
               >
-                清除
+                {t('settings:common.clear')}
               </button>
             )}
           </div>
@@ -215,6 +215,7 @@ const TimeoutsSection: React.FC<{
   saving: boolean;
   apply: (patch: { timeouts?: Partial<Record<DashscopeKind, number>> }) => void;
 }> = ({ view, saving, apply }) => {
+  const { t } = useTranslation();
   const [drafts, setDrafts] = useState<Record<DashscopeKind, string>>({
     chat: '',
     image: '',
@@ -225,12 +226,12 @@ const TimeoutsSection: React.FC<{
   return (
     <div style={timeoutsBlockStyle}>
       <div style={timeoutsHeadStyle}>
-        <span>超时设置 (秒)</span>
+        <span>{t('settings:config.providerCard.timeoutsTitle')}</span>
         <span style={{ color: tokens.textFaint, fontSize: 10 }}>
-          仅 submit 调用；polling 固定 10s 不暴露
+          {t('settings:config.providerCard.timeoutsCaveat')}
         </span>
       </div>
-      {TIMEOUT_KINDS.map(({ kind, label, hint }) => {
+      {TIMEOUT_KINDS.map(({ kind, label, hintKey }) => {
         const entry = view.timeouts[kind];
         const draft = drafts[kind];
         const draftNum = Number(draft);
@@ -239,20 +240,20 @@ const TimeoutsSection: React.FC<{
           <div key={kind} style={timeoutRowStyle}>
             <div style={timeoutLabelColStyle}>
               <span style={timeoutLabelStyle}>{label}</span>
-              <span style={timeoutHintStyle}>{hint}</span>
+              <span style={timeoutHintStyle}>{t(hintKey)}</span>
             </div>
             <div style={timeoutValueColStyle}>
               <span style={timeoutCurrentStyle}>
                 {entry.value}s
                 {entry.configured ?
-                  <span style={{ ...badgeStyle, color: tokens.ok, borderColor: 'rgba(155,227,154,0.3)' }}>DB</span>
-                : <span style={{ ...badgeStyle, color: tokens.textMuted }}>默认 {entry.default}s</span>}
+                  <span style={{ ...badgeStyle, color: tokens.ok, borderColor: 'rgba(155,227,154,0.3)' }}>{t('settings:config.providerCard.dbBadge')}</span>
+                : <span style={{ ...badgeStyle, color: tokens.textMuted }}>{t('settings:config.providerCard.defaultBadge', { seconds: entry.default })}</span>}
               </span>
             </div>
             <input
               value={draft}
               onChange={(e) => setDrafts((s) => ({ ...s, [kind]: e.target.value }))}
-              placeholder={`新值 (1+)`}
+              placeholder={t('settings:config.providerCard.timeoutPlaceholder')}
               style={{ ...inputStyle, width: 100, flex: 'none' }}
               type="number"
               min="1"
@@ -268,7 +269,7 @@ const TimeoutsSection: React.FC<{
               style={dirty ? buttonAccentStyle : buttonStyle}
               disabled={!dirty || saving}
             >
-              保存
+              {t('settings:common.save')}
             </button>
             {entry.configured ?
               <button
@@ -276,9 +277,9 @@ const TimeoutsSection: React.FC<{
                 onClick={() => apply({ timeouts: { [kind]: 0 } })}
                 style={buttonGhostStyle}
                 disabled={saving}
-                title="清除 DB 配置，回退到内置默认"
+                title={t('settings:config.providerCard.timeoutResetTitle')}
               >
-                重置
+                {t('settings:common.resetDefault')}
               </button>
             : null}
           </div>

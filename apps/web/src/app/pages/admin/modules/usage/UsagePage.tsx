@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { getUsageOverview } from '../../api/admin-api';
 import type { ExecutionStatus, ModelKindOrUnknown, ModelRow, UsageOverview } from '../../types';
@@ -6,10 +7,10 @@ import { KindCardGrid } from './KindCardGrid';
 
 type Range = 'today' | 'week' | 'month';
 
-const RANGE_LABELS: Record<Range, string> = {
-  today: '今天',
-  week: '近 7 天',
-  month: '近 30 天',
+const RANGE_KEYS: Record<Range, string> = {
+  today: 'settings:usage.page.rangeToday',
+  week: 'settings:usage.page.rangeWeek',
+  month: 'settings:usage.page.rangeMonth',
 };
 
 const STATUS_COLOR: Record<ExecutionStatus, string> = {
@@ -19,12 +20,12 @@ const STATUS_COLOR: Record<ExecutionStatus, string> = {
   FAILED: '#FFB4AB',
 };
 
-const KIND_LABEL: Record<ModelKindOrUnknown, string> = {
-  chat: 'Chat',
-  video: 'Video',
-  image: 'Image',
-  audio: 'Audio',
-  unknown: '未分类',
+const KIND_LABEL_KEYS: Record<ModelKindOrUnknown, string> = {
+  chat: 'settings:kind.chat',
+  video: 'settings:kind.video',
+  image: 'settings:kind.image',
+  audio: 'settings:kind.audio',
+  unknown: 'settings:kind.unknown',
 };
 
 /**
@@ -38,6 +39,7 @@ const KIND_LABEL: Record<ModelKindOrUnknown, string> = {
  * "Tokens" KPI was the bug we just fixed.
  */
 export const UsagePage: React.FC = () => {
+  const { t } = useTranslation();
   const [range, setRange] = useState<Range>('today');
   const [data, setData] = useState<UsageOverview | null>(null);
   const [loading, setLoading] = useState(false);
@@ -50,7 +52,7 @@ export const UsagePage: React.FC = () => {
         if (!cancelled) setData(d);
       })
       .catch((err: unknown) => {
-        if (!cancelled) toast.error(err instanceof Error ? err.message : '加载失败');
+        if (!cancelled) toast.error(err instanceof Error ? err.message : t('settings:common.loadFailed'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -58,34 +60,34 @@ export const UsagePage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [range]);
+  }, [range, t]);
 
   return (
     <div style={pageStyle}>
       <header style={headerStyle}>
-        <h1 style={titleStyle}>概览</h1>
+        <h1 style={titleStyle}>{t('settings:usage.page.title')}</h1>
         <div style={rangeTabsStyle}>
-          {(Object.keys(RANGE_LABELS) as Range[]).map((r) => (
+          {(Object.keys(RANGE_KEYS) as Range[]).map((r) => (
             <button
               key={r}
               type="button"
               onClick={() => setRange(r)}
               style={rangeTabStyle(r === range)}
             >
-              {RANGE_LABELS[r]}
+              {t(RANGE_KEYS[r])}
             </button>
           ))}
         </div>
       </header>
 
-      {loading && !data && <div style={emptyStyle}>加载中…</div>}
+      {loading && !data && <div style={emptyStyle}>{t('settings:common.loading')}</div>}
 
       {data && (
         <>
           <section style={kpiGridStyle}>
-            <KpiCard label="调用次数" value={String(data.totals.count)} />
+            <KpiCard label={t('settings:usage.page.kpiCount')} value={String(data.totals.count)} />
             <KpiCard
-              label="成功 / 失败"
+              label={t('settings:usage.page.kpiSuccessFail')}
               value={`${data.totals.countByStatus.COMPLETED} / ${data.totals.countByStatus.FAILED}`}
               accent={
                 data.totals.countByStatus.FAILED > 0 ?
@@ -93,29 +95,29 @@ export const UsagePage: React.FC = () => {
                 : STATUS_COLOR.COMPLETED
               }
             />
-            <KpiCard label="进行中" value={String(data.totals.countByStatus.RUNNING)} />
+            <KpiCard label={t('settings:usage.page.kpiRunning')} value={String(data.totals.countByStatus.RUNNING)} />
           </section>
 
           <section>
-            <h2 style={sectionTitleStyle}>按类型</h2>
+            <h2 style={sectionTitleStyle}>{t('settings:usage.page.byKindTitle')}</h2>
             <div style={{ height: 8 }} />
             <KindCardGrid buckets={data.byKind} />
           </section>
 
           <section style={tableSectionStyle}>
-            <h2 style={sectionTitleStyle}>按模型</h2>
+            <h2 style={sectionTitleStyle}>{t('settings:usage.page.byModelTitle')}</h2>
             {data.byModel.length === 0 ?
-              <div style={emptyStyle}>该时间范围内暂无调用</div>
+              <div style={emptyStyle}>{t('settings:usage.page.emptyInRange')}</div>
             : <table style={tableStyle}>
                 <thead>
                   <tr>
-                    <th style={thStyle}>模型</th>
-                    <th style={thStyle}>类型</th>
-                    <th style={thNumStyle}>总调用</th>
-                    <th style={thNumStyle}>成功</th>
-                    <th style={thNumStyle}>失败</th>
-                    <th style={thNumStyle}>成功率</th>
-                    <th style={thStyle}>计价指标</th>
+                    <th style={thStyle}>{t('settings:usage.page.thModel')}</th>
+                    <th style={thStyle}>{t('settings:usage.page.thKind')}</th>
+                    <th style={thNumStyle}>{t('settings:usage.page.thCount')}</th>
+                    <th style={thNumStyle}>{t('settings:usage.page.thCompleted')}</th>
+                    <th style={thNumStyle}>{t('settings:usage.page.thFailed')}</th>
+                    <th style={thNumStyle}>{t('settings:usage.page.thSuccessRate')}</th>
+                    <th style={thStyle}>{t('settings:usage.page.thUnit')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -125,7 +127,7 @@ export const UsagePage: React.FC = () => {
                       <tr key={row.modelName}>
                         <td style={tdStyle}>{row.modelName}</td>
                         <td style={tdStyle}>
-                          <span style={kindPillStyle(row.kind)}>{KIND_LABEL[row.kind]}</span>
+                          <span style={kindPillStyle(row.kind)}>{t(KIND_LABEL_KEYS[row.kind])}</span>
                         </td>
                         <td style={tdNumStyle}>{row.count}</td>
                         <td style={tdNumStyle}>{row.completed}</td>
@@ -133,7 +135,7 @@ export const UsagePage: React.FC = () => {
                         <td style={tdNumStyle}>
                           <span style={rateStyle(rate)}>{rate}%</span>
                         </td>
-                        <td style={tdStyle}>{renderUnit(row)}</td>
+                        <td style={tdStyle}>{renderUnit(row, t)}</td>
                       </tr>
                     );
                   })}
@@ -163,7 +165,7 @@ const KpiCard: React.FC<{ label: string; value: string; accent?: string }> = ({
  * a component) because each cell is a single span — wrapping in <Component>
  * just adds a stack frame for no semantic benefit.
  */
-function renderUnit(row: ModelRow): React.ReactNode {
+function renderUnit(row: ModelRow, t: (key: string, opts?: Record<string, unknown>) => string): React.ReactNode {
   switch (row.kind) {
     case 'chat':
       return <span style={unitMonoStyle}>{`${formatNum(row.inputTokens)} → ${formatNum(row.outputTokens)} tokens`}</span>;
@@ -171,11 +173,11 @@ function renderUnit(row: ModelRow): React.ReactNode {
     case 'audio':
       return (
         <span style={unitMonoStyle}>
-          {row.outputDurationSec > 0 ? `${formatSeconds(row.outputDurationSec)}` : '—'}
+          {row.outputDurationSec > 0 ? `${formatSeconds(row.outputDurationSec, t)}` : '—'}
         </span>
       );
     case 'image':
-      return <span style={unitMonoStyle}>{row.outputCount > 0 ? `${row.outputCount} 张` : '—'}</span>;
+      return <span style={unitMonoStyle}>{row.outputCount > 0 ? t('settings:usage.page.unitImageCount', { count: row.outputCount }) : '—'}</span>;
     default:
       return <span style={{ ...unitMonoStyle, color: '#555' }}>—</span>;
   }
@@ -186,8 +188,8 @@ function formatNum(n: number): string {
   return String(n);
 }
 
-function formatSeconds(sec: number): string {
-  if (sec < 60) return `${sec.toFixed(0)} 秒`;
+function formatSeconds(sec: number, t: (key: string, opts?: Record<string, unknown>) => string): string {
+  if (sec < 60) return t('settings:usage.page.unitSecondsShort', { count: sec.toFixed(0) });
   const min = Math.floor(sec / 60);
   const rem = Math.round(sec % 60);
   return `${min}m ${rem}s`;

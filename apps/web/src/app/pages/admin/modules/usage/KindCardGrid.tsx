@@ -1,4 +1,6 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { MessageSquareText, Image as ImageIcon, Video, AudioLines } from 'lucide-react';
 import type { KindBucket, ModelKind } from '../../types';
 
@@ -14,77 +16,78 @@ import type { KindBucket, ModelKind } from '../../types';
 
 interface KindMeta {
   kind: ModelKind;
-  label: string;
+  labelKey: string;
   Icon: typeof MessageSquareText;
   /** Hue used for the icon + accent value; intentionally muted to match
    *  the rest of the admin shell (no large blocks of saturated color). */
   accent: string;
   /** Returns (label, value) for the kind-specific billable metric. */
-  unit: (b: KindBucket) => { label: string; value: string };
+  unit: (b: KindBucket, t: TFunction) => { label: string; value: string };
 }
 
 const KIND_META: KindMeta[] = [
   {
     kind: 'chat',
-    label: 'Chat',
+    labelKey: 'settings:kind.chat',
     Icon: MessageSquareText,
     accent: '#A8C7FA',
-    unit: (b) => ({
-      label: 'Tokens (in / out)',
+    unit: (b, t) => ({
+      label: t('settings:usage.kindCard.tokensLabel'),
       value: `${formatNum(b.inputTokens)} / ${formatNum(b.outputTokens)}`,
     }),
   },
   {
     kind: 'video',
-    label: 'Video',
+    labelKey: 'settings:kind.video',
     Icon: Video,
     accent: '#D7BBFF',
-    unit: (b) => ({
-      label: '输出视频时长',
-      value: b.outputDurationSec > 0 ? `${formatSeconds(b.outputDurationSec)}` : '—',
+    unit: (b, t) => ({
+      label: t('settings:usage.kindCard.videoDurationLabel'),
+      value: b.outputDurationSec > 0 ? `${formatSeconds(b.outputDurationSec, t)}` : '—',
     }),
   },
   {
     kind: 'image',
-    label: 'Image',
+    labelKey: 'settings:kind.image',
     Icon: ImageIcon,
     accent: '#9BE39A',
-    unit: (b) => ({
-      label: '生成张数',
-      value: b.outputCount > 0 ? `${b.outputCount} 张` : '—',
+    unit: (b, t) => ({
+      label: t('settings:usage.kindCard.imageCountLabel'),
+      value: b.outputCount > 0 ? t('settings:usage.kindCard.imageCountValue', { count: b.outputCount }) : '—',
     }),
   },
   {
     kind: 'audio',
-    label: 'Audio',
+    labelKey: 'settings:kind.audio',
     Icon: AudioLines,
     accent: '#FFD79A',
-    unit: (b) => ({
-      label: '合成音频时长',
-      value: b.outputDurationSec > 0 ? `${formatSeconds(b.outputDurationSec)}` : '—',
+    unit: (b, t) => ({
+      label: t('settings:usage.kindCard.audioDurationLabel'),
+      value: b.outputDurationSec > 0 ? `${formatSeconds(b.outputDurationSec, t)}` : '—',
     }),
   },
 ];
 
 export const KindCardGrid: React.FC<{ buckets: KindBucket[] }> = ({ buckets }) => {
+  const { t } = useTranslation();
   const byKind = new Map(buckets.map((b) => [b.kind, b]));
   return (
     <section style={gridStyle}>
       {KIND_META.map((meta) => {
         const bucket = byKind.get(meta.kind) ?? emptyBucket(meta.kind);
         const rate = bucket.count > 0 ? Math.round((bucket.completed / bucket.count) * 100) : null;
-        const unit = meta.unit(bucket);
+        const unit = meta.unit(bucket, t);
         return (
           <div key={meta.kind} style={cardStyle}>
             <div style={cardHeadStyle}>
               <meta.Icon size={14} color={meta.accent} strokeWidth={1.5} />
-              <span style={cardKindLabelStyle}>{meta.label}</span>
+              <span style={cardKindLabelStyle}>{t(meta.labelKey)}</span>
             </div>
             <div style={cardCountRowStyle}>
               <span style={cardCountStyle}>{bucket.count}</span>
-              <span style={cardCountSuffixStyle}>次调用</span>
+              <span style={cardCountSuffixStyle}>{t('settings:usage.kindCard.callsSuffix')}</span>
               {rate !== null && (
-                <span style={rateStyle(rate)}>{rate}% 成功</span>
+                <span style={rateStyle(rate)}>{t('settings:usage.kindCard.successRate', { rate })}</span>
               )}
             </div>
             <div style={cardUnitRowStyle}>
@@ -118,8 +121,8 @@ function formatNum(n: number): string {
   return String(n);
 }
 
-function formatSeconds(sec: number): string {
-  if (sec < 60) return `${sec.toFixed(0)} 秒`;
+function formatSeconds(sec: number, t: TFunction): string {
+  if (sec < 60) return t('settings:usage.page.unitSecondsShort', { count: sec.toFixed(0) });
   const min = Math.floor(sec / 60);
   const rem = Math.round(sec % 60);
   return `${min}m ${rem}s`;

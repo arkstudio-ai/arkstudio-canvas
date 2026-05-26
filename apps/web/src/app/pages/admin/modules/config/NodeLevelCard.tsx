@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   fieldLabelStyle,
   fieldRowStyle,
@@ -24,11 +25,12 @@ export interface NodeLevelCardProps {
  * a rename would break every stored canvas referencing the old type.
  */
 export const NodeLevelCard: React.FC<NodeLevelCardProps> = ({ node, onChange }) => {
+  const { t } = useTranslation();
   const cr = node.connectionRules ?? {};
 
   return (
     <section style={sectionStyle}>
-      <h3 style={sectionTitleStyle}>节点元数据 · {node.type}</h3>
+      <h3 style={sectionTitleStyle}>{t('settings:config.nodeCard.metaTitle', { type: node.type })}</h3>
       <div style={sectionBodyStyle}>
         <div style={fieldRowStyle}>
           <span style={fieldLabelStyle}>type</span>
@@ -96,7 +98,7 @@ export const NodeLevelCard: React.FC<NodeLevelCardProps> = ({ node, onChange }) 
         </div>
       </div>
 
-      <h3 style={sectionTitleStyle}>defaultParams · 节点级</h3>
+      <h3 style={sectionTitleStyle}>{t('settings:config.nodeCard.defaultParamsTitle')}</h3>
       <div style={sectionBodyStyle}>
         <KeyValueEditor
           value={(node.defaultParams ?? {}) as Record<string, unknown>}
@@ -104,7 +106,7 @@ export const NodeLevelCard: React.FC<NodeLevelCardProps> = ({ node, onChange }) 
         />
       </div>
 
-      <h3 style={sectionTitleStyle}>defaultData</h3>
+      <h3 style={sectionTitleStyle}>{t('settings:config.nodeCard.defaultDataTitle')}</h3>
       <div style={sectionBodyStyle}>
         <KeyValueEditor
           value={(node.defaultData ?? {}) as Record<string, unknown>}

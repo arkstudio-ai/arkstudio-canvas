@@ -2,6 +2,7 @@ import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { DashscopeConfigService } from '../canvas-config/dashscope-config.service';
 import { DashscopeUploadService } from '../upload/dashscope-upload.service';
+import { getVideoGatewayRedirect } from './extensions';
 import { summarizeBody } from './log-utils';
 import { firstValueFrom } from 'rxjs';
 import type {
@@ -70,9 +71,25 @@ export class DashScopeVideoProvider implements ProviderClient {
   }
 
   async submit(req: SubmitRequest): Promise<SubmitResult> {
-    const apiKey = await this.dashscopeConfig.getApiKey();
-    const baseUrl = await this.dashscopeConfig.getBaseUrl();
+    // Gateway redirect: when a fork supplies one, skip the per-vendor
+    // config lookups so deployments without a local DashScope key still
+    // work (the gateway holds the upstream credential).
+    const imageInputCount = (req.inputs ?? []).filter((i) => i.type === 'image').length;
+    const redirect = getVideoGatewayRedirect({
+      providerId: this.name,
+      modelSku: req.modelSku,
+      imageInputCount,
+    });
     const timeout = await this.dashscopeConfig.getTimeoutMs('video');
+    let baseUrl: string;
+    let apiKey: string;
+    if (redirect) {
+      baseUrl = '';
+      apiKey = redirect.apiKey;
+    } else {
+      apiKey = await this.dashscopeConfig.getApiKey();
+      baseUrl = await this.dashscopeConfig.getBaseUrl();
+    }
     const mode = this.detectMode(req.modelSku);
 
     const input: Record<string, any> = {};
@@ -91,7 +108,7 @@ export class DashScopeVideoProvider implements ProviderClient {
     // instead of a 400 from upstream.
     this.validateMediaForMode(req.modelSku, mode, media, req.prompt);
 
-    const body = {
+    const nativeBody = {
       model: req.modelSku,
       input,
       ...(this.hasParameters(req.extraParams)
@@ -99,10 +116,14 @@ export class DashScopeVideoProvider implements ProviderClient {
         : {}),
     };
 
-    const url = `${baseUrl}${this.SUBMIT_PATH}`;
+    const url = redirect ? redirect.submitUrl : `${baseUrl}${this.SUBMIT_PATH}`;
+    const body = redirect
+      ? (redirect.transformSubmitBody(nativeBody) as Record<string, unknown>)
+      : nativeBody;
     this.logger.log(
       `[dashscope-video:submit] sku=${req.modelSku} mode=${mode} requestId=${req.requestId} ` +
-        `media=${media.length} url=${url} body=${summarizeBody(body)}`,
+        `media=${media.length} url=${url} body=${summarizeBody(body)}` +
+        (redirect ? ' (via gateway override)' : ''),
     );
 
     let resp;
@@ -122,6 +143,15 @@ export class DashScopeVideoProvider implements ProviderClient {
       );
     } catch (e: any) {
       const data = e?.response?.data ?? null;
+      // 把上游 DashScope 返回的真实错误码 + body 落 log, 不然 ExecutionsService
+      // 那层只看到 wrapper HttpException 类名 ("Http Exception"), root cause 全
+      // 丢失. 跟 dashscope-upload.service 那对 catch 同款做法.
+      this.logger.error(
+        `[dashscope-video:submit] ❌ sku=${req.modelSku} ` +
+          `status=${e?.response?.status ?? '?'} code=${e?.code ?? '?'} ` +
+          `upstream=${JSON.stringify(data).slice(0, 600)} ` +
+          `axiosMessage=${(e as Error).message}`,
+      );
       const err = this.toHttpException(
         data?.message || e?.message || 'DashScope submit failed',
         e?.response?.status ?? 502,
@@ -131,7 +161,15 @@ export class DashScopeVideoProvider implements ProviderClient {
       throw err;
     }
 
-    const data = resp.data ?? {};
+    // Gateway-wrapped submit responses (e.g. new-api `{task_id, status}` flat
+    // envelope) lose DashScope's `data.output.task_id` structure. Let the
+    // fork unwrap if it supplied `transformSubmitResponse`; otherwise assume
+    // the gateway already returns DashScope shape.
+    const rawData = resp.data ?? {};
+    const data =
+      redirect?.transformSubmitResponse
+        ? (redirect.transformSubmitResponse(rawData) ?? rawData)
+        : rawData;
     const taskId = data?.output?.task_id as string | undefined;
     const taskStatus = String(data?.output?.task_status ?? '').toUpperCase();
 
@@ -158,6 +196,16 @@ export class DashScopeVideoProvider implements ProviderClient {
   }
 
   async pollStatus(taskId: string): Promise<PollResult> {
+    // Gateway redirect: if a fork supplied one, hand poll over completely
+    // — the gateway's poll response shape usually differs from DashScope's
+    // native `output.task_status`, so the fork's `pollTask` returns a
+    // ready-to-use `PollResult`.
+    const redirect = getVideoGatewayRedirect({
+      providerId: this.name,
+      modelSku: '',
+    });
+    if (redirect) return await redirect.pollTask(taskId);
+
     const apiKey = await this.dashscopeConfig.getApiKey();
     const baseUrl = await this.dashscopeConfig.getBaseUrl();
     const url = `${baseUrl}${this.TASK_PATH}/${taskId}`;
@@ -384,6 +432,9 @@ export class DashScopeVideoProvider implements ProviderClient {
       status,
     );
     (err as any).payloadSnippet = payload ?? message;
+    // 显式覆盖 .message, 否则 NestJS 默认 .message = 'Http Exception'(类名),
+    // ExecutionsService log 只看到 wrapper 名字, root cause 丢失.
+    (err as any).message = message;
     return err;
   }
 }

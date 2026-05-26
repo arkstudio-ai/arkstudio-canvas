@@ -1,4 +1,4 @@
-import { HttpException, Injectable, Logger } from '@nestjs/common';
+import { HttpException, Inject, Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import type {
@@ -10,113 +10,77 @@ import type {
   SubmitResult,
 } from './provider.types';
 import { OpenaiCompatConfigService } from '../canvas-config/openai-compat-config.service';
+import { LocalStorageService } from '../storage/local-storage.service';
+import { STORAGE_DRIVER, type StorageDriver } from '../storage/storage-driver';
+import { getImageGatewayRedirect } from './extensions';
 import { summarizeBody } from './log-utils';
+import {
+  clampSeed,
+  resolveFamily,
+  resolveSize,
+  type ImageFamily,
+} from './openai-compat-image-sizing';
+import { OpenAICompatImageEdits } from './openai-compat-image-edits';
 
 /**
- * OpenAI-compatible synchronous text-to-image provider.
+ * OpenAI-compatible image provider.
  *
- * Targets the canonical OpenAI Images API:
- *
- *   POST {base}/images/generations
- *   body { model, prompt, n, size, quality?, style?, response_format }
- *   resp { created, data: [{ url } | { b64_json }] }
- *
- * Synchronous: there is no `created → poll` flow like DashScope async
- * tasks. `submit()` returns `status: 'completed'` or `failed` directly,
- * and `pollStatus()` throws (analogous to the chat provider).
+ *   POST {base}/images/generations      — text-to-image (JSON)
+ *   POST {base}/images/edits            — image-to-image (multipart)
  *
  * SKU routing:
  *   - `openai-image/dall-e-3`     → dall-e-3 (only n=1, supports quality/style)
  *   - `openai-image/dall-e-2`     → dall-e-2 (n=1..10)
- *   - `openai-image/gpt-image-1`  → gpt-image-1 / 1.5 (low/med/high quality, b64_json)
- *   - `openai-image/gpt-image-2`  → gpt-image-2 (low/med/high quality, flexible size up to ~4K)
+ *   - `openai-image/gpt-image-1`  → gpt-image-1 / 1.5 (low/med/high quality)
+ *   - `openai-image/gpt-image-2`  → gpt-image-2 (low/med/high quality, flexible
+ *                                                size up to ~4K, GA 2026-04)
  *   - `openai-image/<vendor>/<sku>` → forwarded as-is for OpenRouter etc.
  *
- * Image-to-image / edits / variations are NOT covered here — those
- * endpoints (`/images/edits`, `/images/variations`) take
- * `multipart/form-data`. When the node has upstream image inputs we
- * silently drop them (with a warn log) and proceed as text-to-image,
- * so a connected image node doesn't kill the whole call.
+ * i2i (gpt-image-* only): when `inputs[]` has any image, switches to
+ * `/images/edits` (multipart). dall-e-* image inputs are still dropped
+ * with a warn — the user explicitly scoped i2i to gpt-image-* this
+ * round. Sizing math lives in {@link './openai-compat-image-sizing'},
+ * the multipart + b64-persist path in {@link './openai-compat-image-edits'}.
  *
  * Frontend params used:
- *   - `aspectRatio` → mapped to a `size` string. Three flavours:
- *       - `'auto'`            → forwarded as-is (gpt-image-* only)
- *       - `'W:H'` (e.g. 16:9) → maps to a SIZE_BY_RATIO entry for
- *                               dall-e-* (fixed enum), OR computed
- *                               proportional WxH for gpt-image-*
- *                               (clamped to family pixel cap)
- *   - `resolution`  → `'1k'|'2k'|'4k'` target pixel budget for
- *                     gpt-image-* flexible sizing (no-op on dall-e-*)
- *   - `n`           → number of images, default 1, clamped to 10
- *   - `quality`     → forwarded as-is. SDK accepts:
- *                       dall-e-3:     `standard` | `hd`
- *                       gpt-image-*:  `low` | `medium` | `high`
- *                     Validation lives upstream — sending a wrong
- *                     value just bubbles up the OpenAI 400.
- *   - `style`       → forwarded ONLY for dall-e-3 (`vivid`|`natural`).
- *                     gpt-image-* refuses it, so we drop on that family.
+ *   - `aspectRatio` + `resolution` → mapped to `size` per family
+ *   - `n`                          → clamped 1..10
+ *   - `quality`                    → forwarded as-is per family
+ *   - `style`                      → forwarded only for dall-e-3
+ *   - `seed`                       → clamped to [0, 2^32-1]
  *
- * Result URLs from OpenAI are short-lived (≈ 1h). The orchestrator's
- * `FileTransferService` mirrors them to local disk (LocalStorageService)
- * before we hand the URL to the frontend, so this provider doesn't
- * need to download/re-upload itself.
+ * Result URLs from `/images/generations` are short-lived (≈ 1h);
+ * the orchestrator's `FileTransferService` mirrors them to local
+ * disk. The `/images/edits` path returns `b64_json` for gpt-image-*,
+ * which we persist to LocalStorage inline and surface as a
+ * `/static/...` URL, so downstream code never sees raw base64.
  */
 @Injectable()
 export class OpenAICompatImageProvider implements ProviderClient {
   readonly name = 'openai-compat-image';
   private readonly logger = new Logger(OpenAICompatImageProvider.name);
-
   private readonly IMAGE_PATH = '/images/generations';
-
-  /**
-   * Fixed-enum size map for legacy DALL-E SKUs. DALL-E 2/3 reject any
-   * `size` outside this enum with a 400, so we pick the closest
-   * supported value for each ratio. gpt-image-* uses {@link computeFlexibleSize}
-   * instead — it accepts any `WxH` up to a family pixel cap.
-   */
-  private static readonly SIZE_BY_RATIO_DALLE: Record<string, string> = {
-    '1:1': '1024x1024',
-    '16:9': '1792x1024',
-    '9:16': '1024x1792',
-    '4:3': '1024x1024',
-    '3:4': '1024x1024',
-    '3:2': '1024x1024',
-    '2:3': '1024x1024',
-  };
-
-  /**
-   * Per-family max pixel cap, used when computing flexible sizes for
-   * gpt-image-*. Values from OpenAI's API docs (2026-04 GA) — the
-   * hard ceiling for gpt-image-2 is 8.29M (~4K total). Going above
-   * is a 400 from upstream.
-   *
-   * gpt-image-1 / 1.5 share the older 1.5M cap (1024 max edge).
-   */
-  private static readonly FAMILY_MAX_PIXELS = {
-    'gpt-image-2': 8_294_400,
-    'gpt-image-1.5': 1_572_864,
-    'gpt-image-1': 1_572_864,
-  } as const;
-
-  /**
-   * Resolution → target pixel budget for the flexible-sizing path.
-   * `1k/2k/4k` is the user-facing label; the actual budget is the
-   * total pixel count (so a 2k budget produces e.g. 2048×2048,
-   * 1664×2496 for 2:3, 2752×1552 for 16:9, ...).
-   *
-   * Picks below the family cap → upstream accepts; picks above →
-   * computeFlexibleSize() clamps.
-   */
-  private static readonly TARGET_PIXELS_BY_RES: Record<string, number> = {
-    '1k': 1_048_576,
-    '2k': 4_194_304,
-    '4k': 8_294_400,
-  };
+  private readonly edits: OpenAICompatImageEdits;
 
   constructor(
     private readonly httpService: HttpService,
     private readonly openaiConfig: OpenaiCompatConfigService,
-  ) {}
+    // STORAGE_DRIVER: putObject 出去的 URL 跟 FileTransferService.ownsUrl
+    // 必须用同一 driver, 否则下游 transferUrl 不认为它 "已 owned" 会
+    // 试图 axios.get bare `/static/...` 抛 'Invalid URL'。
+    @Inject(STORAGE_DRIVER) private readonly storage: StorageDriver,
+    // LocalStorageService 只用来做 readObjectByLocalUrl: 上游节点产物若是
+    // `/static/uploads/...` 走文件 IO,避免自请求 HTTP。cloud URL 时该方法
+    // 返回 null, 走 HTTP 兜底。
+    private readonly localStorage: LocalStorageService,
+  ) {
+    this.edits = new OpenAICompatImageEdits(
+      httpService,
+      this.storage,
+      localStorage,
+      this.logger,
+    );
+  }
 
   supports(modelSku: string): boolean {
     if (!modelSku) return false;
@@ -131,55 +95,108 @@ export class OpenAICompatImageProvider implements ProviderClient {
         null,
       );
     }
-    // Image-to-image lives on a different endpoint (`/images/edits`,
-    // multipart). We don't implement it yet, but hard-rejecting was
-    // hostile: any upstream image (intentional reference OR just an
-    // `@`-mention from a connected image node) blew up the whole call,
-    // even though the user clearly wanted text-to-image. Drop the
-    // image inputs with a warn instead — the prompt still goes
-    // through and the user gets a result.
-    const imageInputCount = (req.inputs ?? []).filter(
-      (i) => i.type === 'image',
-    ).length;
-    if (imageInputCount > 0) {
+
+    const imageInputs = (req.inputs ?? []).filter((i) => i.type === 'image');
+
+    // Gateway redirect — fork sees imageInputCount in ctx and decides
+    // whether it can handle i2i (route to a gateway adapter for
+    // `/images/edits`) or wants i2i to fall back to vendor direct (return
+    // null). t2i path is unchanged.
+    const redirect = getImageGatewayRedirect({
+      providerId: this.name,
+      modelSku: req.modelSku,
+      imageInputCount: imageInputs.length,
+    });
+    const timeout = await this.openaiConfig.getTimeoutMs('image');
+    const realSku = this.stripNamespace(req.modelSku);
+    const family = resolveFamily(realSku);
+
+    // i2i path — only for gpt-image-* (user-scoped). dall-e-* drops image
+    // inputs with a warn (legacy behaviour: better to produce a text-only
+    // result than 400 on a connected image node).
+    //
+    // Two i2i routes for gpt-image-*:
+    //   1. No redirect → vendor-direct OpenAI `/images/edits` (legacy).
+    //   2. redirect.editsBaseUrl set → gateway-mediated edits (commercial
+    //      forks): same multipart shape, just sent through the gateway so
+    //      billing / quota / audit are preserved.
+    //
+    // Forks that supply a redirect but no `editsBaseUrl` are treated as
+    // "gateway can't do edits"; image inputs are dropped with a warn so
+    // we still produce *something* via t2i generations rather than 400.
+    if (imageInputs.length > 0 && family !== 'dalle') {
+      const canUseGatewayEdits = !!(redirect && redirect.editsBaseUrl);
+      const canUseVendorEdits = !redirect;
+      if (canUseGatewayEdits || canUseVendorEdits) {
+        const editsApiKey = redirect
+          ? redirect.apiKey
+          : await this.openaiConfig.getApiKey();
+        const editsBaseUrl = redirect?.editsBaseUrl
+          ? redirect.editsBaseUrl
+          : await this.openaiConfig.getBaseUrl();
+        const result = await this.edits.run({
+          baseUrl: editsBaseUrl,
+          apiKey: editsApiKey,
+          timeoutMs: timeout,
+          realSku,
+          prompt: req.prompt,
+          imageInputs,
+          n: this.clampN(req.extraParams),
+          size: resolveSize(req.extraParams, family),
+          quality: this.stringParam(req.extraParams, 'quality'),
+          seed: clampSeed((req.extraParams as any)?.seed),
+          requestId: req.requestId,
+        });
+        return {
+          status: 'completed',
+          resources: result.resources,
+          usage: result.usage,
+          raw: result.raw,
+          requestPayload: result.requestPayloadSummary,
+        };
+      }
+    }
+
+    if (imageInputs.length > 0) {
       this.logger.warn(
         `[openai-compat-image:submit] sku=${req.modelSku} requestId=${req.requestId} ` +
-          `dropping ${imageInputCount} upstream image input(s); /images/edits is not wired up yet, ` +
-          `proceeding as text-to-image.`,
+          `dropping ${imageInputs.length} upstream image input(s); ` +
+          (family === 'dalle'
+            ? 'dall-e-* /images/edits is not wired up'
+            : 'gateway redirect did not supply editsBaseUrl') +
+          `, proceeding as text-to-image.`,
       );
     }
 
-    const apiKey = await this.openaiConfig.getApiKey();
-    const baseUrl = await this.openaiConfig.getBaseUrl();
-    const timeout = await this.openaiConfig.getTimeoutMs('image');
-    const realSku = this.stripNamespace(req.modelSku);
-    const family = this.resolveFamily(realSku);
-
-    const body: Record<string, any> = {
-      model: realSku,
-      prompt: req.prompt,
-      n: this.clampN(req.extraParams),
-      response_format: 'url',
-    };
-    const size = this.resolveSize(req.extraParams, family);
-    if (size) body.size = size;
-    const quality = (req.extraParams as any)?.quality;
-    if (typeof quality === 'string' && quality) body.quality = quality;
-    // `style` is dall-e-3 only. gpt-image-* refuses it (input_fidelity is
-    // also disabled per OpenAI's 2026-04 docs — we never send it).
-    if (family === 'dalle') {
-      const style = (req.extraParams as any)?.style;
-      if (typeof style === 'string' && style) body.style = style;
+    const nativeBody = this.buildGenerationsBody(req, realSku, family);
+    // i2i + redirect: 把 imageInputs 注入 nativeBody.metadata.image_inputs,
+    // 让 fork 的 transform 拿到 ref image URLs(亦或 fork 直接读 metadata)。
+    if (imageInputs.length > 0 && redirect) {
+      const meta = (nativeBody.metadata ?? {}) as Record<string, unknown>;
+      meta.image_inputs = imageInputs.map((i) => i.url);
+      nativeBody.metadata = meta;
     }
-    const seed = this.numericParam(req.extraParams, 'seed');
-    if (seed !== undefined) body.seed = seed;
-
-    const url = `${baseUrl}${this.IMAGE_PATH}`;
+    let url: string;
+    let apiKey: string;
+    if (redirect) {
+      url = redirect.url;
+      apiKey = redirect.apiKey;
+    } else {
+      apiKey = await this.openaiConfig.getApiKey();
+      const baseUrl = await this.openaiConfig.getBaseUrl();
+      url = `${baseUrl}${this.IMAGE_PATH}`;
+    }
+    const body = redirect
+      ? (redirect.transformBody(nativeBody) as Record<string, any>)
+      : nativeBody;
     this.logger.log(
       `[openai-compat-image:submit] sku=${req.modelSku} (real=${realSku}) ` +
-        `requestId=${req.requestId} url=${url} body=${summarizeBody(body)}`,
+        `requestId=${req.requestId} url=${url} body=${summarizeBody(body)}` +
+        (redirect ? ' (via gateway override)' : ''),
     );
 
+    // Proxy lives globally on http(s).globalAgent via NetworkConfigService.
+    // Don't set `proxy` here — that would override the global policy.
     let resp;
     try {
       resp = await firstValueFrom(
@@ -193,6 +210,12 @@ export class OpenAICompatImageProvider implements ProviderClient {
       );
     } catch (e: any) {
       const data = e?.response?.data ?? null;
+      this.logger.error(
+        `[openai-compat-image:submit] ❌ sku=${req.modelSku} ` +
+          `status=${e?.response?.status ?? '?'} code=${e?.code ?? '?'} ` +
+          `upstream=${JSON.stringify(data).slice(0, 600)} ` +
+          `axiosMessage=${(e as Error).message}`,
+      );
       const err = this.toHttpException(
         data?.error?.message ||
           data?.message ||
@@ -235,133 +258,48 @@ export class OpenAICompatImageProvider implements ProviderClient {
 
   // ---- helpers ---------------------------------------------------------
 
+  private buildGenerationsBody(
+    req: SubmitRequest,
+    realSku: string,
+    family: ImageFamily,
+  ): Record<string, any> {
+    const body: Record<string, any> = {
+      model: realSku,
+      prompt: req.prompt,
+      n: this.clampN(req.extraParams),
+      response_format: 'url',
+    };
+    const size = resolveSize(req.extraParams, family);
+    if (size) body.size = size;
+    const quality = this.stringParam(req.extraParams, 'quality');
+    if (quality) body.quality = quality;
+    // `style` is dall-e-3 only. gpt-image-* refuses it.
+    if (family === 'dalle') {
+      const style = this.stringParam(req.extraParams, 'style');
+      if (style) body.style = style;
+    }
+    const seed = clampSeed((req.extraParams as any)?.seed);
+    if (seed !== undefined) body.seed = seed;
+    return body;
+  }
+
   private stripNamespace(modelSku: string): string {
     return modelSku.replace(/^openai-image\//i, '');
-  }
-
-  /**
-   * Pick a sizing strategy bucket from the real (de-namespaced) SKU.
-   * Routing is purely lexical so an unknown SKU defaults to `dalle`'s
-   * conservative path (fixed enum) — better to 400 with a clear
-   * "unsupported size" than to silently send a 4K request to a model
-   * that caps at 1024.
-   */
-  private resolveFamily(
-    realSku: string,
-  ): 'dalle' | 'gpt-image-2' | 'gpt-image-1' {
-    const sku = realSku.toLowerCase();
-    if (sku.startsWith('gpt-image-2')) return 'gpt-image-2';
-    if (sku.startsWith('gpt-image-1')) return 'gpt-image-1'; // includes gpt-image-1.5
-    return 'dalle';
-  }
-
-  private resolveSize(
-    extra: Record<string, any> | undefined,
-    family: 'dalle' | 'gpt-image-2' | 'gpt-image-1',
-  ): string | undefined {
-    // Explicit `size` wins. Two acceptable forms:
-    //   - 'WxH' literal (gpt-image-* and any future flexible model)
-    //   - 'auto' string (gpt-image-* — let upstream pick)
-    const explicit = extra?.size;
-    if (typeof explicit === 'string' && explicit) return explicit;
-
-    const ratio = extra?.aspectRatio;
-    if (typeof ratio !== 'string' || !ratio) return undefined;
-
-    // 'auto' is gpt-image-* feature; for dall-e-* drop it (let upstream
-    // default kick in).
-    if (ratio === 'auto') {
-      return family === 'dalle' ? undefined : 'auto';
-    }
-
-    if (family === 'dalle') {
-      return OpenAICompatImageProvider.SIZE_BY_RATIO_DALLE[ratio];
-    }
-
-    // gpt-image-* flexible sizing: ratio + resolution → WxH within cap.
-    const resolution =
-      typeof extra?.resolution === 'string' ? extra.resolution : '2k';
-    return this.computeFlexibleSize(ratio, resolution, family);
-  }
-
-  /**
-   * Edge alignment for gpt-image-* flexible sizes. OpenAI's hard
-   * constraint is "W and H must be multiples of 16" — anything else
-   * 400s. We use 16 (not 32 / 64) to keep the resolved WxH as close
-   * to the requested aspect ratio as possible.
-   */
-  private static readonly EDGE_ALIGN = 16;
-
-  /**
-   * Map (`'a:b'`, `'1k'|'2k'|'4k'`) → `'WxH'` for gpt-image-* flexible
-   * sizing. Algorithm:
-   *   1. start from the resolution's pixel budget
-   *   2. solve W,H so W*H = budget AND W/H = a/b
-   *   3. round each edge to the nearest multiple of EDGE_ALIGN (16) —
-   *      OpenAI rejects anything else with a 400
-   *   4. clamp by the family's hard pixel cap — '4k' on gpt-image-1.5
-   *      e.g. would otherwise blow past its 1.5M ceiling
-   *
-   * If `ratio` is malformed we return undefined so the caller skips
-   * the `size` field; upstream then falls back to its own default
-   * (better than sending a syntactically wrong size and 400-ing).
-   */
-  private computeFlexibleSize(
-    ratio: string,
-    resolution: string,
-    family: 'gpt-image-2' | 'gpt-image-1',
-  ): string | undefined {
-    const m = ratio.match(/^(\d+)\s*:\s*(\d+)$/);
-    if (!m) return undefined;
-    const a = Number(m[1]);
-    const b = Number(m[2]);
-    if (!Number.isFinite(a) || !Number.isFinite(b) || a <= 0 || b <= 0)
-      return undefined;
-
-    const target =
-      OpenAICompatImageProvider.TARGET_PIXELS_BY_RES[resolution] ??
-      OpenAICompatImageProvider.TARGET_PIXELS_BY_RES['2k'];
-    const familyCap =
-      family === 'gpt-image-2'
-        ? OpenAICompatImageProvider.FAMILY_MAX_PIXELS['gpt-image-2']
-        : OpenAICompatImageProvider.FAMILY_MAX_PIXELS['gpt-image-1'];
-    const budget = Math.min(target, familyCap);
-    const align = OpenAICompatImageProvider.EDGE_ALIGN;
-
-    // W*H = budget AND W/H = a/b ⟹ W = sqrt(budget * a / b)
-    let w = Math.sqrt((budget * a) / b);
-    let h = (w * b) / a;
-    w = Math.max(align, Math.round(w / align) * align);
-    h = Math.max(align, Math.round(h / align) * align);
-
-    // After rounding the area can creep past the cap; scale down
-    // proportionally and floor-align so we stay safely under.
-    if (w * h > familyCap) {
-      const scale = Math.sqrt(familyCap / (w * h));
-      w = Math.max(align, Math.floor((w * scale) / align) * align);
-      h = Math.max(align, Math.floor((h * scale) / align) * align);
-    }
-    return `${w}x${h}`;
   }
 
   private clampN(extra: Record<string, any> | undefined): number {
     const raw = extra?.n;
     const n = typeof raw === 'number' ? raw : Number(raw);
     if (!Number.isFinite(n) || n < 1) return 1;
-    // OpenAI caps `n` at 10 for dall-e-2 / gpt-image-1, and 1 for
-    // dall-e-3. Capping at 10 here lets dall-e-3 surface its own clear
-    // 400 instead of us second-guessing the SKU's policy.
     return Math.min(Math.floor(n), 10);
   }
 
-  private numericParam(
+  private stringParam(
     extra: Record<string, any> | undefined,
     key: string,
-  ): number | undefined {
+  ): string | undefined {
     const v = extra?.[key];
-    if (v === undefined || v === null || v === '') return undefined;
-    const n = Number(v);
-    return Number.isFinite(n) ? n : undefined;
+    return typeof v === 'string' && v ? v : undefined;
   }
 
   private extractResources(data: any): ProviderResource[] {
@@ -370,13 +308,12 @@ export class OpenAICompatImageProvider implements ProviderClient {
     for (const it of items) {
       if (typeof it?.url === 'string' && it.url) {
         list.push({ type: 'image', url: it.url });
-        continue;
       }
-      // `b64_json` is what gpt-image-1 returns when `response_format`
-      // is missing/unsupported. We refuse silently here (callers see
-      // "no usable url" instead of trying to base64 → dataURL → disk,
-      // which would explode the `flow_executions.outputs` JSON column
-      // for a single 1024x1024 image).
+      // b64_json from /images/generations is rare (only when caller
+      // requests it). i2i is the common b64 case and is handled in
+      // openai-compat-image-edits with disk-persist. If a SKU starts
+      // returning b64 here unexpectedly the caller sees "no usable url"
+      // — preferable to silently exploding flow_executions.outputs.
     }
     return list;
   }
@@ -386,8 +323,6 @@ export class OpenAICompatImageProvider implements ProviderClient {
     count: number,
   ): ProviderUsage | undefined {
     if (usage && typeof usage === 'object') {
-      // GPT-image-1 returns usage tokens; DALL-E 2/3 do not. Surface
-      // the count plus raw upstream usage when present.
       return { imageCount: count, raw: usage };
     }
     return { imageCount: count };
@@ -403,6 +338,9 @@ export class OpenAICompatImageProvider implements ProviderClient {
       status,
     );
     (err as any).payloadSnippet = payload ?? message;
+    // 显式覆盖 .message, 否则 NestJS 默认 .message = 'Http Exception'(类名),
+    // ExecutionsService log 只看到 wrapper 名字, root cause 丢失.
+    (err as any).message = message;
     return err;
   }
 }

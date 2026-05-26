@@ -1,0 +1,43 @@
+{
+  "language": {
+    "label": "Language",
+    "zh": "简体中文",
+    "en": "English"
+  },
+  "common": {
+    "loading": "Loading…",
+    "close": "Close",
+    "closeEsc": "Close (Esc)"
+  },
+  "canvasRail": {
+    "expand": "Expand canvas list",
+    "collapse": "Collapse canvas list"
+  },
+  "statusBar": {
+    "connected": "Connected",
+    "down": "Backend unreachable",
+    "connecting": "Connecting…",
+    "sameOrigin": "(same origin)",
+    "nodes": "nodes",
+    "edges": "edges",
+    "zoom": "Zoom",
+    "zoomFit": "Click to fit",
+    "zoomLoading": "Canvas loading…",
+    "queueing": "running",
+    "queueingTooltip": "{{count}} node(s) running",
+    "assetLibrary": "Assets",
+    "assetLibraryTooltip": "Volcengine Ark asset library (Seedance references)"
+  },
+  "settings": {
+    "title": "Settings",
+    "sectionNavAria": "Settings categories"
+  },
+  "assetLibrary": {
+    "filter": {
+      "all": "All",
+      "image": "Image",
+      "video": "Video",
+      "audio": "Audio"
+    }
+  }
+}

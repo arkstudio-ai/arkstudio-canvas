@@ -19,24 +19,6 @@ export interface CreateFlowDto {
   initialGraph?: CanvasFlowValue;
 }
 
-// 创建 Flow Group 资产的请求接口（保存工作流模版用）
-export interface CreateFlowGroupDto {
-  name: string;
-  description: string;
-  userId: string;
-  flowId: string;
-  isPublic?: boolean;
-  cover?: string;
-  demo?: string;
-  tags: Array<{ category: string; value: string }>;
-  json: {
-    groups: any[];
-    nodes: any[];
-    edges: any[];
-    meta?: any;
-  };
-}
-
 export interface ExecutionResult {
   id: string;
   status: 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'COMPLETED';
@@ -148,11 +130,6 @@ export const api = {
     return res.data;
   },
 
-  createFlowGroup: async (data: CreateFlowGroupDto): Promise<any> => {
-    const res = await apiClient.post('/flow-groups', data);
-    return res.data;
-  },
-
   getFlow: async (id: string): Promise<FlowDto> => {
     const res = await apiClient.get<FlowDto>(`/flows/${id}`);
     return res.data;
@@ -198,24 +175,24 @@ export const api = {
   /**
    * 执行画布流程
    *
+   * 后端 ExecuteFlowDto 只收 canvasId / targetNodeId / groupId,
+   * 不再有 userId (开源版无用户系统). mode 控制 sync/async 走哪条 URL.
+   *
    * @returns { success: true, data: [...] } 任务数组: [{ executionId, nodeId, status }, ...]
    */
   executeFlow: async (
     canvasId: string,
     targetNodeId?: string,
     groupId?: string,
-    userId: string = 'anonymous',
     mode: 'async' | 'sync' = 'async',
   ) => {
     const url = mode === 'sync' ? '/executions/execute?mode=sync' : '/executions/execute';
     const res = await apiClient.post(url, {
       canvasId,
-      userId,
       targetNodeId,
       groupId,
     });
 
-    // 响应拦截器已剥过 envelope；为了与历史调用方契约一致再包一层
     return {
       success: true,
       data: res.data,

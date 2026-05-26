@@ -14,11 +14,32 @@
 
 import axios from 'axios';
 
-// `??` 而非 `||`：构建时把 `VITE_API_BASE_URL` 显式设成空串 (`""`) 表示
-// "走当前 origin 的相对路径"（典型场景：docker compose nginx 反代单端口部署）。
-// 用 `||` 会把空串误回退到 localhost:18500，导致浏览器跨域调失败。
+// 解析顺序（从高到低）：
+//   1. `window.__BACKEND_BASE__` —— 桌面端 (Electron preload) 在 main 进程
+//      启动 backend 后注入。值是 `http://127.0.0.1:<动态端口>`。
+//   2. build-time `import.meta.env.VITE_API_BASE_URL` —— 浏览器/docker 部署。
+//      显式空串 (`""`) 表示"走当前 origin 的相对路径"（nginx 反代单端口）。
+//   3. `'http://localhost:18500'` —— 本地 dev 默认。
+//
+// 用 `??` 而非 `||`：保留显式空串语义（不要把 "" 当成 falsy 然后退回到默认）。
+//
+// 桌面端 runtime 注入早于 React 挂载（preload 在第一行 JS 跑之前就 expose 了
+// 这个全局），所以这里直接同步读，不需要等任何事件。
+declare global {
+  interface Window {
+    __BACKEND_BASE__?: string;
+  }
+}
+
+const RUNTIME_BACKEND_BASE =
+  typeof window !== 'undefined' && typeof window.__BACKEND_BASE__ === 'string'
+    ? window.__BACKEND_BASE__
+    : undefined;
+
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:18500';
+  RUNTIME_BACKEND_BASE && RUNTIME_BACKEND_BASE.length > 0
+    ? RUNTIME_BACKEND_BASE
+    : (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:18500');
 
 export const apiConfig = {
   baseURL: API_BASE_URL,

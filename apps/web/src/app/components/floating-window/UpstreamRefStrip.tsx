@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Package, Plus, X } from 'lucide-react';
 
 export interface RefStripItem {
   id: string;
@@ -20,6 +20,12 @@ export interface UpstreamRefStripProps {
   items: RefStripItem[];
   onPickFile: (file: File) => void;
   disabled?: boolean;
+  /**
+   * 可选: 当 video 节点选中 Seedance (火山方舟) 模型时，父级传入该回调,
+   * 在 "+" 之前渲染一个 "素材库" 按钮 + 分割线. 其他 model / 节点 类型
+   * 不传, 按钮就不出现 — 跟竞品 "只有 SD2 才有素材库入口" 行为一致.
+   */
+  onOpenAssetLibrary?: () => void;
 }
 
 /**
@@ -29,6 +35,7 @@ export const UpstreamRefStrip: React.FC<UpstreamRefStripProps> = ({
   items,
   onPickFile,
   disabled = false,
+  onOpenAssetLibrary,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -45,6 +52,21 @@ export const UpstreamRefStrip: React.FC<UpstreamRefStripProps> = ({
           if (inputRef.current) inputRef.current.value = '';
         }}
       />
+
+      {onOpenAssetLibrary && (
+        <>
+          <button
+            type="button"
+            style={assetBtnStyle}
+            title="火山方舟素材库 (Seedance 参考素材)"
+            onClick={onOpenAssetLibrary}
+          >
+            <Package size={14} />
+            <span style={assetBtnLabelStyle}>素材库</span>
+          </button>
+          <span style={dividerStyle} aria-hidden />
+        </>
+      )}
 
       <button
         type="button"
@@ -143,6 +165,29 @@ const plusBtnStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   cursor: 'pointer',
+};
+
+const assetBtnStyle: React.CSSProperties = {
+  flexShrink: 0,
+  height: 34,
+  padding: '0 10px',
+  borderRadius: 8,
+  border: '1px solid rgba(52,211,153,0.4)',
+  background: 'rgba(52,211,153,0.10)',
+  color: '#5eead4',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  cursor: 'pointer',
+  fontSize: 12,
+};
+const assetBtnLabelStyle: React.CSSProperties = { fontWeight: 500 };
+const dividerStyle: React.CSSProperties = {
+  flexShrink: 0,
+  width: 1,
+  height: 20,
+  background: '#2a2a2a',
+  margin: '0 4px',
 };
 
 const chipStyle: React.CSSProperties = {

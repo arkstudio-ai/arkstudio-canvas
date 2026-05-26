@@ -3,14 +3,15 @@
 # Backend container entrypoint.
 #
 # Goals:
-#   1. Bring the schema in sync with prisma/schema.prisma (idempotent;
+#   1. 给 SQLite 库文件的父目录预创出来 (Prisma 不会自己 mkdir).
+#   2. Bring the schema in sync with prisma/schema.prisma (idempotent;
 #      `prisma db push` is the right tool for "managed by us" deployments).
-#   2. Seed default node/model definitions ONLY when the table is empty.
+#   3. Seed default node/model definitions ONLY when the table is empty.
 #      This prevents `docker compose restart` from clobbering admin edits.
-#   3. Hand off to `node dist/main` (PID 1 via tini, so SIGTERM works).
+#   4. Hand off to `node dist/main` (PID 1 via tini, so SIGTERM works).
 #
-# The container starts even if MySQL isn't ready yet — compose's
-# healthcheck ordering is best-effort, so we retry `db push` for ~30s.
+# 路径是 SQLite (DATABASE_URL=file:/data/db/canvas-flow.db); 开源版只支持
+# SQLite, 不再保留 MySQL/PG 双轨.
 # ============================================================================
 set -e
 
@@ -26,22 +27,30 @@ if [ ! -x "$PRISMA" ]; then
   exit 1
 fi
 
-echo "[entrypoint] waiting for database to accept connections..."
-ATTEMPTS=0
-until "$PRISMA" db push --skip-generate --accept-data-loss=false >/tmp/db-push.log 2>&1; do
-  ATTEMPTS=$((ATTEMPTS + 1))
-  if [ "$ATTEMPTS" -ge 30 ]; then
-    echo "[entrypoint] giving up after 30 attempts; last error:"
-    cat /tmp/db-push.log
-    exit 1
-  fi
-  sleep 1
-done
-echo "[entrypoint] schema synced (db push attempt $ATTEMPTS)"
+# file:/abs/path 协议的话, mkdir -p 父目录. 容器命名卷挂在 /data/db,
+# 第一次启动卷里是空的, 没有这一步 prisma db push 会因为父目录不存在
+# 直接 fail.
+case "${DATABASE_URL:-}" in
+  file:/*|file:///*)
+    DB_PATH="${DATABASE_URL#file:}"
+    DB_PATH="${DB_PATH#//}"
+    DB_DIR=$(dirname "$DB_PATH")
+    if [ ! -d "$DB_DIR" ]; then
+      echo "[entrypoint] mkdir -p $DB_DIR (SQLite parent dir)"
+      mkdir -p "$DB_DIR"
+    fi
+    ;;
+esac
+
+echo "[entrypoint] running prisma db push to sync schema..."
+if ! "$PRISMA" db push --skip-generate --accept-data-loss=false >/tmp/db-push.log 2>&1; then
+  echo "[entrypoint] db push failed:"
+  cat /tmp/db-push.log
+  exit 1
+fi
+echo "[entrypoint] schema synced"
 
 # Seed default node definitions only on a fresh install.
-# We probe via Prisma client (already loaded) instead of raw mysql to avoid
-# adding the mysql client to the slim runtime image.
 COUNT=$(node -e "
   const { PrismaClient } = require('@prisma/client');
   const p = new PrismaClient();

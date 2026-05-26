@@ -13,7 +13,7 @@ import type { AdminModule } from '../types';
 export const adminModules: AdminModule[] = [
   {
     id: 'usage',
-    label: '概览',
+    labelKey: 'settings:nav.usage',
     icon: BarChart3,
     path: 'usage',
     Component: lazy(async () => {
@@ -23,7 +23,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     id: 'logs',
-    label: '日志',
+    labelKey: 'settings:nav.logs',
     icon: ScrollText,
     path: 'logs',
     Component: lazy(async () => {
@@ -33,7 +33,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     id: 'config',
-    label: '配置',
+    labelKey: 'settings:nav.config',
     icon: Settings,
     path: 'config',
     Component: lazy(async () => {
@@ -43,7 +43,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     id: 'system',
-    label: '系统设置',
+    labelKey: 'settings:nav.system',
     icon: SlidersHorizontal,
     path: 'system',
     Component: lazy(async () => {
@@ -52,7 +52,7 @@ export const adminModules: AdminModule[] = [
     }),
   },
   // 占位（未来 / 商业版按需加）：
-  // { id: 'billing', label: '计费',   icon: CreditCard,  path: 'billing', Component: lazy(...) },
+  // { id: 'billing', labelKey: 'settings:nav.billing', icon: CreditCard, path: 'billing', Component: lazy(...) },
 ];
 
 export const DEFAULT_ADMIN_MODULE_ID = 'usage';

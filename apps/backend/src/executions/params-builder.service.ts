@@ -5,7 +5,16 @@ import { FileTransferService } from '../upload/file-transfer.service';
 
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.ogg', '.aac', '.flac', '.m4a'];
-const EXCLUDED_PARAM_KEYS = ['prompt', 'action', 'model'];
+// `assetRefs` is a frontend-only snapshot for the SD2 strip + @ mention
+// chips. Resolved into `inputs[]` below; excluded from extraParams so it
+// doesn't leak into upstream vendor bodies.
+const EXCLUDED_PARAM_KEYS = ['prompt', 'action', 'model', 'assetRefs'];
+
+interface AssetRefSnapshot {
+  id: string;
+  uri: string;
+  assetType?: string; // 'Image' / 'Video' / 'Audio'
+}
 
 /**
  * Builds the SubmitRequest payload that ProviderRegistry consumes, from
@@ -85,6 +94,16 @@ export class ParamsBuilderService {
       }
     });
 
+    // SD2 asset-library snapshots → inputs[] with asset:// URIs. The
+    // Volcengine Seedance provider dereferences asset:// natively (sends
+    // the CreateAsset-returned URL upstream); other providers will 400
+    // on the scheme — that's the right failure mode since the assetRefs
+    // chip only renders on SD2 nodes in the frontend.
+    const assetRefs = this.extractAssetRefs(params);
+    for (const a of assetRefs) {
+      inputs.push({ type: this.assetTypeToInputType(a.assetType), url: a.uri });
+    }
+
     const extraParams: Record<string, any> = {};
     if (typeof params === 'object' && params !== null) {
       Object.keys(params).forEach((key) => {
@@ -129,18 +148,36 @@ export class ParamsBuilderService {
     apiResult: any,
     executionId: string,
   ): Promise<Record<string, any>> {
-    const resultData: any = { taskId: executionId };
+    // aiGenerated:true 是前端用来判 "这个节点的内容是模型跑出来的, 不是
+    // 用户手动上传的" 的稳定 marker (落库 + reload 回灌 + MediaNode 替换
+    // 按钮的判定都靠它). taskId 也同时写, 但 taskId 没回灌通路, 别拿它
+    // 当 manual/AI 判定依据.
+    const resultData: any = { taskId: executionId, aiGenerated: true };
 
     if (nodeType === 'text') {
       resultData.text = apiResult.text || apiResult.results?.[0]?.text || '';
     } else {
-      const resource = apiResult.resources?.[0] || apiResult.results?.[0] || {};
-      const originalUrl = resource.url || '';
-      resultData.fileType = resource.type || nodeType;
+      const resources: any[] = Array.isArray(apiResult.resources)
+        ? apiResult.resources
+        : Array.isArray(apiResult.results)
+          ? apiResult.results
+          : [];
+      const first = resources[0] ?? {};
+      resultData.fileType = first.type || nodeType;
 
-      if (originalUrl) {
+      // 多图生成: provider 返回 resources[] (e.g. dall-e n=4 / gpt-image
+      // n=4), 每张都 mirror 到本地, 第一张当主图 (data.src), 全部进
+      // data.alternates. n=1 不写 alternates, 跟老单图行为完全一致.
+      //
+      // "all-or-nothing": 任一张 transfer 失败就整次失败, 不写 partial
+      // result. 跟跟用户讨论的语义对齐 — "你要 4 张, 给你 3 张不算成功".
+      const mirroredUrls: string[] = [];
+      for (const resource of resources) {
+        const originalUrl = (resource && resource.url) || '';
+        if (!originalUrl) continue;
         this.logger.log(
-          `[转存] 开始转存媒体文件: ${originalUrl.substring(0, 60)}...`,
+          `[转存] 开始转存媒体文件 (${mirroredUrls.length + 1}/${resources.length}): ` +
+            `${originalUrl.substring(0, 60)}...`,
         );
         const transferResult = await this.fileTransferService.transferUrl(
           originalUrl,
@@ -148,13 +185,27 @@ export class ParamsBuilderService {
           nodeType,
         );
         if (transferResult.success && transferResult.accessUrl) {
-          resultData.src = transferResult.accessUrl;
+          mirroredUrls.push(transferResult.accessUrl);
         } else {
-          resultData.src = originalUrl;
-          this.logger.warn(`[转存] 失败，使用原始URL: ${transferResult.error}`);
+          // 一张失败 = 整次失败. 把已经 mirror 的本地副本扔在那 (历史保留
+          // 策略会按 maxAgeDays 清掉), 抛错让 ExecutionsService 走 FAILED
+          // 分支. 不要回退到 originalUrl, 那会让 "假成功" 落库, 历史还
+          // 显着 stale link.
+          throw new Error(
+            `转存失败 (${mirroredUrls.length + 1}/${resources.length} 张): ` +
+              `${transferResult.error ?? 'unknown'}. 整次生成视为失败, 已 mirror ` +
+              `的本地副本会按 history retention 自然清理.`,
+          );
         }
-      } else {
+      }
+
+      if (mirroredUrls.length === 0) {
         resultData.src = '';
+      } else {
+        resultData.src = mirroredUrls[0];
+        if (mirroredUrls.length > 1) {
+          resultData.alternates = mirroredUrls.map((src) => ({ src }));
+        }
       }
     }
 
@@ -173,5 +224,37 @@ export class ParamsBuilderService {
   private isAudio(src: string): boolean {
     const lower = src.toLowerCase().split('?')[0];
     return AUDIO_EXTENSIONS.some((ext) => lower.endsWith(ext));
+  }
+
+  private extractAssetRefs(params: Record<string, any>): AssetRefSnapshot[] {
+    const raw = params?.assetRefs;
+    if (!Array.isArray(raw)) return [];
+    const out: AssetRefSnapshot[] = [];
+    for (const r of raw) {
+      if (!r || typeof r !== 'object') continue;
+      const id = (r as { id?: unknown }).id;
+      const uri = (r as { uri?: unknown }).uri;
+      const assetType = (r as { assetType?: unknown }).assetType;
+      if (typeof id !== 'string' || typeof uri !== 'string') continue;
+      out.push({
+        id,
+        uri,
+        assetType: typeof assetType === 'string' ? assetType : undefined,
+      });
+    }
+    return out;
+  }
+
+  private assetTypeToInputType(
+    assetType: string | undefined,
+  ): 'image' | 'video' | 'audio' {
+    switch ((assetType || '').toLowerCase()) {
+      case 'video':
+        return 'video';
+      case 'audio':
+        return 'audio';
+      default:
+        return 'image';
+    }
   }
 }

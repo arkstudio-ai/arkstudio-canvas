@@ -2,6 +2,7 @@ import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { DashscopeConfigService } from '../canvas-config/dashscope-config.service';
 import { DashscopeUploadService } from '../upload/dashscope-upload.service';
+import { getImageGatewayRedirect } from './extensions';
 import { summarizeBody } from './log-utils';
 import { firstValueFrom } from 'rxjs';
 import type {
@@ -121,9 +122,27 @@ export class DashScopeImageProvider implements ProviderClient {
   }
 
   async submit(req: SubmitRequest): Promise<SubmitResult> {
-    const apiKey = await this.dashscopeConfig.getApiKey();
-    const baseUrl = await this.dashscopeConfig.getBaseUrl();
+    // Gateway redirect: when a fork supplies one, skip the per-vendor
+    // config lookups (which would throw if the local DashScope key isn't
+    // configured — the gateway holds it instead).
+    const imageInputCount = (req.inputs ?? []).filter((i) => i.type === 'image').length;
+    const redirect = getImageGatewayRedirect({
+      providerId: this.name,
+      modelSku: req.modelSku,
+      imageInputCount,
+    });
     const timeout = await this.dashscopeConfig.getTimeoutMs('image');
+    let baseUrl: string;
+    let apiKey: string;
+    if (redirect) {
+      // redirect.url is consumed directly later; keep baseUrl/apiKey unset
+      // to avoid accidental misuse below.
+      baseUrl = '';
+      apiKey = redirect.apiKey;
+    } else {
+      apiKey = await this.dashscopeConfig.getApiKey();
+      baseUrl = await this.dashscopeConfig.getBaseUrl();
+    }
 
     if (!req.prompt && (req.inputs?.length ?? 0) === 0) {
       throw this.toHttpException(
@@ -157,7 +176,7 @@ export class DashScopeImageProvider implements ProviderClient {
     }
     for (const img of images) content.push({ image: img.url });
 
-    const body: Record<string, any> = {
+    const nativeBody: Record<string, any> = {
       model: req.modelSku,
       input: {
         messages: [{ role: 'user', content }],
@@ -165,10 +184,14 @@ export class DashScopeImageProvider implements ProviderClient {
       ...this.buildParameters(req, images.length > 0),
     };
 
-    const url = `${baseUrl}${this.SUBMIT_PATH}`;
+    const url = redirect ? redirect.url : `${baseUrl}${this.SUBMIT_PATH}`;
+    const body = redirect
+      ? (redirect.transformBody(nativeBody) as Record<string, any>)
+      : nativeBody;
     this.logger.log(
       `[dashscope-image:submit] sku=${req.modelSku} requestId=${req.requestId} ` +
-        `images=${images.length} url=${url} body=${summarizeBody(body)}`,
+        `images=${images.length} url=${url} body=${summarizeBody(body)}` +
+        (redirect ? ' (via gateway override)' : ''),
     );
 
     let resp;
@@ -199,7 +222,15 @@ export class DashScopeImageProvider implements ProviderClient {
       throw err;
     }
 
-    const data = resp.data ?? {};
+    // Gateway-wrapped responses (OpenAI image shape) lose DashScope's native
+    // `output.choices` structure. The fork can supply `transformResponse` to
+    // unwrap back to vendor-native; otherwise we assume the gateway already
+    // returns DashScope shape.
+    const rawData = resp.data ?? {};
+    const data =
+      redirect?.transformResponse
+        ? (redirect.transformResponse(rawData) ?? rawData)
+        : rawData;
     const resources = this.extractResources(data);
     if (resources.length === 0) {
       const err = this.toHttpException(
@@ -366,6 +397,9 @@ export class DashScopeImageProvider implements ProviderClient {
       status,
     );
     (err as any).payloadSnippet = payload ?? message;
+    // 显式覆盖 .message, 否则 NestJS 默认 .message = 'Http Exception'(类名),
+    // ExecutionsService log 只看到 wrapper 名字, root cause 丢失.
+    (err as any).message = message;
     return err;
   }
 }

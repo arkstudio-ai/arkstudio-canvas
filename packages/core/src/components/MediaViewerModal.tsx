@@ -6,7 +6,9 @@ import '../styles/canvas.css';
 interface MediaViewerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  src: string;
+  // 允许 undefined: MediaNode 用 `resolveMediaUrl()` 喂值, 节点 data.src 缺失
+  // 时返回 undefined. 组件内部已经有 `!src` 的早返回, 类型对齐就行.
+  src: string | undefined;
   type: 'image' | 'video' | 'audio';
 }
 

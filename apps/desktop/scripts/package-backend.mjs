@@ -1,0 +1,232 @@
+#!/usr/bin/env node
+// 把 backend (NestJS dist + 运行期所需 node_modules + prisma schema) 抽取到
+// apps/desktop/build/backend, 给 electron-builder 的 extraResources 拾取.
+//
+// 流程:
+//   1. 清理旧 build/backend
+//   2. 触发 backend 的 prisma generate, 确保 .prisma/client/ 里有 5 套引擎
+//      (native + linux-musl + darwin + darwin-arm64 + windows)
+//   3. 触发 backend 的 nest build (apps/backend/dist)
+//   4. pnpm --filter canvas-flow-backend deploy --prod build/backend
+//      -- 这会把 dist + prisma + package.json + 运行期 node_modules 全打包
+//   5. 清掉 build/backend/prisma/dev.db* (开发期的 SQLite 不该跟着走)
+//
+// 为什么用独立脚本而不是塞进 package.json scripts:
+//   - deploy 的 target 路径要绝对; 各步骤要顺序 + 出错时友好报告
+//   - prisma generate 失败时要给"网络问题/binaryTargets 拼错"这类提示
+
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DESKTOP_DIR = path.resolve(__dirname, '..');
+const MONOREPO_ROOT = path.resolve(DESKTOP_DIR, '..', '..');
+const OUT_DIR = path.join(DESKTOP_DIR, 'build', 'backend');
+
+function run(cmd, args, opts = {}) {
+  console.log(`\n$ ${cmd} ${args.join(' ')}`);
+  const res = spawnSync(cmd, args, {
+    stdio: 'inherit',
+    cwd: opts.cwd ?? MONOREPO_ROOT,
+    env: { ...process.env, ...(opts.env ?? {}) },
+  });
+  if (res.status !== 0) {
+    throw new Error(`[package-backend] ${cmd} ${args.join(' ')} exited ${res.status}`);
+  }
+}
+
+function rmrf(p) {
+  fs.rmSync(p, { recursive: true, force: true });
+}
+
+console.log(`[package-backend] OUT_DIR=${OUT_DIR}`);
+
+// Step 1: 清理旧产物
+rmrf(OUT_DIR);
+fs.mkdirSync(path.dirname(OUT_DIR), { recursive: true });
+
+// Step 2: prisma generate
+//   读 apps/backend/prisma/schema.prisma 里声明的 binaryTargets, 下载并放到
+//   apps/backend/node_modules/.prisma/client/ —— 之后 deploy 会把整个
+//   .prisma/client/ 一起复制过去.
+run('pnpm', ['--filter', 'canvas-flow-backend', 'exec', 'prisma', 'generate']);
+
+// Step 3: tsc → apps/backend/.dist-package (isolated from dev's /dist).
+//
+// 历史包袱: nest-cli 的 deleteOutDir 会在 build 起跳那瞬间把 /dist 整个干掉.
+// 如果用户同时在跑 `pnpm dev:desktop` (内含 nest start --watch), dev backend
+// 已经载到 main.js 然后 require './app.module', 我们这边一波 deleteOutDir
+// 把 app.module.js 抹掉, 下一次 dev 触发重启就 MODULE_NOT_FOUND 当场崩.
+//
+// 改成: 走纯 tsc + 自定义 outDir, 把 packaging 产物隔离到 .dist-package/,
+// dev 的 /dist 完全不动. 后面 Step 4b 再把 .dist-package 内容拷到 OUT_DIR/dist.
+const PKG_DIST_REL = '.dist-package';
+const BACKEND_DIR = path.join(MONOREPO_ROOT, 'apps', 'backend');
+const PKG_DIST_ABS = path.join(BACKEND_DIR, PKG_DIST_REL);
+rmrf(PKG_DIST_ABS);
+
+run('pnpm', [
+  '--filter', 'canvas-flow-backend', 'exec', 'tsc',
+  '-p', 'tsconfig.build.json',
+  '--outDir', PKG_DIST_REL,
+]);
+
+// Step 3b: prisma/seed-canvas-config.ts 单独 tsc 到 .dist-package.
+//   src/ 编译由 step 3 的 tsconfig.build.json 管, prisma/ 不在 include 里,
+//   要单独编. 桌面端首次启动会 ELECTRON_RUN_AS_NODE 跑这个 .js, 灌默认
+//   节点目录 + token/style globalConfig 进 SQLite. docker-entrypoint.sh
+//   复用同一份产物 (apps/backend/Dockerfile 也做同样的事).
+run(
+  'pnpm',
+  [
+    '--filter', 'canvas-flow-backend', 'exec', 'tsc',
+    '--target', 'ES2022',
+    '--module', 'CommonJS',
+    '--moduleResolution', 'node',
+    '--esModuleInterop',
+    '--skipLibCheck',
+    '--resolveJsonModule',
+    '--outDir', PKG_DIST_REL,
+    'prisma/seed-canvas-config.ts',
+    // 也编 patch 脚本 — 桌面端每次启动会 spawn 这个 --apply,
+    // 把后来加进 default-node-definitions 的新模型 (e.g. Seedance)
+    // back-port 到老用户的 SQLite, 不动 admin 已编辑过的字段.
+    'prisma/patches/sync-default-models.ts',
+  ],
+);
+
+// Step 4: pnpm deploy --legacy --prod, hoisted via env
+//
+//   pnpm@10 默认要求 workspace 启用 inject-workspace-packages 才能 deploy;
+//   --legacy 退回 pnpm@9 的自包含行为, 这正是桌面打包想要的形态.
+//   --prod 意味着 devDependencies 不会进, 节省 ~200MB.
+//   注意: prisma 已经从 devDeps 升到 deps, 因此 prisma CLI 会被打进去,
+//   桌面端首启的 prisma db push 能跑.
+//
+//   hoisted node-linker 是跨平台关键. pnpm 默认在 node_modules/.pnpm/ 下
+//   铺虚拟仓 + 顶层 symlink. Windows 上有两个致命问题:
+//     1. mac 上建的 symlink 经 zip 传到 Win 全部变成断链 (EPERM on stat)
+//     2. .pnpm/<pkg>@<ver>_<peer-deps-hash>/node_modules/<actual> 嵌套层级
+//        加上 peer-deps hash 后缀, 单一路径 ~150 字符, 叠上 Win install 路径
+//        通常超过 MAX_PATH=260
+//   hoisted 布局把所有 prod 依赖直接平铺到 node_modules/<pkg>, 无 .pnpm/ 虚拟仓,
+//   无 symlink, npm classic 风格. 体积略升 (peer deps 可能重复), 但稳.
+//
+//   ⚠ 关键: 用 NPM_CONFIG_NODE_LINKER env 而非 `--config.node-linker=hoisted`
+//   CLI flag. 后者是 pnpm "global config" 写入, 不仅作用于 deploy 这个子
+//   命令的 OUT_DIR, 还会在 source workspace (apps/backend/node_modules/) 上
+//   re-link 一波 — symlink 全变实体目录, 旁边没 .pnpm sibling, 下次 dev
+//   backend 起来 require('https-proxy-agent') 就 MODULE_NOT_FOUND 崩.
+//   env-only 形态只作用于这个 spawn 子进程的 deploy 操作, 不污染源.
+run(
+  'pnpm',
+  ['--filter', 'canvas-flow-backend', 'deploy', '--legacy', '--prod', OUT_DIR],
+  { env: { NPM_CONFIG_NODE_LINKER: 'hoisted' } },
+);
+
+// Step 4b: 把 .dist-package 内容拷到 deployed bundle 的 dist/.
+//   pnpm deploy 按 package.json#files 把 src 的 dist/ (dev 残留, 可能没,
+//   可能 stale) 复制过去 — 不是我们想要的产物. 这里强制用 .dist-package
+//   覆盖, 保证 OUT_DIR/dist 是这次 packaging tsc 出的干净版本.
+const deployedDistDir = path.join(OUT_DIR, 'dist');
+rmrf(deployedDistDir);
+fs.cpSync(PKG_DIST_ABS, deployedDistDir, { recursive: true });
+
+// Step 5: 在 deployed bundle 内部再跑一次 prisma generate.
+//   pnpm deploy 跑的是 fresh install, 不会自动跑 prisma generate,
+//   所以 deployed bundle 的 node_modules/.prisma/client 是空的, @prisma/client
+//   运行时会立刻报错. 我们读 schema 里的 binaryTargets, 生成全部 5 个平台
+//   query 引擎到 deployed 端的 .prisma/client/.
+//
+// PRISMA_CLI_BINARY_TARGETS: 关键. prisma 默认只给 host 平台下载
+// @prisma/engines 里的 **schema engine** (prisma db push 用的那个),
+// query engine 倒是按 binaryTargets 全下. 桌面端首次启动会跑
+// `prisma db push`, Win 用户机上若没 schema-engine-windows.exe,
+// prisma 会现场下载 + 写 node_modules/.cache/prisma —— Program Files
+// 路径只读, mkdir EPERM 当场挂 (实测). 这条 env 强制 generate 阶段
+// 把所有 desktop 平台的 schema engine 一起拉来.
+run(
+  'node',
+  [
+    path.join(OUT_DIR, 'node_modules', 'prisma', 'build', 'index.js'),
+    'generate',
+    `--schema=${path.join(OUT_DIR, 'prisma', 'schema.prisma')}`,
+  ],
+  {
+    cwd: OUT_DIR,
+    env: {
+      PRISMA_CLI_BINARY_TARGETS:
+        'darwin,darwin-arm64,windows,linux-musl-openssl-3.0.x',
+    },
+  },
+);
+
+// Step 6: 抹掉 dev.db, 避免开发机本地数据库被带到用户机器上
+const devDb = path.join(OUT_DIR, 'prisma', 'dev.db');
+const devDbJournal = path.join(OUT_DIR, 'prisma', 'dev.db-journal');
+for (const f of [devDb, devDbJournal]) {
+  if (fs.existsSync(f)) {
+    console.log(`[package-backend] removing ${path.relative(OUT_DIR, f)}`);
+    fs.unlinkSync(f);
+  }
+}
+
+// 校验关键文件存在
+const required = [
+  path.join(OUT_DIR, 'dist', 'main.js'),
+  // tsc 在编译 seed 时跟随 `import '../src/bootstrap-env'`, rootDir 推到
+  // apps/backend/, 所以这些文件落在 dist/prisma 而不是 dist 顶层:
+  path.join(OUT_DIR, 'dist', 'prisma', 'seed-canvas-config.js'),
+  path.join(OUT_DIR, 'dist', 'prisma', 'default-node-definitions.js'),
+  path.join(OUT_DIR, 'dist', 'prisma', 'patches', 'sync-default-models.js'),
+  path.join(OUT_DIR, 'dist', 'src', 'bootstrap-env.js'),
+  path.join(OUT_DIR, 'prisma', 'schema.prisma'),
+  path.join(OUT_DIR, 'node_modules', 'prisma', 'build', 'index.js'),
+  path.join(OUT_DIR, 'node_modules', '@prisma', 'client', 'package.json'),
+];
+const missing = required.filter((f) => !fs.existsSync(f));
+if (missing.length > 0) {
+  throw new Error(
+    `[package-backend] missing required output files:\n  - ${missing.map((m) => path.relative(OUT_DIR, m)).join('\n  - ')}`,
+  );
+}
+
+// 校验 darwin / darwin-arm64 / windows 引擎都到位.
+// hoisted 布局下 prisma generate 把 .prisma/client/ 直接铺到顶层 node_modules,
+// @prisma/client 运行时 require('.prisma/client') 解析到这里.
+const clientEngineDir = path.join(OUT_DIR, 'node_modules', '.prisma', 'client');
+const desktopEngines = [
+  'libquery_engine-darwin.dylib.node',
+  'libquery_engine-darwin-arm64.dylib.node',
+  'query_engine-windows.dll.node',
+];
+const missingEngines = desktopEngines.filter((e) => !fs.existsSync(path.join(clientEngineDir, e)));
+if (missingEngines.length > 0) {
+  throw new Error(
+    `[package-backend] missing prisma client engines in ${path.relative(OUT_DIR, clientEngineDir)}:\n  - ${missingEngines.join('\n  - ')}`,
+  );
+}
+
+// schema engine 校验 — 桌面端首次启动 prisma db push 走的就是这个. 漏了 win
+// 那个就是上线后 Win 用户报 EPERM (Program Files 只读, prisma 现场下载
+// 触发 mkdir node_modules/.cache/prisma 失败). 跟 query engine 不同位置:
+// 这些归 @prisma/engines/ 管, 由 PRISMA_CLI_BINARY_TARGETS 控制.
+const cliEngineDir = path.join(OUT_DIR, 'node_modules', '@prisma', 'engines');
+const desktopSchemaEngines = [
+  'schema-engine-darwin',
+  'schema-engine-darwin-arm64',
+  'schema-engine-windows.exe',
+];
+const missingSchemaEngines = desktopSchemaEngines.filter(
+  (e) => !fs.existsSync(path.join(cliEngineDir, e)),
+);
+if (missingSchemaEngines.length > 0) {
+  throw new Error(
+    `[package-backend] missing prisma schema engines in ${path.relative(OUT_DIR, cliEngineDir)}:\n  - ${missingSchemaEngines.join('\n  - ')}\n` +
+      `Hint: ensure PRISMA_CLI_BINARY_TARGETS includes all desktop targets in step 5.`,
+  );
+}
+
+console.log(`\n[package-backend] ✓ backend bundled at ${OUT_DIR}`);

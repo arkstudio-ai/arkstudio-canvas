@@ -1,6 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
-import { LocalStorageService } from '../storage/local-storage.service';
+import { STORAGE_DRIVER, type StorageDriver } from '../storage/storage-driver';
 
 export interface TransferResult {
   success: boolean;
@@ -10,25 +10,28 @@ export interface TransferResult {
   fileType?: string;
   size?: number;
   error?: string;
-  /** Where the asset ended up — useful for diagnostics. Always 'local' or 'none'. */
-  storage?: 'local' | 'none';
+  /** Where the asset ended up. 'none' = mirror failed. */
+  storage?: string;
 }
 
 /**
  * Mirrors generated assets from a third-party host (DashScope etc.) into
- * our own local storage so the public URL stays stable after the
- * upstream signed URL expires (DashScope's are typically 24h).
+ * our own storage so the public URL stays stable after the upstream signed
+ * URL expires (DashScope's are typically 24h).
  *
- * Open-source build: storage is local-disk-only. We never throw out of
- * `transferUrl` so one mirroring failure doesn't tank the executions
- * pipeline — caller falls back to the upstream URL and lives with the
- * eventual expiry.
+ * Storage backend is selected via the `STORAGE_DRIVER` injection token
+ * (local default, or aliyun-oss / volcengine-tos when `STORAGE_BACKEND` env
+ * is set). We never throw out of `transferUrl` so one mirroring failure
+ * doesn't tank the executions pipeline — caller falls back to the upstream
+ * URL and lives with the eventual expiry.
  */
 @Injectable()
 export class FileTransferService {
   private readonly logger = new Logger(FileTransferService.name);
 
-  constructor(private readonly localStorage: LocalStorageService) {}
+  constructor(
+    @Inject(STORAGE_DRIVER) private readonly storage: StorageDriver,
+  ) {}
 
   /**
    * @param sourceUrl   Original URL returned by the model provider.
@@ -41,22 +44,23 @@ export class FileTransferService {
     executionId: string,
     fileType: string,
   ): Promise<TransferResult> {
-    if (this.localStorage.isLocalUrl(sourceUrl)) {
-      // Already on our disk — no work to do, keep the URL we'd have minted anyway.
+    if (this.storage.ownsUrl(sourceUrl)) {
+      // Already in our storage — no work to do, keep the URL we'd have minted anyway.
       this.logger.log(
-        `[转存] ⏭️ 跳过: 已在 local storage (${sourceUrl.substring(0, 60)}...)`,
+        `[转存] ⏭️ 跳过: 已在 storage (${sourceUrl.substring(0, 60)}...)`,
       );
+      const isRel = sourceUrl.startsWith('/');
       return {
         success: true,
         accessUrl: sourceUrl,
         originalUrl: sourceUrl,
         fileType,
-        storage: 'local',
+        storage: isRel ? 'local' : 'cloud',
       };
     }
 
     const startTime = Date.now();
-    this.logger.log(`[转存] 开始 (local): ${sourceUrl.substring(0, 80)}...`);
+    this.logger.log(`[转存] 开始: ${sourceUrl.substring(0, 80)}...`);
 
     try {
       const { buffer, contentType } = await this.downloadAsset(
@@ -64,14 +68,16 @@ export class FileTransferService {
         fileType,
       );
       const ext = this.getExtension(contentType, sourceUrl);
-      const key = this.localStorage.generateExecutionKey(executionId, ext);
-      const result = await this.localStorage.putObject({
+      const key = this.storage.generateExecutionKey(executionId, ext);
+      const result = await this.storage.putObject({
         key,
         buffer,
         contentType,
       });
       const duration = Date.now() - startTime;
-      this.logger.log(`[转存] ✅ local 成功: ${key} (${duration}ms)`);
+      const isRel = result.accessUrl.startsWith('/');
+      const tag = isRel ? 'local' : new URL(result.accessUrl).host;
+      this.logger.log(`[转存] ✅ ${tag} 成功: ${key} (${duration}ms)`);
       return {
         success: true,
         fileKey: key,
@@ -79,12 +85,12 @@ export class FileTransferService {
         originalUrl: sourceUrl,
         fileType,
         size: result.bytes,
-        storage: 'local',
+        storage: tag,
       };
     } catch (error) {
       const duration = Date.now() - startTime;
       this.logger.error(
-        `[转存] ❌ local 失败 (${duration}ms): ${(error as Error).message}`,
+        `[转存] ❌ 失败 (${duration}ms): ${(error as Error).message}`,
       );
       return {
         success: false,

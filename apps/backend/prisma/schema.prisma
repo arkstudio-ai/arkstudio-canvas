@@ -1,10 +1,23 @@
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+  // native: 开发机自身; linux-musl-*: docker alpine 镜像;
+  // darwin / darwin-arm64 / windows: 桌面端三平台打包.
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "darwin", "darwin-arm64", "windows"]
 }
 
+// 开源版只用 SQLite —— 单文件零外部依赖, 桌面端 / docker / 本地 dev 通吃.
+// 不再维护 MySQL/PostgreSQL 双轨, 想换 DB 自己 fork.
+//
+// 版本要求: Prisma ≥ 6.2.0. SQLite + `Json` 类型在 6.2 才 GA, 5.x 任何版本
+// 都会在 db push 时报 "current connector does not support the Json type".
+// 别因为"瘦身依赖"把 prisma 退回 5.x.
+//
+// SQLite 连接串走 file: 协议, 路径相对于本 schema 文件:
+//   file:./dev.db                 ← apps/backend/prisma/dev.db (本地 dev)
+//   file:/data/db/canvas-flow.db  ← docker compose 命名卷
+//   file:/Users/.../userData/...  ← 桌面端 Electron app.getPath('userData')
 datasource db {
-  provider = "mysql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -15,8 +28,8 @@ datasource db {
 model Flow {
   id          String  @id @default(uuid())
   name        String
-  description String? @db.Text
-  cover       String? @db.Text
+  description String?
+  cover       String?
 
   structureJson Json
 
@@ -149,7 +162,7 @@ model FlowExecution {
   // Full request / response
   requestPayload  Json?
   responsePayload Json?
-  errorMsg        String? @db.Text
+  errorMsg        String?
 
   createdAt  DateTime  @default(now())
   startedAt  DateTime?
@@ -191,8 +204,11 @@ model FlowExecutionEvent {
   // Snapshot of the upstream provider status at the time of this event
   // (e.g. 'pending', 'running', 'succeeded'); only set for polling/submitted
   externalStatus String?
-  // Free-form human note for log scanning
-  message        String? @db.VarChar(1024)
+  // Free-form human note for log scanning. Length cap removed when MySQL
+  // VARCHAR(1024) was retired: SQLite ignored it, app code never exceeded
+  // ~200 chars, and the @db.VarChar(1024) annotation forced dual-schema
+  // bookkeeping for nothing in return.
+  message        String?
   // Failure-only sanitized upstream error body
   payloadSnippet Json?
 
@@ -242,8 +258,8 @@ model NodeDefinition {
 model Template {
   id          String  @id @default(uuid())
   name        String
-  description String? @db.Text
-  cover       String? @db.Text
+  description String?
+  cover       String?
 
   structureJson Json
 
@@ -315,7 +331,7 @@ model GlobalConfig {
   id          String  @id @default(uuid())
   key         String  @unique
   value       Json
-  description String? @db.Text
+  description String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -349,13 +365,13 @@ model Voice {
   name         String
   // Source clip URL (the file the user uploaded / recorded). Kept
   // for re-clone / debugging; the file lives in our upload bucket.
-  audioUrl     String? @db.Text
+  audioUrl     String?
   // Demo audio URL returned by the voice_clone call -- short sample
   // synthesized using the new voice. Used by the gallery for preview.
-  demoAudioUrl String? @db.Text
+  demoAudioUrl String?
   // SUCCESS | FAILED. Sync provider only ever writes SUCCESS today.
   status       String  @default("SUCCESS")
-  errorMsg     String? @db.Text
+  errorMsg     String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -388,17 +404,17 @@ model GenerationHistory {
   nodeType    String
   // Cover for the gallery list. Image/video nodes copy from src; text
   // nodes leave it null and the UI falls back to a styled card.
-  thumbnail   String? @db.Text
+  thumbnail   String?
   // Prompt text used when the result was generated (best-effort: read
   // from params.prompt or params.text at record time).
-  promptText  String? @db.Text
+  promptText  String?
   // ModelEntry.value at submit time (e.g. 'wan2.7-r2v', 'qwen-plus').
   modelName   String?
   width       Int     @default(0)
   height      Int     @default(0)
   // Direct media URL for image/video/audio (= outputData.src). For
   // text nodes this is null and the actual content lives on outputData.
-  src         String? @db.Text
+  src         String?
   // Full snapshot of the node's data after generation (mirrors
   // FlowNode.data at the moment of record). Used by /instantiate
   // to rehydrate a brand new node carrying the same payload.

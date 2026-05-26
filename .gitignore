@@ -47,3 +47,6 @@ deploy/
 
 # Local storage data dir (dev default for STORAGE_LOCAL_DATA_DIR)
 .dev-uploads/
+
+# Claude Code worktrees / per-session state
+.claude/

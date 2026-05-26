@@ -223,8 +223,11 @@ export const DEFAULT_NODE_DEFINITIONS: DefaultNodeDefinition[] = [
         label: 'GPT Image 2',
         action: 'image_generate',
         icon: 'Image',
-        allowedUpstreamTypes: ['text'],
-        defaultParams: { aspectRatio: 'auto', quality: 'medium', resolution: '2k' },
+        // image upstream → i2i via /images/edits (multipart). Provider
+        // routes on family.startsWith('gpt-image-') + non-empty image
+        // inputs, so gpt-image-1 / 1.5 added via admin pick this up too.
+        allowedUpstreamTypes: ['text', 'image'],
+        defaultParams: { aspectRatio: 'auto', quality: 'medium', resolution: '2k', n: 1 },
         paramsSchema: [
           {
             key: 'aspectRatio',
@@ -265,6 +268,21 @@ export const DEFAULT_NODE_DEFINITIONS: DefaultNodeDefinition[] = [
               { label: '1k', value: '1k' },
               { label: '2k', value: '2k' },
               { label: '4k', value: '4k' },
+            ],
+          },
+          {
+            // gpt-image-2 backend (openai-compat-image) clampN 接 1-10,
+            // 这里给跟 wan2.7 同款 1/2/3/4 一致, 跨模型 UX 对齐. 想跑
+            // 更多张直接走 admin 改 schema 加 6/8/10 option.
+            key: 'n',
+            label: '生成数量',
+            type: 'select',
+            defaultValue: 1,
+            options: [
+              { label: '1 张', value: 1 },
+              { label: '2 张', value: 2 },
+              { label: '3 张', value: 3 },
+              { label: '4 张', value: 4 },
             ],
           },
         ],
@@ -508,6 +526,191 @@ export const DEFAULT_NODE_DEFINITIONS: DefaultNodeDefinition[] = [
             sku: 'wan2.6-r2v',
             action: 'bailian_video_generate',
             acceptUpstreamTypes: ['text', 'image', 'video'],
+          },
+        ],
+      },
+      // ────────────────────────────────────────────────────────────────────
+      // Volcengine 火山方舟 Seedance 2.0 (Doubao Seedance) 系列。
+      //
+      // 与 wan/happyhorse 不同, Seedance 的 model id 不带 mode 后缀 —— 一个 model
+      // id 承载所有模式 (文生 / 图生 / 多模态参考 / 编辑视频 / 延长), 模式区别完全
+      // 由 content[] 数组内容 + per-item role 决定. provider 默认把 image/video/audio
+      // 的 role 填 reference_*, 适用于"全能参考"语义. 首帧 / 首尾帧 / 编辑视频
+      // 等强 role 区分模式留到 Slice 4 (素材库 UI) 时通过 inputs[].extra.role 注入.
+      //
+      // Seedance 2.0: 480p / 720p / 1080p; Fast 不支持 1080p, 其余完全一致.
+      {
+        value: 'doubao-seedance-2-0-260128',
+        label: 'Seedance 2.0',
+        action: 'volcengine_video_generate',
+        icon: 'Video',
+        allowedUpstreamTypes: ['text', 'image', 'video', 'audio'],
+        defaultParams: {
+          aspectRatio: 'adaptive',
+          resolution: '720p',
+          duration: '5',
+          generate_audio: 'true',
+        },
+        paramsSchema: [
+          {
+            key: 'aspectRatio',
+            label: '比例',
+            type: 'select',
+            defaultValue: 'adaptive',
+            options: [
+              { label: '自适应', value: 'adaptive' },
+              { label: '16:9', value: '16:9' },
+              { label: '9:16', value: '9:16' },
+              { label: '1:1', value: '1:1' },
+              { label: '4:3', value: '4:3' },
+              { label: '3:4', value: '3:4' },
+              { label: '21:9', value: '21:9' },
+            ],
+          },
+          {
+            key: 'resolution',
+            label: '清晰度',
+            type: 'select',
+            defaultValue: '720p',
+            options: [
+              { label: '480p', value: '480p' },
+              { label: '720p', value: '720p' },
+              { label: '1080p', value: '1080p' },
+            ],
+          },
+          {
+            key: 'duration',
+            label: '时长',
+            type: 'select',
+            defaultValue: '5',
+            options: [
+              { label: '4s', value: '4' },
+              { label: '5s', value: '5' },
+              { label: '6s', value: '6' },
+              { label: '7s', value: '7' },
+              { label: '8s', value: '8' },
+              { label: '9s', value: '9' },
+              { label: '10s', value: '10' },
+              { label: '11s', value: '11' },
+              { label: '12s', value: '12' },
+              { label: '13s', value: '13' },
+              { label: '14s', value: '14' },
+              { label: '15s', value: '15' },
+            ],
+          },
+          {
+            key: 'generate_audio',
+            label: '生成视频音频',
+            type: 'select',
+            defaultValue: 'true',
+            options: [
+              { label: '是', value: 'true' },
+              { label: '否', value: 'false' },
+            ],
+          },
+        ],
+        defaultModeId: 't2v',
+        modes: [
+          {
+            id: 't2v',
+            label: '文生',
+            sku: 'doubao-seedance-2-0-260128',
+            action: 'volcengine_video_generate',
+            acceptUpstreamTypes: ['text'],
+          },
+          {
+            id: 'r2v',
+            label: '全能参考',
+            sku: 'doubao-seedance-2-0-260128',
+            action: 'volcengine_video_generate',
+            acceptUpstreamTypes: ['text', 'image', 'video', 'audio'],
+          },
+        ],
+      },
+      {
+        value: 'doubao-seedance-2-0-fast-260128',
+        label: 'Seedance 2.0 Fast',
+        action: 'volcengine_video_generate',
+        icon: 'Video',
+        allowedUpstreamTypes: ['text', 'image', 'video', 'audio'],
+        defaultParams: {
+          aspectRatio: 'adaptive',
+          resolution: '720p',
+          duration: '5',
+          generate_audio: 'true',
+        },
+        paramsSchema: [
+          {
+            key: 'aspectRatio',
+            label: '比例',
+            type: 'select',
+            defaultValue: 'adaptive',
+            options: [
+              { label: '自适应', value: 'adaptive' },
+              { label: '16:9', value: '16:9' },
+              { label: '9:16', value: '9:16' },
+              { label: '1:1', value: '1:1' },
+              { label: '4:3', value: '4:3' },
+              { label: '3:4', value: '3:4' },
+              { label: '21:9', value: '21:9' },
+            ],
+          },
+          {
+            key: 'resolution',
+            label: '清晰度',
+            type: 'select',
+            defaultValue: '720p',
+            options: [
+              { label: '480p', value: '480p' },
+              { label: '720p', value: '720p' },
+            ],
+          },
+          {
+            key: 'duration',
+            label: '时长',
+            type: 'select',
+            defaultValue: '5',
+            options: [
+              { label: '4s', value: '4' },
+              { label: '5s', value: '5' },
+              { label: '6s', value: '6' },
+              { label: '7s', value: '7' },
+              { label: '8s', value: '8' },
+              { label: '9s', value: '9' },
+              { label: '10s', value: '10' },
+              { label: '11s', value: '11' },
+              { label: '12s', value: '12' },
+              { label: '13s', value: '13' },
+              { label: '14s', value: '14' },
+              { label: '15s', value: '15' },
+            ],
+          },
+          {
+            key: 'generate_audio',
+            label: '生成视频音频',
+            type: 'select',
+            defaultValue: 'true',
+            options: [
+              { label: '是', value: 'true' },
+              { label: '否', value: 'false' },
+            ],
+          },
+        ],
+        defaultModeId: 't2v',
+        modes: [
+          {
+            id: 't2v',
+            label: '文生',
+            sku: 'doubao-seedance-2-0-fast-260128',
+            action: 'volcengine_video_generate',
+            acceptUpstreamTypes: ['text'],
+          },
+          {
+            id: 'r2v',
+            label: '全能参考',
+            sku: 'doubao-seedance-2-0-fast-260128',
+            action: 'volcengine_video_generate',
+            acceptUpstreamTypes: ['text', 'image', 'video', 'audio'],
           },
         ],
       },

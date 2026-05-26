@@ -128,13 +128,11 @@ export function useFlowExecution({
       // ========== 2. 提交执行任务到后端 ==========
       console.log(`[执行] ${executionId} - 提交任务: ${targetNodeId ? `节点 ${targetNodeId}` : `分组 ${groupId}`}`);
       
-      // ✅ Mock 完全独立：不需要传递 mockContext
       const response = await api.executeFlow(
         flowId,
         targetNodeId,
         groupId,
-        'anonymous',
-        'async'
+        'async',
       );
       
       console.log(`[执行] ${executionId} - 任务提交成功，收到响应:`, response);
