@@ -110,7 +110,7 @@ canvas-flow/
 3. 提 PR，描述里说清楚"改了什么 / 为什么改"
 4. 合并前会跑 CI（typecheck + 后续会加 unit test）
 
-> 想做的方向看 [Roadmap](../README.md#路线图)；不在 roadmap 上的大方向建议先开 issue 讨论。
+> 想做的方向看 [Roadmap](../README.zh.md#路线图)；不在 roadmap 上的大方向建议先开 issue 讨论。
 
 ## 商业边界
 
