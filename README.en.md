@@ -16,7 +16,7 @@ AI generation as a draggable canvas — connect text / image / video / audio nod
 [![Made with DashScope][bailian-shield]][bailian-link]
 [![Issues][issues-shield]][issues-link]
 
-[Desktop](docs/desktop.md) · [Deployment](docs/deployment.md) · [Development](docs/development.md) · [Model integration](MODEL_INTEGRATION.md) · [Report an issue][issues-link]
+[Desktop](docs/desktop.md) · [Deployment](docs/deployment.md) · [Development](docs/development.md) · [Model integration](MODEL_INTEGRATION.md) · [For external teams](docs/external-teams.md) · [Report an issue][issues-link]
 
 </div>
 
@@ -167,9 +167,9 @@ Canvas Flow is **dual-licensed**.
 
 If AGPL's reciprocity doesn't fit your business model (e.g. fully closed-source SaaS, removing the Source card, private on-premise delivery without source disclosure), a commercial license is available for purchase.
 
-**Contact**: <!-- TODO[legal]: commercial inquiry email pending, see LICENSE-COMMERCIAL.md -->`<TODO: commercial inquiry email>`
+**Contact**: bbdwxh@gmail.com · See [For external teams](docs/external-teams.md) for the full decision tree
 
-> The copyright holder retains the right to re-license this repository's code under alternative terms. A CLA process for external PRs is being set up — contributors will be asked to sign before merge.
+> The copyright holder retains the right to re-license this repository's code under alternative terms. External contributors must sign the [CLA](CLA.md) before their PRs can be merged (corporate contributors follow the [CCLA](CLA-CORPORATE.md) process).
 
 ---
 

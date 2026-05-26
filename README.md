@@ -16,7 +16,7 @@
 [![Made with DashScope][bailian-shield]][bailian-link]
 [![Issues][issues-shield]][issues-link]
 
-[桌面端](docs/desktop.md) · [部署指南](docs/deployment.md) · [开发指南](docs/development.md) · [模型接入](MODEL_INTEGRATION.md) · [问题反馈][issues-link]
+[桌面端](docs/desktop.md) · [部署指南](docs/deployment.md) · [开发指南](docs/development.md) · [模型接入](MODEL_INTEGRATION.md) · [外部团队 / 合作](docs/external-teams.md) · [问题反馈][issues-link]
 
 </div>
 
@@ -167,7 +167,7 @@ Canvas Flow 采用 **双协议**。
 
 如果 AGPL 的回馈条款不适合你的业务（例如想完全闭源做 SaaS、想去掉 Source 卡片、做无源码交付的私有化部署），可购买商业许可。
 
-**联系方式**：<!-- TODO[legal]: 商业咨询邮箱待补，参见 LICENSE-COMMERCIAL.md -->`<待补充：商业咨询邮箱>`
+**联系方式**：bbdwxh@gmail.com · 详细决策路径请看 [外部团队 / 合作](docs/external-teams.md)
 
 > 版权持有人保留按其他协议再授权本仓库代码的权利。外部贡献者需在 PR 合并前签署 [CLA](CLA.md)（公司贡献者走 [CCLA](CLA-CORPORATE.md) 流程）。
 
