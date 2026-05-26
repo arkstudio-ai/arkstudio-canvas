@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/logo.png" alt="arkstudio" width="160" />
+
 # Canvas Flow
 
 **English** · [简体中文](README.md)
@@ -10,6 +12,7 @@ AI generation as a draggable canvas — connect text / image / video / audio nod
 
 [![CI][ci-shield]][ci-link]
 [![License: AGPL-3.0][license-shield]][license-link]
+[![CLA][cla-shield]][cla-link]
 [![Made with DashScope][bailian-shield]][bailian-link]
 [![Issues][issues-shield]][issues-link]
 
@@ -181,6 +184,8 @@ If this project helps you, leaving a ⭐ is the best encouragement.
 [ci-link]: https://github.com/arkstudio-ai/arkstudio-canvas/actions/workflows/ci.yml
 [license-shield]: https://img.shields.io/badge/License-AGPLv3-important.svg?logo=gnu
 [license-link]: https://github.com/arkstudio-ai/arkstudio-canvas/blob/main/LICENSE
+[cla-shield]: https://img.shields.io/badge/CLA-Required-blueviolet?logo=githubactions
+[cla-link]: https://github.com/arkstudio-ai/arkstudio-canvas/blob/main/CONTRIBUTING.md
 [bailian-shield]: https://img.shields.io/badge/Powered%20by-DashScope%20%2F%20Bailian-FF6A00
 [bailian-link]: https://bailian.console.aliyun.com/
 [issues-shield]: https://img.shields.io/github/issues/arkstudio-ai/arkstudio-canvas?logo=github
