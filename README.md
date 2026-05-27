@@ -6,7 +6,7 @@
 
 **English** · [简体中文](README.zh.md)
 
-**Node-based AI creation canvas · Chinese-first · Desktop app + self-hostable**
+**Node-based AI creation canvas · Desktop app + self-hostable**
 
 AI generation as a draggable canvas — connect text / image / video / audio nodes into a pipeline, run with one click, preview results in place.
 
@@ -37,9 +37,9 @@ The same "node-based AI creation canvas" category as [TapNow](https://app.tapnow
 | Models | First-class **Alibaba Cloud Bailian (DashScope)**, OpenAI-protocol Provider easily slots in for other sources | Each integrates 30–170 cloud models |
 | Configuration | Nodes / models / Provider credentials all **DB-driven**, admin UI edits take effect immediately | Backend is open to operators, closed to forkers |
 | Commercial use | Self-hosting + forking allowed (within AGPL terms), good for vertical / private deployments | Subscription $9–$432/month |
-| Localisation | Chinese UI / Chinese docs / Chinese defaults | English-first |
+| Localisation | Bilingual UI (English + 简体中文) | English-only |
 
-In short — **if you want a fork-friendly, private-model-friendly, self-hostable "Chinese TapNow", start here.**
+In short — **if you want a fork-friendly, private-model-friendly, self-hostable TapNow alternative, start here.**
 
 ## What it can do
 
@@ -63,7 +63,7 @@ Each node's "model + params + inputs + outputs" lands in a single-file SQLite DB
 - 📦 **Zero-config out-of-the-box** — one `DASHSCOPE_API_KEY` is enough to wire up the full pipeline
 - 🧹 **Self-managing generation history** — throttle-cleans on each new generation, no cron dependency; retention days + per-kind count threshold adjustable from admin
 - 🔐 **Encrypted at rest** — `dashscope.apiKey` / `openai.apiKey` and other sensitive fields encrypted with AES-256-GCM, UI never echoes plaintext, edits are "overwrite only"
-- 🇨🇳 **Chinese-first** — UI / error messages / docs / node default parameters all tuned for Chinese scenarios; not a machine-translated English project
+- 🌐 **Bilingual UI** — English + Simplified Chinese with parity across error messages / docs / node defaults (not machine-translated)
 - ⚖️ **AGPL §13 built-in** — the "Source · License" card at the top of `/admin/system` always exposes the repo URL + license + current version
 
 ## Quick Start
