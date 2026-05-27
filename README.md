@@ -6,9 +6,9 @@
 
 **English** · [简体中文](README.zh.md)
 
-**Node-based AI creation canvas · Desktop app + self-hostable**
+**A node-based canvas for AI generation — desktop app or self-hosted in Docker.**
 
-AI generation as a draggable canvas — connect text / image / video / audio nodes into a pipeline, run with one click, preview results in place.
+Drag text, image, video, and audio nodes onto a canvas, wire them into a pipeline, hit run, and watch every result render inline.
 
 [![CI][ci-shield]][ci-link]
 [![License: AGPL-3.0][license-shield]][license-link]
@@ -27,52 +27,52 @@ AI generation as a draggable canvas — connect text / image / video / audio nod
 
 ---
 
-## What is it
+## Overview
 
-The same "node-based AI creation canvas" category as [TapNow](https://app.tapnow.ai/), [LibTV](https://libtv.gongke.net/) and [RHTV](https://www.runninghub.ai/) — main differences:
+A node-based canvas for AI generation, in the same space as [TapNow](https://app.tapnow.ai/), [LibTV](https://libtv.gongke.net/), and [RHTV](https://www.runninghub.ai/). What's different here:
 
 |  | Canvas Flow | TapNow / LibTV / RHTV |
 |---|---|---|
-| Form factor | **Desktop single-binary (.dmg / .exe) + self-hosted (Docker)** (AGPL-3.0) | Closed-source SaaS |
-| Models | First-class **Alibaba Cloud Bailian (DashScope)**, OpenAI-protocol Provider easily slots in for other sources | Each integrates 30–170 cloud models |
-| Configuration | Nodes / models / Provider credentials all **DB-driven**, admin UI edits take effect immediately | Backend is open to operators, closed to forkers |
-| Commercial use | Self-hosting + forking allowed (within AGPL terms), good for vertical / private deployments | Subscription $9–$432/month |
+| Form factor | **Single-binary desktop (.dmg / .exe) + self-hosted Docker** (AGPL-3.0) | Closed-source SaaS |
+| Models | First-class **Alibaba Cloud Bailian (DashScope)**; OpenAI-protocol provider drops in for everything else | Each integrates 30–170 cloud models |
+| Configuration | Nodes, models, and provider credentials are all **DB-driven** — edit from the admin UI, takes effect immediately | Operators can configure; the code itself is closed |
+| Commercial use | Self-host and fork allowed under AGPL — good for vertical or private deployments | Subscription, $9–$432/month |
 | Localisation | Bilingual UI (English + 简体中文) | English-only |
 
-In short — **if you want a fork-friendly, private-model-friendly, self-hostable TapNow alternative, start here.**
+**TL;DR — a self-hostable, forkable TapNow alternative that plays nicely with your own models.**
 
-## What it can do
+## What you can build
 
-Every scenario below maps to a linear pipeline of connected nodes on the canvas:
+Each of these is a chain of nodes on the canvas:
 
 - **E-commerce hero shots / multi-SKU renders** — `text(prompt) → image(wan2.7-image-pro) → image(wan2.7-image-pro, referencing previous)`
 - **30-second short video** — `text(script) → image(storyboard) → video(wan2.7-i2v, referencing storyboard) → audio(MiniMax-tts)`
-- **Ad TVC batch variants** — one prompt + group-run, produce N resolutions / aspect ratios in one shot
+- **Ad TVC batch variants** — one prompt + group-run produces N resolutions or aspect ratios in one shot
 - **Character three-view consistency** — `image(base character) → image(wan2.7-image-pro, multiple edits)`
 - **Voiceover + BGM** — `text → audio(tts) + audio(FunMusic)`
 
-Each node's "model + params + inputs + outputs" lands in a single-file SQLite DB. You can browse history, re-run, and view usage by kind from `/admin`.
+Each node's model, params, inputs, and outputs are written to a single-file SQLite database. Browse history, re-run anything, and track usage by media type from `/admin`.
 
 ## Key features
 
-- 🎨 **Node canvas editor** — drag / connect / group / box-select / cross-node `@image1` references, powered by our own [`@canvas-flow/core`](packages/core)
-- 🖥️ **Desktop single binary** — Electron packs backend + web + SQLite into a single .dmg / .exe, double-click to run, zero dependencies, [full guide](docs/desktop.md)
-- 🛠 **DB as source of truth** — node definitions / model catalog / Provider credentials / storage settings all stored in single-file SQLite, admin edits apply on the next request, no code changes or restart needed
-- 🔌 **Provider abstraction** — DashScope (Bailian) + OpenAI-compatible protocol (chat / image, can point to OpenRouter / vLLM / DeepSeek / self-hosted gateways); `src/providers/` is SPI-style, adding a new source = one new file
-- 💾 **Local-first storage (ComfyUI-style)** — uploads / generation results write directly to the backend's disk, no cloud credentials needed; when i2i / i2v requires a public URL, the dashscope provider auto-stages files through Bailian's 48h temp bucket
-- 📦 **Zero-config out-of-the-box** — one `DASHSCOPE_API_KEY` is enough to wire up the full pipeline
-- 🧹 **Self-managing generation history** — throttle-cleans on each new generation, no cron dependency; retention days + per-kind count threshold adjustable from admin
-- 🔐 **Encrypted at rest** — `dashscope.apiKey` / `openai.apiKey` and other sensitive fields encrypted with AES-256-GCM, UI never echoes plaintext, edits are "overwrite only"
-- 🌐 **Bilingual UI** — English + Simplified Chinese with parity across error messages / docs / node defaults (not machine-translated)
-- ⚖️ **AGPL §13 built-in** — the "Source · License" card at the top of `/admin/system` always exposes the repo URL + license + current version
+- 🎨 **Node canvas editor** — drag, connect, group, box-select, cross-node `@image1` references. Built on our own [`@canvas-flow/core`](packages/core).
+- 🖥️ **Desktop in one file** — Electron bundles the backend, web app, and SQLite into a single .dmg or .exe. Double-click to launch, no dependencies. [Full guide](docs/desktop.md).
+- 🛠 **Single source of truth** — node definitions, model catalog, provider credentials, and storage settings all live in one SQLite file. Edit anything from `/admin`; changes apply on the next request. No code edits, no restarts.
+- 🔌 **Pluggable providers** — DashScope (Bailian) ships out of the box, plus an OpenAI-compatible protocol for chat and image (point it at OpenRouter, vLLM, DeepSeek, or your own gateway). `src/providers/` follows an SPI pattern — adding a new source is one file.
+- 💾 **Local-first storage (ComfyUI-style)** — uploads and generation results write straight to the backend's disk. No cloud credentials needed. When an i2i or i2v call needs a public URL, the DashScope provider stages the file through Bailian's 48-hour temp bucket automatically.
+- 📦 **Zero setup** — one `DASHSCOPE_API_KEY` is enough to light up the full pipeline.
+- 🧹 **Self-cleaning history** — old generations are pruned opportunistically as new ones come in — no cron job needed. Tune retention days and per-type count from `/admin`.
+- 🔐 **Encrypted at rest** — API keys and other sensitive fields are stored with AES-256-GCM. The UI never echoes plaintext; updating a secret means overwriting it.
+- 🌐 **Bilingual UI** — English and Simplified Chinese with parity across error messages, docs, and node defaults (not machine-translated).
+- ⚖️ **AGPL §13 built-in** — the "Source · License" card at the top of `/admin/system` always exposes the repo URL, license, and current version.
 
-## Quick Start
+## Quick start
 
-Pick one — desktop for personal / single-machine use, Docker for team / server deployments.
+Two paths — desktop for personal use, Docker for teams or servers.
 
-### Desktop (recommended for personal / offline use)
+### Desktop (best for personal / offline use)
 
-Grab the installer for your platform from [Releases](https://github.com/arkstudio-ai/arkstudio-canvas/releases):
+Grab an installer from [Releases](https://github.com/arkstudio-ai/arkstudio-canvas/releases):
 
 | Platform | File |
 |---|---|
@@ -80,10 +80,10 @@ Grab the installer for your platform from [Releases](https://github.com/arkstudi
 | macOS Intel | `Canvas Flow-<version>.dmg` |
 | Windows 10/11 x64 | `Canvas Flow Setup <version>.exe` |
 
-> Installers are currently unsigned — first open on macOS requires right-click → Open / on Windows click "More info → Run anyway".
-> Full install / upgrade / uninstall / troubleshooting → [🖥️ Desktop guide](docs/desktop.md).
+> Installers are unsigned for now. On first launch: macOS → right-click → Open; Windows → "More info" → "Run anyway".
+> Install, upgrade, uninstall, and troubleshooting → [🖥️ Desktop guide](docs/desktop.md).
 
-### Docker self-host (recommended for team / server)
+### Docker self-host (best for teams / servers)
 
 ```bash
 git clone https://github.com/arkstudio-ai/arkstudio-canvas.git canvas-flow && cd canvas-flow
@@ -91,91 +91,91 @@ cp .env.docker.example .env  # edit ENCRYPTION_KEY
 docker compose up -d --build
 ```
 
-Open <http://localhost:8080/admin/system> and drop in a DashScope API Key — that's it.
+Open <http://localhost:8080/admin/system>, paste in a DashScope API key, and you're running.
 
-> Full steps, configuration reference, backup / upgrade / troubleshooting → [📦 Deployment guide](docs/deployment.md).
+> Full steps, configuration reference, backup, upgrade, and troubleshooting → [📦 Deployment guide](docs/deployment.md).
 
-## Where do files live
+## Where files live
 
-The open-source build has exactly one storage backend: **write to the backend server's local disk** (ComfyUI-style, zero cloud credentials required).
+The open-source build uses one storage backend: **the backend server's local disk** (ComfyUI-style, no cloud credentials required).
 
 | Mode | Default data directory | Persistence |
 |---|---|---|
-| Docker compose | `/data/uploads` (in-container) | named volume `canvas_flow_uploads`, survives `docker compose down` |
-| Local dev (`pnpm dev`) | path set by `STORAGE_LOCAL_DATA_DIR` in `apps/backend/.env` (recommend `<repo>/.dev-uploads`, already gitignored) | direct host disk |
+| Docker compose | `/data/uploads` (in-container) | Named volume `canvas_flow_uploads`; survives `docker compose down`. |
+| Local dev (`pnpm dev`) | Path from `STORAGE_LOCAL_DATA_DIR` in `apps/backend/.env` (we recommend `<repo>/.dev-uploads`, already gitignored). | Direct host disk. |
 
-External access is served via the same-origin relative path `/static/uploads/<key>`, no CORS.
+Files are served from the same origin at `/static/uploads/<key>` — no CORS to worry about.
 
-How to change it (by priority):
+Three ways to change it, highest priority first:
 
-1. **At runtime via admin**: log into `/admin/system → Local storage`, edit `data directory` and `per-file size limit`
-2. **Via env**: set `STORAGE_LOCAL_DATA_DIR=...` in `.env` / `.env.docker.example` (takes effect on first start, admin config overrides afterwards)
-3. **Via mount (recommended for production)**: in `docker-compose.yml`'s backend service, swap the named volume for a host directory, e.g. `/srv/canvas-flow/uploads:/data/uploads` for easy backup
+1. **At runtime via admin**: open `/admin/system → Local storage` and edit `data directory` and `per-file size limit`.
+2. **Via env**: set `STORAGE_LOCAL_DATA_DIR=...` in `.env` or `.env.docker.example` (used on first start; admin config takes precedence after).
+3. **Via mount (recommended for production)**: in `docker-compose.yml`, swap the named volume on the backend service for a host directory — e.g. `/srv/canvas-flow/uploads:/data/uploads` — so backups are trivial.
 
-> When the i2i / i2v pipeline needs Alibaba Cloud models to read a local image, the dashscope provider auto-uploads it to Bailian's 48h temp bucket (`oss://`) before invoking the model; the final result still lands on local disk. Full explanation in [Deployment · storage strategy](docs/deployment.md#存储策略local-only).
+> When an i2i or i2v call needs Alibaba Cloud models to read a local image, the DashScope provider uploads it to Bailian's 48-hour temp bucket (`oss://`) before invoking the model. The final result still lands on local disk. Full details in [Deployment · storage strategy](docs/deployment.md#存储策略local-only).
 
 ## Documentation
 
-| What you want to do | Read this |
+| I want to... | Doc |
 |---|---|
-| **Install the desktop app for personal / offline use** | [🖥️ Desktop guide](docs/desktop.md) |
+| **Install the desktop app for personal or offline use** | [🖥️ Desktop guide](docs/desktop.md) |
 | **Run it for a team** | [📦 Deployment guide](docs/deployment.md) |
 | **Pull source and hack on it** | [💻 Development guide](docs/development.md) |
-| **Add a new model / OpenAI-compat endpoint / storage backend** | [🔌 Model integration guide](MODEL_INTEGRATION.md) |
-| **Understand layering · desktop vs self-hosted split** | [🧱 Architecture](docs/architecture.md) |
+| **Add a new model, an OpenAI-compat endpoint, or a storage backend** | [🔌 Model integration guide](MODEL_INTEGRATION.md) |
+| **Understand the layering · desktop vs self-hosted split** | [🧱 Architecture](docs/architecture.md) |
 | Per-package internals | [`apps/backend/README.md`](apps/backend/README.md) · [`apps/web/README.md`](apps/web/README.md) · [`apps/desktop/README.md`](apps/desktop/README.md) · [`packages/core/README.md`](packages/core/README.md) |
 
 ## Roadmap
 
-**Phase 1 (shipped)**
+**Shipped**
 
-- Canvas editor + admin dashboard + full DashScope model matrix + local disk storage + history retention + encrypted credentials
-- **OpenAI-compatible Provider** (chat / image) — any OpenAI-protocol baseUrl + apiKey slots in
-- **Node / model config import-export** — at the top of `/admin/config`, one-click export / import portable JSON envelope, cross-instance sync / git-able
-- Docker compose one-shot deployment + AGPL §13 compliance UI
+- Canvas editor, admin dashboard, full DashScope model matrix, local-disk storage, history retention, encrypted credentials
+- **OpenAI-compatible provider** (chat / image) — drop in any OpenAI-protocol baseUrl + apiKey
+- **Node / model config import-export** — at the top of `/admin/config`, one-click export and import portable JSON envelopes; sync across instances or commit to git
+- Docker-compose one-shot deployment, AGPL §13 compliance UI
 
-**Coming up (by priority)**
+**Up next (by priority)**
 
-- **Optional remote storage backends** — S3 / OSS / R2 abstraction (for production multi-instance deployments)
+- **Optional remote storage** — S3 / OSS / R2 abstraction for multi-instance production deployments
 - **Automated test coverage** — unit + e2e
-- **Canvas JSON sharing** — turn the top-right share button into "export shareable canvas JSON"
+- **Shareable canvases** — wire the top-right share button to export a portable canvas JSON
 
-> Want to nudge priorities? Open an RFC under [Issues][issues-link].
+> Want something prioritized? Open an RFC under [Issues][issues-link].
 
 ## Contributing
 
-All forms of contribution welcome:
+All kinds of contribution are welcome:
 
-1. 🐛 **Bug reports** — describe repro steps under [Issues][issues-link]
-2. 💡 **Feature requests** — same, discuss before code
-3. 📝 **Doc edits** — any README / docs/* revision welcome
-4. 🚀 **Code** — Fork → branch → PR; flow detailed in [Development guide](docs/development.md#贡献流程)
+1. 🐛 **Bug reports** — open an [Issue][issues-link] with repro steps.
+2. 💡 **Feature requests** — same flow; let's discuss before any code.
+3. 📝 **Doc edits** — fixes to README or anything under `docs/` are always welcome.
+4. 🚀 **Code** — fork → branch → PR. Full flow in the [Development guide](docs/development.md#贡献流程).
 
-> For big directions (new Provider types, architecture changes), open an issue first to align — avoids rework.
+> For larger changes — new provider types, architecture shifts — open an issue first so we can align before you invest the time.
 
-## Commercial / License
+## License & commercial use
 
 Canvas Flow is **dual-licensed**.
 
 ### Open source · [AGPL-3.0](LICENSE)
 
-- ✅ **Allowed**: self-host, modify, build vertical / private deployments, offer it as SaaS
-- ⚠️ **Required**: your modifications must also be open-sourced back under AGPL (including SaaS deployments — this is AGPL's key difference from GPL, §13 network interaction clause)
-- ✅ **Compliance built in**: the "Source · License" card at the top of `/admin/system` auto-exposes source URL + license + current version, so operators satisfy §13 with zero config
+- ✅ **Allowed**: self-host, modify, build vertical or private deployments, run it as a SaaS.
+- ⚠️ **Required**: any modifications must also be released under AGPL — including SaaS deployments. (This is what sets AGPL apart from GPL — see §13.)
+- ✅ **Compliance built in**: the "Source · License" card at the top of `/admin/system` exposes the source URL, license, and current version automatically — operators satisfy §13 with no extra config.
 
 ### Commercial · [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)
 
-If AGPL's reciprocity doesn't fit your business model (e.g. fully closed-source SaaS, removing the Source card, private on-premise delivery without source disclosure), a commercial license is available for purchase.
+If AGPL's reciprocity doesn't fit your business model — fully closed-source SaaS, removing the Source card, private on-premise delivery without source disclosure — a commercial license is available.
 
-**Contact**: bbdwxh@gmail.com · See [For external teams](docs/external-teams.md) for the full decision tree
+**Contact**: bbdwxh@gmail.com — see [For external teams](docs/external-teams.md) for the full decision tree.
 
-> The copyright holder retains the right to re-license this repository's code under alternative terms. External contributors must sign the [CLA](CLA.md) before their PRs can be merged (corporate contributors follow the [CCLA](CLA-CORPORATE.md) process).
+> The copyright holder reserves the right to re-license this code under alternative terms. External contributors sign the [CLA](CLA.md) before their PRs can be merged; companies follow the [CCLA](CLA-CORPORATE.md) process.
 
 ---
 
 <div align="center">
 
-If this project helps you, leaving a ⭐ is the best encouragement.
+If this project's useful to you, a ⭐ is the best way to say thanks.
 
 </div>
 
