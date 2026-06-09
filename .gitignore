@@ -50,3 +50,4 @@ deploy/
 
 # Claude Code worktrees / per-session state
 .claude/
+.npmrc
