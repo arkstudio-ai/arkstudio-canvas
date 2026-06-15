@@ -7,6 +7,7 @@ import type { MutableRefObject } from 'react';
 import type { CustomContextMenuItem, CanvasFlowNode, CanvasFlowHandle } from '@canvas-flow/core';
 import { clipboardStore } from '../../store/clipboardStore';
 import { videoEditorBridge } from '../../services/videoEditorBridge';
+import { apiClient } from '../../config/api';
 
 type MediaResourceType = 'video' | 'image' | 'audio';
 
@@ -118,8 +119,19 @@ export function useNodeContextMenuItems(
         onClick: async () => {
           try {
             const fileName = getName();
-            const response = await fetch(md.src!);
-            const blob = await response.blob();
+            const src = md.src!;
+            const isCrossOrigin = /^https?:\/\//i.test(src);
+            let blob: Blob;
+            if (isCrossOrigin) {
+              const res = await apiClient.get('/upload/download', {
+                params: { url: src },
+                responseType: 'blob',
+              });
+              blob = res.data;
+            } else {
+              const response = await fetch(src);
+              blob = await response.blob();
+            }
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;

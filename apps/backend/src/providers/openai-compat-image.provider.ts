@@ -229,7 +229,7 @@ export class OpenAICompatImageProvider implements ProviderClient {
     }
 
     const data = resp.data ?? {};
-    const resources = this.extractResources(data);
+    const resources = await this.extractResources(data);
     if (resources.length === 0) {
       const err = this.toHttpException(
         'OpenAI-compat image returned no usable url',
@@ -302,18 +302,29 @@ export class OpenAICompatImageProvider implements ProviderClient {
     return typeof v === 'string' && v ? v : undefined;
   }
 
-  private extractResources(data: any): ProviderResource[] {
+  private async extractResources(data: any): Promise<ProviderResource[]> {
     const list: ProviderResource[] = [];
     const items = Array.isArray(data?.data) ? data.data : [];
     for (const it of items) {
       if (typeof it?.url === 'string' && it.url) {
         list.push({ type: 'image', url: it.url });
+        continue;
       }
-      // b64_json from /images/generations is rare (only when caller
-      // requests it). i2i is the common b64 case and is handled in
-      // openai-compat-image-edits with disk-persist. If a SKU starts
-      // returning b64 here unexpectedly the caller sees "no usable url"
-      // — preferable to silently exploding flow_executions.outputs.
+      if (typeof it?.b64_json === 'string' && it.b64_json) {
+        const buffer = Buffer.from(it.b64_json, 'base64');
+        const d = new Date();
+        const yyyy = d.getUTCFullYear();
+        const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const dd = String(d.getUTCDate()).padStart(2, '0');
+        const rand = Math.random().toString(36).slice(2, 10);
+        const key = `executions/${yyyy}-${mm}-${dd}/openai-gen-${Date.now()}-${rand}.png`;
+        const saved = await this.storage.putObject({
+          key,
+          buffer,
+          contentType: 'image/png',
+        });
+        list.push({ type: 'image', url: saved.accessUrl });
+      }
     }
     return list;
   }

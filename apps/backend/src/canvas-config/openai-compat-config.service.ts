@@ -31,7 +31,7 @@ const CACHE_TTL_MS = 30_000;
 export type OpenaiCompatKind = 'chat' | 'image' | 'video' | 'audio';
 export const DEFAULT_OPENAI_TIMEOUT_SEC: Record<OpenaiCompatKind, number> = {
   chat: 90,
-  image: 90,
+  image: 600,
   video: 120,
   audio: 60,
 };

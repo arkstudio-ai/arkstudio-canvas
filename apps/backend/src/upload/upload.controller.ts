@@ -1,16 +1,26 @@
 import {
   BadRequestException,
   Controller,
+  Get,
+  Inject,
   Post,
+  Query,
+  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
+import axios from 'axios';
 import { UploadService } from './upload.service';
+import { STORAGE_DRIVER, type StorageDriver } from '../storage/storage-driver';
 
 @Controller('upload')
 export class UploadController {
-  constructor(private readonly uploadService: UploadService) {}
+  constructor(
+    private readonly uploadService: UploadService,
+    @Inject(STORAGE_DRIVER) private readonly storage: StorageDriver,
+  ) {}
 
   /**
    * Direct upload (multipart proxy).
@@ -41,5 +51,47 @@ export class UploadController {
       contentType: file.mimetype,
       buffer: file.buffer,
     });
+  }
+
+  /**
+   * Proxy download for cloud-stored resources.
+   *
+   * Frontend `fetch(tosUrl)` is blocked by CORS when the resource lives on
+   * an external bucket (TOS / OSS). This endpoint fetches server-side and
+   * streams back with `Content-Disposition: attachment`.
+   *
+   * Security: only URLs recognised by our storage driver (`ownsUrl`) are
+   * accepted — this is NOT an open proxy.
+   */
+  @Get('download')
+  async proxyDownload(
+    @Query('url') url: string,
+    @Res() res: Response,
+  ) {
+    if (!url) {
+      throw new BadRequestException('missing "url" query parameter');
+    }
+    if (!this.storage.ownsUrl(url)) {
+      throw new BadRequestException('url not recognized');
+    }
+
+    const upstream = await axios.get(url, {
+      responseType: 'arraybuffer',
+      timeout: 60_000,
+      maxContentLength: 200 * 1024 * 1024,
+    });
+
+    const contentType =
+      upstream.headers['content-type'] || 'application/octet-stream';
+    const baseName = decodeURIComponent(
+      url.split('/').pop()?.split('?')[0] || 'download',
+    );
+
+    res.set({
+      'Content-Type': contentType,
+      'Content-Disposition': `attachment; filename="${baseName}"`,
+      'Content-Length': String(Buffer.from(upstream.data).byteLength),
+    });
+    res.send(Buffer.from(upstream.data));
   }
 }
