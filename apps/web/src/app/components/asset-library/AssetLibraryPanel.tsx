@@ -1,13 +1,9 @@
-// 火山方舟素材库 (Volcengine Assets) — 用户级 drawer 面板.
+// 统一素材库 drawer — 支持 Volcengine (火山方舟) 和 Vidu 两套资产.
 //
 // 入口: StatusBar 的 "📦 素材库" 按钮.
-// 范围 (Phase 4 MVP):
-//   - 我的资产 列表 + 添加 (公网 URL) + 删除 + 复制 asset:// URI
-//   - 公共素材库 / 虚拟人像库 暂不做 — 前者需开通公共库, 后者需身份认证
-//     流程, 这两个都得用户去 Volcengine 控制台操作, 桌面端先不接.
-//
-// 数据流: useEffect 拉一次 list, Processing 状态的 asset 5s 轮询一次直到
-// Active/Failed. 删除 / 添加都是乐观更新 + revalidate (重新拉 list).
+// 两个 tab:
+//   - 火山方舟: Seedance 参考素材 (Image/Video/Audio), 数据在 Volcengine 上游
+//   - Vidu: 短剧资产 (角色/场景/道具), 数据在本地 DB
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -21,9 +17,17 @@ import {
   getAsset,
   listAssets,
 } from '../../services/volcengineAssetApi';
+import {
+  type ViduAsset,
+  type ViduAssetType,
+  deleteViduAsset,
+  listViduAssets,
+} from '../../services/viduAssetApi';
 import { useUIStore } from '../../store/uiStore';
 import { AddAssetForm } from './AddAssetForm';
+import { AddViduAssetForm } from './AddViduAssetForm';
 import { AssetCard } from './AssetCard';
+import { ViduAssetCard } from './ViduAssetCard';
 import {
   actionsGroupStyle,
   chipGroupStyle,
@@ -36,7 +40,6 @@ import {
   listScrollStyle,
   primaryBtnStyle,
   scrimStyle,
-  subtitleStyle,
   titleGroupStyle,
   titleStyle,
 } from './styles';
@@ -46,8 +49,9 @@ interface AssetLibraryPanelProps {
   onClose: () => void;
 }
 
-// label keys live in apps/web/src/i18n/locales/{zh,en}/common.json
-// under assetLibrary.filter.*; the order array drives chip layout.
+type LibraryTab = 'volcengine' | 'vidu';
+
+// Volcengine filter
 const TYPE_FILTER_KEYS: Record<AssetType | 'All', string> = {
   All: 'assetLibrary.filter.all',
   Image: 'assetLibrary.filter.image',
@@ -56,22 +60,38 @@ const TYPE_FILTER_KEYS: Record<AssetType | 'All', string> = {
 };
 const TYPE_FILTER_ORDER: Array<AssetType | 'All'> = ['All', 'Image', 'Video', 'Audio'];
 
+// Vidu filter
+const VIDU_TYPE_LABELS: Record<ViduAssetType | 'all', string> = {
+  all: '全部',
+  character: '角色',
+  scene: '场景',
+  tool: '道具',
+};
+const VIDU_TYPE_ORDER: Array<ViduAssetType | 'all'> = ['all', 'character', 'scene', 'tool'];
+
 export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({
   isOpen,
   onClose,
 }) => {
   const { t } = useTranslation();
+  const [activeTab, setActiveTab] = useState<LibraryTab>('volcengine');
+
+  // ---- Volcengine state ----
   const [assets, setAssets] = useState<Asset[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [vcLoading, setVcLoading] = useState(false);
   const [typeFilter, setTypeFilter] = useState<AssetType | 'All'>('All');
-  const [addOpen, setAddOpen] = useState(false);
-  // When set, the drawer renders an extra "引用" affordance per Active
-  // asset card. Owned by uiStore so any opener (StatusBar / SD2 node)
-  // can wire its own handler without prop drilling.
+  const [vcAddOpen, setVcAddOpen] = useState(false);
   const referenceHandler = useUIStore((s) => s.assetLibraryReferenceHandler);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  // ---- Vidu state ----
+  const [viduAssets, setViduAssets] = useState<ViduAsset[]>([]);
+  const [viduLoading, setViduLoading] = useState(false);
+  const [viduTypeFilter, setViduTypeFilter] = useState<ViduAssetType | 'all'>('all');
+  const [viduAddOpen, setViduAddOpen] = useState(false);
+
+  // ---- Volcengine data ----
+  const refreshVolcengine = useCallback(async () => {
+    setVcLoading(true);
     try {
       const res = await listAssets({
         pageNumber: 1,
@@ -82,16 +102,34 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({
     } catch (err) {
       toast.error(`加载素材库失败: ${(err as Error).message}`);
     } finally {
-      setLoading(false);
+      setVcLoading(false);
     }
   }, [typeFilter]);
 
-  // 打开 + filter 变化时拉一次
-  useEffect(() => {
-    if (isOpen) void refresh();
-  }, [isOpen, refresh]);
+  // ---- Vidu data ----
+  const refreshVidu = useCallback(async () => {
+    setViduLoading(true);
+    try {
+      const items = await listViduAssets(
+        viduTypeFilter === 'all' ? undefined : viduTypeFilter,
+      );
+      setViduAssets(items);
+    } catch (err) {
+      toast.error(`加载 Vidu 资产失败: ${(err as Error).message}`);
+    } finally {
+      setViduLoading(false);
+    }
+  }, [viduTypeFilter]);
 
-  // Esc 关闭, 跟 DetailModal 同模式
+  useEffect(() => {
+    if (isOpen && activeTab === 'volcengine') void refreshVolcengine();
+  }, [isOpen, activeTab, refreshVolcengine]);
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'vidu') void refreshVidu();
+  }, [isOpen, activeTab, refreshVidu]);
+
+  // Esc 关闭
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -104,10 +142,10 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({
     return () => window.removeEventListener('keydown', onKey, true);
   }, [isOpen, onClose]);
 
-  // Processing 状态的素材每 5s 轮询一次, 检测到 Active/Failed 就停 + 更新行
+  // Volcengine Processing 轮询
   const pollTimerRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || activeTab !== 'volcengine') return;
     const processingIds = assets
       .filter((a) => a.status === 'Processing')
       .map((a) => a.id);
@@ -142,9 +180,9 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({
         pollTimerRef.current = null;
       }
     };
-  }, [isOpen, assets]);
+  }, [isOpen, activeTab, assets]);
 
-  const handleDelete = async (asset: Asset) => {
+  const handleDeleteVc = async (asset: Asset) => {
     if (!confirm(`确认删除 ${asset.assetType} 素材 "${asset.name || asset.id}"?`))
       return;
     try {
@@ -165,6 +203,18 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({
     }
   };
 
+  const handleDeleteVidu = async (asset: ViduAsset) => {
+    if (!confirm(`确认删除 ${VIDU_TYPE_LABELS[asset.type]} "${asset.name}"?`))
+      return;
+    try {
+      await deleteViduAsset(asset.id);
+      setViduAssets((prev) => prev.filter((a) => a.id !== asset.id));
+      toast.success('已删除');
+    } catch (err) {
+      toast.error(`删除失败: ${(err as Error).message}`);
+    }
+  };
+
   if (!isOpen) return null;
 
   return createPortal(
@@ -174,7 +224,23 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({
         <header style={headerStyle}>
           <div style={titleGroupStyle}>
             <span style={titleStyle}>素材库</span>
-            <span style={subtitleStyle}>火山方舟 Seedance 参考素材</span>
+            {/* Tab switcher */}
+            <div style={tabRowStyle}>
+              <button
+                type="button"
+                style={tabStyle(activeTab === 'volcengine')}
+                onClick={() => setActiveTab('volcengine')}
+              >
+                火山方舟
+              </button>
+              <button
+                type="button"
+                style={tabStyle(activeTab === 'vidu')}
+                onClick={() => setActiveTab('vidu')}
+              >
+                Vidu 短剧
+              </button>
+            </div>
           </div>
           <button
             type="button"
@@ -186,90 +252,175 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({
           </button>
         </header>
 
-        <div style={filterRowStyle}>
-          <div style={chipGroupStyle}>
-            {TYPE_FILTER_ORDER.map((type) => (
-              <button
-                key={type}
-                type="button"
-                style={chipStyle(typeFilter === type)}
-                onClick={() => setTypeFilter(type)}
-              >
-                {t(TYPE_FILTER_KEYS[type])}
-              </button>
-            ))}
-          </div>
-          <div style={actionsGroupStyle}>
-            <button
-              type="button"
-              style={iconBtnStyle}
-              onClick={() => void refresh()}
-              disabled={loading}
-              title="刷新"
-            >
-              <RefreshCw size={14} style={{ opacity: loading ? 0.4 : 1 }} />
-            </button>
-            <button
-              type="button"
-              style={primaryBtnStyle}
-              onClick={() => setAddOpen((v) => !v)}
-            >
-              <Plus size={14} />
-              <span>添加</span>
-            </button>
-          </div>
-        </div>
-
-        {addOpen && (
-          <AddAssetForm
-            onCancel={() => setAddOpen(false)}
-            onCreated={(asset) => {
-              setAssets((prev) => [asset, ...prev]);
-              setAddOpen(false);
-              toast.success('已提交, 等待处理');
-            }}
-          />
-        )}
-
-        <div style={listScrollStyle}>
-          {loading && assets.length === 0 ? (
-            <div style={emptyStyle}>加载中…</div>
-          ) : assets.length === 0 ? (
-            <div style={emptyStyle}>
-              暂无素材.
-              <br />
-              点 "添加" 用公网 URL 注册图片 / 视频 / 音频.
+        {activeTab === 'volcengine' ? (
+          <>
+            <div style={filterRowStyle}>
+              <div style={chipGroupStyle}>
+                {TYPE_FILTER_ORDER.map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    style={chipStyle(typeFilter === type)}
+                    onClick={() => setTypeFilter(type)}
+                  >
+                    {t(TYPE_FILTER_KEYS[type])}
+                  </button>
+                ))}
+              </div>
+              <div style={actionsGroupStyle}>
+                <button
+                  type="button"
+                  style={iconBtnStyle}
+                  onClick={() => void refreshVolcengine()}
+                  disabled={vcLoading}
+                  title="刷新"
+                >
+                  <RefreshCw size={14} style={{ opacity: vcLoading ? 0.4 : 1 }} />
+                </button>
+                <button
+                  type="button"
+                  style={primaryBtnStyle}
+                  onClick={() => setVcAddOpen((v) => !v)}
+                >
+                  <Plus size={14} />
+                  <span>添加</span>
+                </button>
+              </div>
             </div>
-          ) : (
-            assets.map((asset) => (
-              <AssetCard
-                key={asset.id}
-                asset={asset}
-                onDelete={() => handleDelete(asset)}
-                onCopyUri={() => handleCopyUri(asset.uri)}
-                onReference={
-                  referenceHandler
-                    ? () => {
-                        referenceHandler({
-                          id: asset.id,
-                          name: asset.name || asset.id,
-                          uri: asset.uri,
-                          assetType: asset.assetType,
-                          thumbnailUrl: asset.url,
-                        });
-                        // Close the drawer so the chip-in-strip is
-                        // immediately visible without the user having
-                        // to dismiss the overlay manually.
-                        onClose();
-                      }
-                    : undefined
-                }
+
+            {vcAddOpen && (
+              <AddAssetForm
+                onCancel={() => setVcAddOpen(false)}
+                onCreated={(asset) => {
+                  setAssets((prev) => [asset, ...prev]);
+                  setVcAddOpen(false);
+                  toast.success('已提交, 等待处理');
+                }}
               />
-            ))
-          )}
-        </div>
+            )}
+
+            <div style={listScrollStyle}>
+              {vcLoading && assets.length === 0 ? (
+                <div style={emptyStyle}>加载中…</div>
+              ) : assets.length === 0 ? (
+                <div style={emptyStyle}>
+                  暂无素材.
+                  <br />
+                  点 "添加" 用公网 URL 注册图片 / 视频 / 音频.
+                </div>
+              ) : (
+                assets.map((asset) => (
+                  <AssetCard
+                    key={asset.id}
+                    asset={asset}
+                    onDelete={() => handleDeleteVc(asset)}
+                    onCopyUri={() => handleCopyUri(asset.uri)}
+                    onReference={
+                      referenceHandler
+                        ? () => {
+                            referenceHandler({
+                              id: asset.id,
+                              name: asset.name || asset.id,
+                              uri: asset.uri,
+                              assetType: asset.assetType,
+                              thumbnailUrl: asset.url,
+                            });
+                            onClose();
+                          }
+                        : undefined
+                    }
+                  />
+                ))
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={filterRowStyle}>
+              <div style={chipGroupStyle}>
+                {VIDU_TYPE_ORDER.map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    style={chipStyle(viduTypeFilter === type)}
+                    onClick={() => setViduTypeFilter(type)}
+                  >
+                    {VIDU_TYPE_LABELS[type]}
+                  </button>
+                ))}
+              </div>
+              <div style={actionsGroupStyle}>
+                <button
+                  type="button"
+                  style={iconBtnStyle}
+                  onClick={() => void refreshVidu()}
+                  disabled={viduLoading}
+                  title="刷新"
+                >
+                  <RefreshCw size={14} style={{ opacity: viduLoading ? 0.4 : 1 }} />
+                </button>
+                <button
+                  type="button"
+                  style={primaryBtnStyle}
+                  onClick={() => setViduAddOpen((v) => !v)}
+                >
+                  <Plus size={14} />
+                  <span>添加</span>
+                </button>
+              </div>
+            </div>
+
+            {viduAddOpen && (
+              <AddViduAssetForm
+                onCancel={() => setViduAddOpen(false)}
+                onCreated={(asset) => {
+                  setViduAssets((prev) => [asset, ...prev]);
+                  setViduAddOpen(false);
+                  toast.success('资产已添加');
+                }}
+              />
+            )}
+
+            <div style={listScrollStyle}>
+              {viduLoading && viduAssets.length === 0 ? (
+                <div style={emptyStyle}>加载中…</div>
+              ) : viduAssets.length === 0 ? (
+                <div style={emptyStyle}>
+                  暂无 Vidu 资产.
+                  <br />
+                  点 "添加" 创建角色 / 场景 / 道具.
+                </div>
+              ) : (
+                viduAssets.map((asset) => (
+                  <ViduAssetCard
+                    key={asset.id}
+                    asset={asset}
+                    onDelete={() => handleDeleteVidu(asset)}
+                  />
+                ))
+              )}
+            </div>
+          </>
+        )}
       </aside>
     </>,
     document.body,
   );
 };
+
+const tabRowStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: 2,
+  marginTop: 4,
+};
+
+const tabStyle = (active: boolean): React.CSSProperties => ({
+  padding: '3px 10px',
+  fontSize: 11,
+  borderRadius: 4,
+  border: 'none',
+  background: active ? 'rgba(255,255,255,0.10)' : 'transparent',
+  color: active ? '#e8e8ea' : '#777',
+  cursor: 'pointer',
+  fontWeight: active ? 600 : 400,
+});

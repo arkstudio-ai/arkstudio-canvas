@@ -7,6 +7,7 @@ import { DashscopeConfigService } from './dashscope-config.service';
 import { HistoryRetentionService } from './history-retention.service';
 import { OpenaiCompatConfigService } from './openai-compat-config.service';
 import { ProviderConnectivityService } from './provider-connectivity.service';
+import { ViduConfigService } from './vidu-config.service';
 import { VolcengineConfigService } from './volcengine-config.service';
 import { NetworkConfigService } from './network-config.service';
 import { OssConfigService } from './oss-config.service';
@@ -23,6 +24,7 @@ import { StorageModule } from '../storage/storage.module';
     HistoryRetentionService,
     OpenaiCompatConfigService,
     ProviderConnectivityService,
+    ViduConfigService,
     VolcengineConfigService,
     NetworkConfigService,
     OssConfigService,
@@ -32,6 +34,7 @@ import { StorageModule } from '../storage/storage.module';
     DashscopeConfigService,
     HistoryRetentionService,
     OpenaiCompatConfigService,
+    ViduConfigService,
     VolcengineConfigService,
     NetworkConfigService,
     OssConfigService,

@@ -231,6 +231,16 @@
         "apiKeyHint": "Bearer token (use ARK_API_KEY for the official endpoint, proxy key for self-hosted). Encrypted at rest with AES-256-GCM.",
         "ossWarning": "Seedance i2v / r2v also needs Object Storage (OSS / TOS) configured below — without it, locally uploaded images can't be fetched by Volcengine servers and only t2v works.",
         "clearKeyConfirm": "Clear the Volcengine API Key? Every doubao-seedance-* / seedance-* SKU will fail to call."
+      },
+      "vidu": {
+        "label": "Vidu Short Drama (viduq3-ad)",
+        "kindHints": {
+          "video": "Short drama keyframe submit timeout. Polling is managed by ExecutionsService."
+        },
+        "timeoutsHint": "Only the Submit timeout applies (HTTP timeout for posting keyframe tasks to the Vidu API).",
+        "baseUrlHint": "Vidu Enterprise API gateway. Default https://api.vidu.cn. Private proxies with matching path layout slot in too.",
+        "apiKeyHint": "Vidu Enterprise Token. Auth header format: Authorization: Token <key>. Encrypted at rest with AES-256-GCM.",
+        "clearKeyConfirm": "Clear the Vidu API Key? Every vidu-ad* SKU will fail to call."
       }
     },
     "testConnection": {

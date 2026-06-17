@@ -14,6 +14,8 @@ import { UpdateHistorySettingsDto } from './dto/history-settings.dto';
 import { UpdateStorageSettingsDto } from './dto/storage-settings.dto';
 import { UpdateVolcengineSettingsDto } from './dto/volcengine-settings.dto';
 import { VolcengineConfigService } from './volcengine-config.service';
+import { UpdateViduSettingsDto } from './dto/vidu-settings.dto';
+import { ViduConfigService } from './vidu-config.service';
 import { UpdateNetworkSettingsDto } from './dto/network-settings.dto';
 import { NetworkConfigService } from './network-config.service';
 import { UpdateOssSettingsDto } from './dto/oss-settings.dto';
@@ -29,6 +31,7 @@ export class CanvasConfigController {
     private providerConnectivity: ProviderConnectivityService,
     private localStorage: LocalStorageService,
     private volcengineConfig: VolcengineConfigService,
+    private viduConfig: ViduConfigService,
     private networkConfig: NetworkConfigService,
     private ossConfig: OssConfigService,
   ) {}
@@ -186,6 +189,27 @@ export class CanvasConfigController {
   async updateVolcengineSettings(@Body() dto: UpdateVolcengineSettingsDto) {
     await this.volcengineConfig.updateSettings(dto);
     return this.volcengineConfig.getViewPayload();
+  }
+
+  /**
+   * GET /api/canvas-flow/vidu-settings
+   * View-only payload for the admin Vidu 短剧 (viduq3-ad) 设置面板.
+   * 同 dashscope/openai/volcengine 一样脱敏 apiKey.
+   */
+  @Get('vidu-settings')
+  async getViduSettings() {
+    return this.viduConfig.getViewPayload();
+  }
+
+  /**
+   * PUT /api/canvas-flow/vidu-settings
+   * Admin 更新 base URL / API key / submit timeout.
+   * 详见 UpdateViduSettingsDto 的 empty-string=clear 语义。
+   */
+  @Put('vidu-settings')
+  async updateViduSettings(@Body() dto: UpdateViduSettingsDto) {
+    await this.viduConfig.updateSettings(dto);
+    return this.viduConfig.getViewPayload();
   }
 
   /**

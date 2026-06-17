@@ -6,6 +6,7 @@ import { DashScopeAudioProvider } from './dashscope-audio.provider';
 import { OpenAICompatChatProvider } from './openai-compat-chat.provider';
 import { OpenAICompatImageProvider } from './openai-compat-image.provider';
 import { VolcengineVideoProvider } from './volcengine-video.provider';
+import { ViduAdProvider } from './vidu-ad.provider';
 import type { ProviderClient } from './provider.types';
 
 /**
@@ -20,6 +21,7 @@ import type { ProviderClient } from './provider.types';
  *   - `wan2.6*` / `wan2.7*` (non-image) / `happyhorse*`   → DashScope video
  *   - `speech-*` / `fun-music*`                           → DashScope audio
  *   - `doubao-seedance-*` / `seedance-*`                  → Volcengine 火山方舟 Seedance video
+ *   - `vidu-ad*`                                          → Vidu viduq3-ad short drama
  *   - `openai-chat/*`                                     → OpenAI-compat chat
  *   - `openai-image/*`                                    → OpenAI-compat image
  *
@@ -38,6 +40,7 @@ export class ProviderRegistry {
     dashscopeChat: DashScopeChatProvider,
     dashscopeAudio: DashScopeAudioProvider,
     volcengineVideo: VolcengineVideoProvider,
+    viduAd: ViduAdProvider,
     openaiChat: OpenAICompatChatProvider,
     openaiImage: OpenAICompatImageProvider,
   ) {
@@ -55,6 +58,7 @@ export class ProviderRegistry {
       dashscopeChat,
       dashscopeAudio,
       volcengineVideo,
+      viduAd,
       openaiChat,
       openaiImage,
     ];
@@ -76,6 +80,7 @@ export class ProviderRegistry {
         `wan2.7-image* (DashScope 万相图像) · wan2.7-* / wan2.6-* / happyhorse* (DashScope 视频) · ` +
         `qwen-* / deepseek* / glm* (DashScope 文本) · speech-* / fun-music* (DashScope 音频) · ` +
         `doubao-seedance-* / seedance-* (Volcengine 火山方舟 Seedance) · ` +
+        `vidu-ad* (Vidu 短剧成片) · ` +
         `openai-chat/* · openai-image/* (OpenAI 兼容).`,
       400,
     );

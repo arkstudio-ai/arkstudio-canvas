@@ -8,10 +8,12 @@ import { DashScopeAudioProvider } from './dashscope-audio.provider';
 import { OpenAICompatChatProvider } from './openai-compat-chat.provider';
 import { OpenAICompatImageProvider } from './openai-compat-image.provider';
 import { VolcengineVideoProvider } from './volcengine-video.provider';
+import { ViduAdProvider } from './vidu-ad.provider';
 import { ProviderRegistry } from './provider-registry.service';
 import { CanvasConfigModule } from '../canvas-config/canvas-config.module';
 import { UploadModule } from '../upload/upload.module';
 import { VolcengineAssetModule } from '../volcengine-asset/volcengine-asset.module';
+import { ViduAssetModule } from '../vidu-asset/vidu-asset.module';
 // StorageModule provides LocalStorageService — openai-compat-image's
 // i2i path persists gpt-image-* b64_json responses to /static/uploads.
 import { StorageModule } from '../storage/storage.module';
@@ -42,6 +44,7 @@ import { StorageModule } from '../storage/storage.module';
     CanvasConfigModule,
     UploadModule,
     VolcengineAssetModule,
+    ViduAssetModule,
     StorageModule,
   ],
   providers: [
@@ -50,6 +53,7 @@ import { StorageModule } from '../storage/storage.module';
     DashScopeChatProvider,
     DashScopeAudioProvider,
     VolcengineVideoProvider,
+    ViduAdProvider,
     OpenAICompatChatProvider,
     OpenAICompatImageProvider,
     ProviderRegistry,

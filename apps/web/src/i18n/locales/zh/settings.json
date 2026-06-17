@@ -231,6 +231,16 @@
         "apiKeyHint": "Bearer Token（官方填 ARK_API_KEY；私有代理填代理 key）。落库前 AES-256-GCM 加密。",
         "ossWarning": "Seedance 视频 i2v / r2v 模式还需要在下方配置「对象存储 (OSS / TOS)」，否则本地上传的图片无法被火山服务器拉到，只能跑 t2v。",
         "clearKeyConfirm": "确认清除 Volcengine API Key？清除后所有 doubao-seedance-* / seedance-* SKU 都会调用失败。"
+      },
+      "vidu": {
+        "label": "Vidu 短剧 (viduq3-ad)",
+        "kindHints": {
+          "video": "短剧关键帧 submit 超时。Polling 由 ExecutionsService 管理，此处不涉及。"
+        },
+        "timeoutsHint": "仅 Submit 超时生效（提交短剧关键帧任务到 Vidu API 的 HTTP 超时）。",
+        "baseUrlHint": "Vidu 企业版 API 网关。默认 https://api.vidu.cn。自建代理路径布局一致即可切换。",
+        "apiKeyHint": "Vidu 企业版 Token。Auth header 格式: Authorization: Token <key>。落库前 AES-256-GCM 加密。",
+        "clearKeyConfirm": "确认清除 Vidu API Key？清除后所有 vidu-ad* SKU 都会调用失败。"
       }
     },
     "testConnection": {

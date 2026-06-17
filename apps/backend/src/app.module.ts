@@ -13,6 +13,7 @@ import { AdminModule } from './admin/admin.module';
 import { VoicesModule } from './voices/voices.module';
 import { GenerationHistoryModule } from './generation-history/generation-history.module';
 import { VolcengineAssetModule } from './volcengine-asset/volcengine-asset.module';
+import { ViduAssetModule } from './vidu-asset/vidu-asset.module';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
@@ -32,6 +33,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     VoicesModule,
     GenerationHistoryModule,
     VolcengineAssetModule,
+    ViduAssetModule,
   ],
   controllers: [AppController],
   providers: [

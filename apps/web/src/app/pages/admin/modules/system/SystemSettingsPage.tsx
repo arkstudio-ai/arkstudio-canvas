@@ -22,6 +22,8 @@ import {
   getOpenaiSettings,
   getVolcengineSettings,
   updateVolcengineSettings,
+  getViduSettings,
+  updateViduSettings,
   getProviderSettings,
   getStorageSettings,
   pruneHistory,
@@ -726,7 +728,7 @@ const StatusCard: React.FC<{
 // 未来加字节/谷歌：在 PROVIDER_CARDS 数组里加一项即可，UI 自动多一个 tab。
 
 interface ProviderCard {
-  id: 'dashscope' | 'openai' | 'volcengine';
+  id: 'dashscope' | 'openai' | 'volcengine' | 'vidu';
   /** i18n key for the human-readable provider label (tab + status card). */
   labelKey: string;
   defaultBaseUrl: string;
@@ -830,6 +832,55 @@ const PROVIDER_CARDS: ProviderCard[] = [
     save: updateVolcengineSettings,
     clearKeyConfirmKey: 'settings:system.providers.volcengine.clearKeyConfirm',
   },
+  {
+    id: 'vidu',
+    labelKey: 'settings:system.providers.vidu.label',
+    defaultBaseUrl: 'https://api.vidu.cn',
+    scopeChips: [
+      { sku: 'vidu-ad*', modality: 'video' },
+    ],
+    timeoutKinds: [
+      { kind: 'video', label: 'Submit', hintKey: 'settings:system.providers.vidu.kindHints.video' },
+    ],
+    timeoutsHintKey: 'settings:system.providers.vidu.timeoutsHint',
+    baseUrlHintKey: 'settings:system.providers.vidu.baseUrlHint',
+    apiKeyHintKey: 'settings:system.providers.vidu.apiKeyHint',
+    load: async (): Promise<ProviderConfigView> => {
+      const v = await getViduSettings();
+      return {
+        baseUrl: v.baseUrl,
+        baseUrlConfigured: v.baseUrlConfigured,
+        apiKeyMask: v.apiKeyMask,
+        apiKeyConfigured: v.apiKeyConfigured,
+        timeouts: {
+          chat: { value: 0, default: 0, configured: false },
+          image: { value: 0, default: 0, configured: false },
+          video: v.timeout,
+          audio: { value: 0, default: 0, configured: false },
+        },
+      };
+    },
+    save: async (patch: ProviderConfigPatch): Promise<ProviderConfigView> => {
+      const v = await updateViduSettings({
+        baseUrl: patch.baseUrl,
+        apiKey: patch.apiKey,
+        timeoutSec: patch.timeouts?.video,
+      });
+      return {
+        baseUrl: v.baseUrl,
+        baseUrlConfigured: v.baseUrlConfigured,
+        apiKeyMask: v.apiKeyMask,
+        apiKeyConfigured: v.apiKeyConfigured,
+        timeouts: {
+          chat: { value: 0, default: 0, configured: false },
+          image: { value: 0, default: 0, configured: false },
+          video: v.timeout,
+          audio: { value: 0, default: 0, configured: false },
+        },
+      };
+    },
+    clearKeyConfirmKey: 'settings:system.providers.vidu.clearKeyConfirm',
+  },
 ];
 
 const ProvidersSection: React.FC = () => {
@@ -840,6 +891,7 @@ const ProvidersSection: React.FC = () => {
     dashscope: null,
     openai: null,
     volcengine: null,
+    vidu: null,
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -847,16 +899,19 @@ const ProvidersSection: React.FC = () => {
     dashscope: '',
     openai: '',
     volcengine: '',
+    vidu: '',
   });
   const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<ProviderCard['id'], string>>({
     dashscope: '',
     openai: '',
     volcengine: '',
+    vidu: '',
   });
   const [showKey, setShowKey] = useState<Record<ProviderCard['id'], boolean>>({
     dashscope: false,
     openai: false,
     volcengine: false,
+    vidu: false,
   });
 
   const loadAll = async () => {
@@ -1131,7 +1186,7 @@ const ProviderTabBody: React.FC<{
             "我刚改了 key 想验一下"或"配错了不知道为啥不通"的两类操作绑在一起.
             Volcengine 暂未接 ProviderConnectivityService 的 testVolcengine
             endpoint, 隐藏按钮 — 等 Slice 3 (asset 后端) 起来一起补. */}
-        {card.id !== 'volcengine' && (
+        {(card.id === 'dashscope' || card.id === 'openai') && (
           <div style={fieldRowStyle}>
             <span style={fieldLabelStyle}>{t('settings:system.testConnection.label')}</span>
             <TestConnectionButton

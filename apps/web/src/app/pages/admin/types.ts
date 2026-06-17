@@ -306,6 +306,25 @@ export interface VolcengineSettingsUpdate {
   timeouts?: Partial<Record<VolcengineKind, number>>;
 }
 
+// ---- Vidu 短剧 (viduq3-ad) -------------------------------------------------
+//
+// Single-timeout provider (submit HTTP timeout only). The admin UI normalizes
+// this into the shared ProviderConfigView shape with a single `video` kind.
+
+export interface ViduSettingsView {
+  baseUrl: string;
+  baseUrlConfigured: boolean;
+  apiKeyMask: string | null;
+  apiKeyConfigured: boolean;
+  timeout: { value: number; default: number; configured: boolean };
+}
+
+export interface ViduSettingsUpdate {
+  baseUrl?: string;
+  apiKey?: string;
+  timeoutSec?: number;
+}
+
 // ---- Network (proxy) -------------------------------------------------------
 //
 // Centralised proxy config so users don't need to wrangle shell env vars.

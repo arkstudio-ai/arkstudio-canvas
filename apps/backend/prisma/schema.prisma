@@ -382,6 +382,34 @@ model Voice {
 }
 
 // ============================================================
+// Vidu asset library (local DB, separate from Volcengine assets)
+// ============================================================
+//
+// Vidu short-drama generation requires persistent "assets" (characters,
+// scenes, props) with reference images. Unlike Volcengine assets which
+// live on the upstream API, Vidu assets are stored locally so they can
+// be reused across multiple dramas without re-uploading.
+//
+// `type` is one of: character (角色), scene (场景), tool (道具).
+// `imageUrl` is the stored image URL (TOS/OSS/local) — the provider
+// stages it to a public URL before submitting to the Vidu API.
+
+model ViduAsset {
+  id          String   @id @default(uuid())
+  type        String   // character | scene | tool
+  name        String
+  description String?
+  imageUrl    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+  @@index([createdAt])
+  @@map("vidu_assets")
+}
+
+// ============================================================
 // Generation history (open-source: no user ownership)
 // ============================================================
 //

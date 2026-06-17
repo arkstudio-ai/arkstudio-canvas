@@ -22,6 +22,8 @@ import type {
   UsageOverview,
   VolcengineSettingsView,
   VolcengineSettingsUpdate,
+  ViduSettingsView,
+  ViduSettingsUpdate,
   NetworkSettingsView,
   NetworkSettingsUpdate,
   OssSettingsView,
@@ -222,6 +224,21 @@ export function updateVolcengineSettings(
       body: JSON.stringify(patch),
     },
   );
+}
+
+// ---- Vidu 短剧 (viduq3-ad) -------------------------------------------------
+
+export function getViduSettings(): Promise<ViduSettingsView> {
+  return adminFetch<ViduSettingsView>('/api/canvas-flow/vidu-settings');
+}
+
+export function updateViduSettings(
+  patch: ViduSettingsUpdate,
+): Promise<ViduSettingsView> {
+  return adminFetch<ViduSettingsView>('/api/canvas-flow/vidu-settings', {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
 }
 
 // ---- Network (proxy) -------------------------------------------------------
