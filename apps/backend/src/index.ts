@@ -28,6 +28,7 @@ export { AdminModule } from './admin/admin.module';
 export { VoicesModule } from './voices/voices.module';
 export { GenerationHistoryModule } from './generation-history/generation-history.module';
 export { VolcengineAssetModule } from './volcengine-asset/volcengine-asset.module';
+export { ViduAssetModule } from './vidu-asset/vidu-asset.module';
 
 // ── Infrastructure modules ───────────────────────────────────────────────
 export { PrismaModule, type PrismaForRootOptions } from './prisma/prisma.module';
